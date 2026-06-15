@@ -8,6 +8,7 @@
     "dev:frontend": "pnpm --filter @athlon/frontend dev",
     "dev:backend": "pnpm --filter @athlon/backend dev",
     "build": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
+    "build:vercel": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
     "test:db": "pnpm --filter @athlon/backend test:db"
   },
   "devDependencies": {

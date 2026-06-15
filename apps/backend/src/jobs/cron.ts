@@ -1,7 +1,10 @@
 import cron from "node-cron";
 import { supabase } from "../config/supabase.js";
 import { relOne } from "../lib/db.js";
-import { marcarAtrasados, gerarMensalidadesParaTurma } from "../modules/mensalidades/mensalidades.service.js";
+import {
+  marcarAtrasados,
+  gerarMensalidadesParaTurma,
+} from "../modules/mensalidades/mensalidades.service.js";
 import { sincronizarBloqueiosInadimplencia } from "../lib/inadimplencia.js";
 import {
   criarNotificacao,
@@ -36,7 +39,6 @@ async function notificarNovasMensalidades() {
 }
 
 async function notificarAtrasos() {
-  const hoje = new Date();
   const { data: pagamentos } = await supabase
     .from("Pagamento")
     .select("aluno_id, turma_id, status, mes_referencia, vencimento, Turma(nome)")
@@ -56,29 +58,41 @@ async function notificarAtrasos() {
   }
 }
 
+export async function runAvisosJob() {
+  await processarAvisosAgendados();
+}
+
+export async function runDiarioJob() {
+  console.log("[cron] Marcando mensalidades atrasadas...");
+  await marcarAtrasados();
+  await sincronizarBloqueiosInadimplencia();
+  await notificarAtrasos();
+}
+
+export async function runMensalJob() {
+  console.log("[cron] Gerando mensalidades do mês...");
+  const { data: turmas } = await supabase
+    .from("Turma")
+    .select("id")
+    .not("mensalidade_centavos", "is", null);
+
+  for (const turma of turmas ?? []) {
+    await gerarMensalidadesParaTurma(turma.id, 1);
+  }
+  await notificarNovasMensalidades();
+  await sincronizarBloqueiosInadimplencia();
+}
+
 export function startCronJobs() {
-  cron.schedule("0 * * * *", async () => {
-    await processarAvisosAgendados();
+  cron.schedule("0 * * * *", () => {
+    void runAvisosJob();
   });
 
-  cron.schedule("0 6 * * *", async () => {
-    console.log("[cron] Marcando mensalidades atrasadas...");
-    await marcarAtrasados();
-    await sincronizarBloqueiosInadimplencia();
-    await notificarAtrasos();
+  cron.schedule("0 6 * * *", () => {
+    void runDiarioJob();
   });
 
-  cron.schedule("0 7 1 * *", async () => {
-    console.log("[cron] Gerando mensalidades do mês...");
-    const { data: turmas } = await supabase
-      .from("Turma")
-      .select("id")
-      .not("mensalidade_centavos", "is", null);
-
-    for (const turma of turmas ?? []) {
-      await gerarMensalidadesParaTurma(turma.id, 1);
-    }
-    await notificarNovasMensalidades();
-    await sincronizarBloqueiosInadimplencia();
+  cron.schedule("0 7 1 * *", () => {
+    void runMensalJob();
   });
 }

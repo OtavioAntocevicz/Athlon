@@ -17,4 +17,5 @@ export const env = {
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:suporte@athlon.app",
+  cronSecret: process.env.CRON_SECRET ?? null,
 };
