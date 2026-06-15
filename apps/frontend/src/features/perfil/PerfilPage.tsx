@@ -207,7 +207,7 @@ export function PerfilPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Chave PIX</p>
-                  <p className="font-medium">{me.chavePix ?? "—"}</p>
+                  <p className="font-medium">{me.chavePix ?? "-"}</p>
                 </div>
               </>
             ) : me.aluno ? (
@@ -221,12 +221,12 @@ export function PerfilPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">WhatsApp</p>
                   <p className="font-medium">
-                    {me.aluno.telefone ? maskWhatsApp(me.aluno.telefone) : "—"}
+                    {me.aluno.telefone ? maskWhatsApp(me.aluno.telefone) : "-"}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">RG</p>
-                  <p className="font-medium">{me.aluno.rg ? maskRg(me.aluno.rg) : "—"}</p>
+                  <p className="font-medium">{me.aluno.rg ? maskRg(me.aluno.rg) : "-"}</p>
                 </div>
                 {me.aluno.cpf && (
                   <div>

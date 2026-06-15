@@ -1,4 +1,4 @@
--- ATHLON — schema completo (banco novo)
+-- ATHLON - schema completo (banco novo)
 -- Aplique no SQL Editor do Supabase ou via Supabase CLI.
 -- Bancos já em produção foram migrados incrementalmente; não reaplique em banco com dados.
 

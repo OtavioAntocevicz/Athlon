@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "pnpm --filter @athlon/shared-types build && tsc",
     "start": "node dist/server.js",
     "test:db": "tsx scripts/test-db.ts",
     "generate-vapid-keys": "tsx scripts/generate-vapid-keys.ts"

@@ -55,7 +55,7 @@ export function ComprovantesFilaPage() {
               <div className="flex-1">
                 <p className="font-semibold text-primary">{item.alunoNome}</p>
                 <p className="text-xs text-muted-foreground">
-                  {item.turmaNome} — {formatMes(item.mesReferencia)}
+                  {item.turmaNome} - {formatMes(item.mesReferencia)}
                 </p>
               </div>
               <p className="font-bold text-primary">{formatCurrency(item.valorCentavos)}</p>

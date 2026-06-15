@@ -62,7 +62,7 @@ export function NovaTurmaPage() {
 
       <h1 className="mb-2 text-2xl font-bold text-primary">Nova Turma</h1>
       <p className="mb-6 text-sm text-muted-foreground">
-        A chave PIX vem do seu cadastro — altere aqui se esta turma usar outra conta.
+        A chave PIX vem do seu cadastro - altere aqui se esta turma usar outra conta.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

@@ -7,7 +7,7 @@ export function PoliticaPrivacidadePage() {
         <p>
           Esta Política de Privacidade descreve como o Athlon coleta, utiliza, armazena e protege
           os dados pessoais dos usuários, em conformidade com a Lei Geral de Proteção de Dados
-          (LGPD — Lei nº 13.709/2018).
+          (LGPD - Lei nº 13.709/2018).
         </p>
       </LegalSection>
 

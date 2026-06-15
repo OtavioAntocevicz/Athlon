@@ -119,7 +119,7 @@ export function TurmaAlunoDetailPage() {
               <p className="text-xs text-muted-foreground">Horário</p>
               <p className="text-sm font-medium">
                 {turma.horarioInicio}
-                {turma.horarioFim ? ` – ${turma.horarioFim}` : ""}
+                {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
               </p>
             </div>
           </div>
@@ -207,8 +207,8 @@ export function TurmaAlunoDetailPage() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-primary">{a.nome}</p>
               <p className="text-xs text-muted-foreground">
-                Camisa {a.numeroCamisa != null ? `#${a.numeroCamisa}` : "—"} ·{" "}
-                {a.posicao ?? "—"}
+                Camisa {a.numeroCamisa != null ? `#${a.numeroCamisa}` : "-"} ·{" "}
+                {a.posicao ?? "-"}
               </p>
             </div>
           </Card>

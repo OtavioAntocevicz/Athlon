@@ -134,8 +134,8 @@ export function AlunoDetailPage() {
                 <div>
                   <p className="font-semibold text-primary">{t.nome}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Camisa {t.numeroCamisa != null ? `#${t.numeroCamisa}` : "—"} · Posição{" "}
-                    {t.posicao ?? "—"}
+                    Camisa {t.numeroCamisa != null ? `#${t.numeroCamisa}` : "-"} · Posição{" "}
+                    {t.posicao ?? "-"}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">

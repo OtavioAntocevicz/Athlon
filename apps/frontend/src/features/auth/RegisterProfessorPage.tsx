@@ -51,7 +51,7 @@ export function RegisterProfessorPage() {
 
       <h1 className="text-2xl font-bold text-primary">Criar conta de Treinador</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        A chave PIX cadastrada aqui será usada ao criar turmas — você pode alterá-la depois.
+        A chave PIX cadastrada aqui será usada ao criar turmas - você pode alterá-la depois.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">

@@ -338,7 +338,7 @@ export function TurmaDetailPage() {
                 </p>
                 <p className="font-medium text-primary">
                   {turma.horarioInicio}
-                  {turma.horarioFim ? ` – ${turma.horarioFim}` : ""}
+                  {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
                 </p>
               </div>
             )}
@@ -392,8 +392,8 @@ export function TurmaDetailPage() {
       <div className="space-y-2">
         {alunos?.map((a) => {
           const nomeCompleto = [a.nome, a.sobrenome].filter(Boolean).join(" ");
-          const camisa = a.numeroCamisa != null ? `#${a.numeroCamisa}` : "—";
-          const posicao = a.posicao ?? "—";
+          const camisa = a.numeroCamisa != null ? `#${a.numeroCamisa}` : "-";
+          const posicao = a.posicao ?? "-";
 
           return (
             <Card key={a.id} className="flex items-center gap-3 p-3">

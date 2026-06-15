@@ -12,10 +12,10 @@ Plataforma mobile-first de gestão esportiva para treinadores e alunos.
 ## Estrutura
 
 ```
-apps/frontend         — PWA React
-apps/backend          — API REST Express
-apps/backend/supabase/migrations — schema SQL do banco
-packages/shared-types — Zod schemas e tipos compartilhados
+apps/frontend         - PWA React
+apps/backend          - API REST Express
+apps/backend/supabase/migrations - schema SQL do banco
+packages/shared-types - Zod schemas e tipos compartilhados
 ```
 
 ## Configuração
@@ -25,11 +25,11 @@ packages/shared-types — Zod schemas e tipos compartilhados
 2. Cole em `apps/backend/.env`:
    - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`
    - `JWT_SECRET` / `JWT_REFRESH_SECRET`
-   - `VAPID_*` (opcional, para Web Push — rode `pnpm --filter @athlon/backend generate-vapid-keys`)
+   - `VAPID_*` (opcional, para Web Push - rode `pnpm --filter @athlon/backend generate-vapid-keys`)
 
    Teste a conexão: `pnpm test:db`
 
-3. Instale dependências (**use `pnpm`, não `npm`** — este projeto é monorepo):
+3. Instale dependências (**use `pnpm`, não `npm`** - este projeto é monorepo):
 
 ```bash
 pnpm install
@@ -40,10 +40,10 @@ pnpm install
 ## Desenvolvimento
 
 ```bash
-# Terminal 1 — API
+# Terminal 1 - API
 pnpm dev:backend
 
-# Terminal 2 — Frontend
+# Terminal 2 - Frontend
 pnpm dev:frontend
 ```
 
@@ -65,7 +65,7 @@ pnpm dev:frontend
 | `pnpm build` | Build de produção |
 | `pnpm test:db` | Testa conexão com Supabase |
 
-Não use `npm install` neste repo — só `pnpm`.
+Não use `npm install` neste repo - só `pnpm`.
 
 ## Licença
 

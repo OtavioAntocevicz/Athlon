@@ -61,7 +61,7 @@ export function TurmasAlunoPage() {
               <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 {t.horarioInicio}
-                {t.horarioFim ? ` – ${t.horarioFim}` : ""}
+                {t.horarioFim ? ` - ${t.horarioFim}` : ""}
               </p>
             )}
             {t.local && (
@@ -72,8 +72,8 @@ export function TurmasAlunoPage() {
             <p className="mt-2 text-sm font-medium">{formatCurrency(t.mensalidadeCentavos)}/mês</p>
             {(t.numeroCamisa != null || t.posicao) && (
               <p className="mt-1 text-xs text-accent">
-                Camisa {t.numeroCamisa != null ? `#${t.numeroCamisa}` : "—"} ·{" "}
-                {t.posicao ?? "—"}
+                Camisa {t.numeroCamisa != null ? `#${t.numeroCamisa}` : "-"} ·{" "}
+                {t.posicao ?? "-"}
               </p>
             )}
           </Card>

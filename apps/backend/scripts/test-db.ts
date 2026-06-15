@@ -8,7 +8,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("OK — Supabase conectado via HTTPS. Registros:", data?.length ?? 0);
+  console.log("OK - Supabase conectado via HTTPS. Registros:", data?.length ?? 0);
 }
 
 main();

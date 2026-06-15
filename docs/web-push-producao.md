@@ -1,4 +1,4 @@
-# Web Push em Produção — ATHLON
+# Web Push em Produção - ATHLON
 
 Este guia explica como ativar notificações push (barra do sistema / PWA) no ambiente de produção.
 

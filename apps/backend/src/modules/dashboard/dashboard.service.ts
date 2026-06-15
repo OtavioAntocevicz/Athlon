@@ -112,7 +112,7 @@ export async function dashboardProfessor(professorId: string) {
       id: c.id,
       tipo: "COMPROVANTE",
       titulo: `${aluno?.nome ?? "Aluno"} enviou comprovante`,
-      descricao: `${turma?.nome ?? "Turma"} — ${mesLabel}`,
+      descricao: `${turma?.nome ?? "Turma"} - ${mesLabel}`,
       criadoEm: new Date(c.enviado_em).toISOString(),
     };
   });

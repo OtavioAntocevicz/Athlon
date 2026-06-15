@@ -1,4 +1,4 @@
-# Melhorias pendentes — ATHLON
+# Melhorias pendentes - ATHLON
 
 Itens fora do escopo do MVP atual, organizados por prioridade.
 
@@ -34,4 +34,4 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 ### Bloqueio do aluno
 
 - Hoje o bloqueio por inadimplência restringe turmas e mantém acesso a home, mensalidades e perfil.
-- Melhoria opcional: bloqueio mais rígido — redirecionar o aluno direto para mensalidades em atraso e ocultar home/perfil até regularizar.
+- Melhoria opcional: bloqueio mais rígido - redirecionar o aluno direto para mensalidades em atraso e ocultar home/perfil até regularizar.

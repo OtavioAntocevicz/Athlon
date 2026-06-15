@@ -104,7 +104,7 @@ export function EntrarTurmaModal({ open, onClose, onSuccess }: EntrarTurmaModalP
             {preview.horarioInicio && (
               <p className="text-sm text-muted-foreground">
                 Horário: {preview.horarioInicio}
-                {preview.horarioFim ? ` – ${preview.horarioFim}` : ""}
+                {preview.horarioFim ? ` - ${preview.horarioFim}` : ""}
               </p>
             )}
             <p className="text-sm font-medium">

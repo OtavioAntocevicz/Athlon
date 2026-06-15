@@ -36,7 +36,7 @@ interface DashboardAluno {
 const STATUS_MSG: Partial<Record<StatusMensalidade, string>> = {
   PENDENTE: "Aguardando pagamento até o vencimento.",
   ATRASADO: "Pagamento em atraso. Regularize o quanto antes.",
-  EM_ANALISE: "Comprovante enviado — aguardando aprovação do treinador.",
+  EM_ANALISE: "Comprovante enviado - aguardando aprovação do treinador.",
   RECUSADO: "Comprovante recusado. Envie um novo comprovante.",
   PAGO: "Mensalidade quitada neste período.",
 };
@@ -155,7 +155,7 @@ export function DashboardAlunoPage() {
                 <p className="text-xs text-muted-foreground">{t.modalidade}</p>
                 {t.horarioInicio && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {t.horarioInicio} — {t.local}
+                    {t.horarioInicio} - {t.local}
                   </p>
                 )}
               </Card>
