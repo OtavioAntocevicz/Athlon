@@ -11,6 +11,10 @@
     "build:vercel": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
     "test:db": "pnpm --filter @athlon/backend test:db"
   },
+  "dependencies": {
+    "@athlon/backend": "workspace:*",
+    "@athlon/shared-types": "workspace:*"
+  },
   "devDependencies": {
     "typescript": "^5.7.3"
   },

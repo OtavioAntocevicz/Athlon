@@ -3,7 +3,7 @@
   "outputDirectory": "apps/frontend/dist",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "apps/backend/dist/**",
+      "includeFiles": "{apps/backend/dist/**,packages/shared-types/dist/**}",
       "maxDuration": 60
     }
   },

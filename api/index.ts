@@ -1,21 +1,38 @@
 import type { Request, Response } from "express";
 
-let app: ((req: Request, res: Response) => void) | null = null;
-let loadError: string | null = null;
+type ExpressApp = (req: Request, res: Response) => void;
 
-try {
-  const mod = await import("../apps/backend/dist/app.js");
-  app = mod.default;
-} catch (err) {
-  console.error("[api] Falha ao carregar o backend:", err);
-  loadError =
-    err instanceof Error && err.message.includes("Missing env")
-      ? "API não configurada. Defina as variáveis de ambiente na Vercel (JWT_SECRET, SUPABASE_URL, etc.)."
-      : "API indisponível. Verifique o deploy do backend.";
+let app: ExpressApp | null = null;
+let loadError: string | null = null;
+let loading: Promise<void> | null = null;
+
+async function loadApp(): Promise<ExpressApp | null> {
+  if (app) return app;
+  if (loadError) return null;
+
+  if (!loading) {
+    loading = (async () => {
+      try {
+        const mod = await import("../apps/backend/dist/app.js");
+        app = mod.default;
+      } catch (err) {
+        console.error("[api] Falha ao carregar o backend:", err);
+        loadError =
+          err instanceof Error && err.message.includes("Missing env")
+            ? "API não configurada. Defina JWT_SECRET, JWT_REFRESH_SECRET, SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY na Vercel."
+            : "API indisponível. Verifique os logs do deploy na Vercel.";
+      }
+    })();
+  }
+
+  await loading;
+  return app;
 }
 
-export default function handler(req: Request, res: Response) {
-  if (!app) {
+export default async function handler(req: Request, res: Response) {
+  const expressApp = await loadApp();
+
+  if (!expressApp) {
     return res.status(503).json({
       error: {
         code: "API_UNAVAILABLE",
@@ -23,5 +40,6 @@ export default function handler(req: Request, res: Response) {
       },
     });
   }
-  return app(req, res);
+
+  return expressApp(req, res);
 }
