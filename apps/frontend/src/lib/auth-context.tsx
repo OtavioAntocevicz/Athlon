@@ -26,7 +26,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("athlon_user");
     const token = localStorage.getItem("athlon_token");
     if (stored && token) {
-      setUser(JSON.parse(stored));
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        clearTokens();
+        setIsLoading(false);
+        return;
+      }
       api<AuthUser>("/auth/me")
         .then(setUser)
         .catch(() => {

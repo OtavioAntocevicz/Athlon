@@ -18,6 +18,15 @@ import { cronRouter } from "./modules/cron/cron.routes.js";
 
 const app = express();
 
+// Na Vercel o invoke path pode vir separado da URL interna do Express.
+app.use((req, _res, next) => {
+  const invokePath = req.headers["x-vercel-invoke-path"];
+  if (typeof invokePath === "string" && invokePath.startsWith("/api")) {
+    req.url = invokePath;
+  }
+  next();
+});
+
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());

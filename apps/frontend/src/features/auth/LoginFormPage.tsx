@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginInput, type AuthTokens } from "@athlon/shared-types";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Logo } from "@/components/layout/Logo";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
       login(tokens);
       navigate("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao entrar");
+      setError(getErrorMessage(e, "Erro ao entrar"));
     }
   };
 

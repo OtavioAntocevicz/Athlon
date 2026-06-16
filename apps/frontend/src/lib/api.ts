@@ -15,6 +15,19 @@ export function clearTokens() {
   localStorage.removeItem("athlon_user");
 }
 
+export function getErrorMessage(error: unknown, fallback = "Erro na requisição"): string {
+  if (!(error instanceof Error)) return fallback;
+  const msg = error.message;
+  if (
+    msg.includes("JSON.parse") ||
+    msg.includes("Unexpected token") ||
+    msg.includes("unexpected character")
+  ) {
+    return "Não foi possível conectar à API. Verifique se o servidor está no ar e as variáveis de ambiente na Vercel.";
+  }
+  return msg || fallback;
+}
+
 function isPublicAuthPath(path: string): boolean {
   return (
     path.startsWith("/auth/login") ||
@@ -23,35 +36,43 @@ function isPublicAuthPath(path: string): boolean {
   );
 }
 
-async function parseErrorMessage(res: Response): Promise<string> {
-  const contentType = res.headers.get("content-type") ?? "";
-
-  if (!contentType.includes("application/json")) {
-    if (res.status >= 500) {
-      return "Servidor indisponível. Tente novamente em instantes.";
-    }
-    if (res.status === 404) {
-      return "Serviço não encontrado. Verifique a configuração da API.";
-    }
-    return "Não foi possível conectar ao servidor. Tente novamente.";
-  }
+async function readJsonBody(res: Response): Promise<unknown | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
 
   try {
-    const json = (await res.json()) as {
-      error?: { message?: string };
-      message?: string;
-    };
-    if (typeof json.error?.message === "string" && json.error.message.trim()) {
-      return json.error.message;
-    }
-    if (typeof json.message === "string" && json.message.trim()) {
-      return json.message;
-    }
+    return JSON.parse(text) as unknown;
   } catch {
-    return "Resposta inválida do servidor. Tente novamente.";
+    return null;
+  }
+}
+
+function messageFromJson(json: unknown, fallback: string): string {
+  if (!json || typeof json !== "object") return fallback;
+
+  const body = json as { error?: { message?: string }; message?: string };
+  if (typeof body.error?.message === "string" && body.error.message.trim()) {
+    return body.error.message;
+  }
+  if (typeof body.message === "string" && body.message.trim()) {
+    return body.message;
+  }
+  return fallback;
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  const json = await readJsonBody(res);
+  if (json) {
+    return messageFromJson(json, "Erro na requisição");
   }
 
-  return "Erro na requisição";
+  if (res.status >= 500) {
+    return "Servidor indisponível. Tente novamente em instantes.";
+  }
+  if (res.status === 404) {
+    return "Serviço não encontrado. Verifique a configuração da API.";
+  }
+  return "Não foi possível conectar ao servidor. Tente novamente.";
 }
 
 export async function api<T>(
@@ -82,11 +103,11 @@ export async function api<T>(
           body: JSON.stringify({ refreshToken: refresh }),
         });
         if (refreshRes.ok) {
-          const refreshJson = (await refreshRes.json()) as {
-            data?: { accessToken: string; refreshToken: string };
-          };
-          if (refreshJson.data) {
-            setTokens(refreshJson.data.accessToken, refreshJson.data.refreshToken);
+          const refreshJson = await readJsonBody(refreshRes);
+          const data = (refreshJson as { data?: { accessToken: string; refreshToken: string } })
+            ?.data;
+          if (data?.accessToken && data.refreshToken) {
+            setTokens(data.accessToken, data.refreshToken);
             return api(path, options);
           }
         }
@@ -107,17 +128,10 @@ export async function api<T>(
     throw new Error(message);
   }
 
-  const contentType = res.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) {
+  const json = await readJsonBody(res);
+  if (!json || typeof json !== "object" || !("data" in json)) {
     throw new Error("Resposta inválida do servidor. Tente novamente.");
   }
 
-  let json: { data?: T };
-  try {
-    json = (await res.json()) as { data?: T };
-  } catch {
-    throw new Error("Resposta inválida do servidor. Tente novamente.");
-  }
-
-  return json.data as T;
+  return (json as { data: T }).data;
 }
