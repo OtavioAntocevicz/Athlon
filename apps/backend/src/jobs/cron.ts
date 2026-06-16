@@ -63,6 +63,7 @@ export async function runAvisosJob() {
 }
 
 export async function runDiarioJob() {
+  await runAvisosJob();
   console.log("[cron] Marcando mensalidades atrasadas...");
   await marcarAtrasados();
   await sincronizarBloqueiosInadimplencia();
