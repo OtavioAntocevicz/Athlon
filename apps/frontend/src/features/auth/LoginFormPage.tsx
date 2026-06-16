@@ -22,7 +22,7 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
   const { login } = useAuth();
   const [error, setError] = useState("");
 
-  const { register, handleSubmit, formState: { isSubmitting } } = useForm<LoginInput>({
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { perfil },
   });
@@ -64,10 +64,16 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
           <div>
             <label className="mb-1.5 block text-sm font-medium text-primary">E-mail</label>
             <Input type="email" placeholder="seu@email.com" {...register("email")} />
+            {errors.email && (
+              <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
+            )}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-primary">Senha</label>
             <Input type="password" placeholder="••••••" {...register("senha")} />
+            {errors.senha && (
+              <p className="mt-1 text-sm text-destructive">{errors.senha.message}</p>
+            )}
           </div>
           <input type="hidden" {...register("perfil")} />
 
