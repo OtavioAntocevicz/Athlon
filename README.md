@@ -18,6 +18,10 @@ apps/backend/supabase/migrations - schema SQL do banco
 packages/shared-types - Zod schemas e tipos compartilhados
 ```
 
+## Documentação
+
+Documentação completa do sistema (jornadas, APIs, banco, deploy, env vars): **[docs/DOCUMENTACAO.md](./docs/DOCUMENTACAO.md)**
+
 ## Configuração
 
 1. Crie um projeto no [Supabase](https://supabase.com) e aplique o schema em `apps/backend/supabase/migrations/20250612000000_schema.sql` (SQL Editor ou `supabase db push`).
