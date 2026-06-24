@@ -63,7 +63,7 @@ export function MensalidadeDetailPage() {
         body: JSON.stringify({ contentType: file.type }),
       });
 
-      await fetch(uploadUrl, {
+      const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
           "Content-Type": file.type,
@@ -71,6 +71,10 @@ export function MensalidadeDetailPage() {
         },
         body: file,
       });
+
+      if (!uploadRes.ok) {
+        throw new Error("Falha ao enviar o arquivo. Tente novamente.");
+      }
 
       await api(`/mensalidades/${id}/comprovante`, {
         method: "POST",
