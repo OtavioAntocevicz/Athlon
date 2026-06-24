@@ -18,4 +18,7 @@ export const env = {
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:suporte@athlon.app",
   cronSecret: process.env.CRON_SECRET ?? null,
+  resendApiKey: process.env.RESEND_API_KEY ?? null,
+  emailFrom: process.env.EMAIL_FROM ?? "ATHLON <onboarding@resend.dev>",
+  appUrl: process.env.APP_URL ?? process.env.CORS_ORIGIN ?? "http://localhost:5173",
 };

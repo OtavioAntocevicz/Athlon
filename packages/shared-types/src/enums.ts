@@ -1,4 +1,5 @@
 export const PerfilUsuario = {
+  ADM: "ADM",
   PROFESSOR: "PROFESSOR",
   ALUNO: "ALUNO",
 } as const;

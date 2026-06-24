@@ -26,6 +26,13 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 ## Refinamento
 
+### Recuperação de senha — Resend (e-mail)
+
+- Fluxo implementado: código de 6 dígitos + link mágico, tabela `RecuperacaoSenha`, telas em `/login/*/esqueci-senha`.
+- **Pendente:** configurar [Resend](https://resend.com) em produção (`RESEND_API_KEY`, `EMAIL_FROM`, domínio verificado, `APP_URL` na Vercel).
+- **Status atual:** Resend **não está funcionando** no ambiente real; em dev, código e link aparecem no log do backend (`[email:dev]`).
+- Documentação completa: [DOCUMENTACAO.md §12 — Recuperação de senha](./DOCUMENTACAO.md#recuperação-de-senha-esqueci-minha-senha).
+
 ### Notificação de nova mensalidade
 
 - Hoje o cron do dia 1 pode gerar notificação de “nova mensalidade” sem deduplicação (diferente do atraso, que já é limitado a 1x por semana).

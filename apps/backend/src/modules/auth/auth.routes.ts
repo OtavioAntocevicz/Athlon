@@ -2,11 +2,12 @@ import { Router } from "express";
 import rateLimit from "express-rate-limit";
 import {
   loginSchema,
-  registerProfessorSchema,
   registerAlunoSchema,
   updateProfessorPerfilSchema,
   updateAlunoPerfilSchema,
   changePasswordSchema,
+  requestPasswordResetSchema,
+  confirmPasswordResetSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import { authenticate } from "../../middleware/auth.js";
@@ -20,20 +21,6 @@ const loginLimiter = rateLimit({
 });
 
 export const authRouter = Router();
-
-authRouter.post(
-  "/register/professor",
-  loginLimiter,
-  validate(registerProfessorSchema),
-  async (req, res, next) => {
-    try {
-      const data = await authService.registerProfessor(req.body);
-      res.status(201).json({ data });
-    } catch (e) {
-      next(e);
-    }
-  },
-);
 
 authRouter.post(
   "/register/aluno",
@@ -57,6 +44,34 @@ authRouter.post("/login", loginLimiter, validate(loginSchema), async (req, res, 
     next(e);
   }
 });
+
+authRouter.post(
+  "/recuperar-senha/solicitar",
+  loginLimiter,
+  validate(requestPasswordResetSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.solicitarRecuperacaoSenha(req.body);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
+  "/recuperar-senha/confirmar",
+  loginLimiter,
+  validate(confirmPasswordResetSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.confirmarRecuperacaoSenha(req.body);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 authRouter.get("/me", authenticate, async (req, res, next) => {
   try {

@@ -4,12 +4,14 @@
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "scripts": {
-    "dev": "pnpm run --parallel dev",
+    "dev": "pnpm --filter @athlon/shared-types build && pnpm run --parallel dev",
+    "postinstall": "pnpm --filter @athlon/shared-types build",
     "dev:frontend": "pnpm --filter @athlon/frontend dev",
     "dev:backend": "pnpm --filter @athlon/backend dev",
     "build": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
     "build:vercel": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
-    "test:db": "pnpm --filter @athlon/backend test:db"
+    "test:db": "pnpm --filter @athlon/backend test:db",
+    "seed:admin": "pnpm --filter @athlon/backend seed:admin"
   },
   "dependencies": {
     "@athlon/backend": "workspace:*",

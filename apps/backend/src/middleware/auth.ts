@@ -49,3 +49,10 @@ export function requireAluno(req: Request, _res: Response, next: NextFunction) {
   }
   next();
 }
+
+export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.perfil !== "ADM") {
+    return next(new AppError(403, "FORBIDDEN", "Acesso restrito a administradores"));
+  }
+  next();
+}

@@ -106,7 +106,9 @@ export function ProfileSelectPage() {
         </div>
       </div>
 
-      <PageEnter delay={400} className="mt-3 text-center">
+      <div className="min-h-0 flex-1" aria-hidden />
+
+      <PageEnter delay={400} className="mt-auto flex flex-col items-center pb-6 text-center">
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Ao entrar, você concorda com nossos{" "}
           <Link
@@ -127,8 +129,6 @@ export function ProfileSelectPage() {
           V1.7.1
         </p>
       </PageEnter>
-
-      <div className="min-h-0 flex-1" aria-hidden />
     </div>
   );
 }

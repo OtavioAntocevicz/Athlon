@@ -15,13 +15,25 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (isLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.perfil === "ADM") return <Navigate to="/admin" replace />;
   return <>{children}</>;
 }
 
 export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    if (user.perfil === "ADM") return <Navigate to="/admin" replace />;
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
+export function AdminRoute({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login/professor" replace />;
+  if (user.perfil !== "ADM") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -33,6 +45,7 @@ export function ProfessorRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.perfil === "ADM") return <Navigate to="/admin" replace />;
   if (!isProfessorUser(user)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }

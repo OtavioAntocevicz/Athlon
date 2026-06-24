@@ -140,6 +140,7 @@ Navegador (athlonsport.vercel.app)
 
 | Valor | Descrição |
 |-------|-----------|
+| `ADM` | Operador da plataforma — cria professores e monitora a base |
 | `PROFESSOR` | Treinador com turmas, alunos e validação de comprovantes |
 | `ALUNO` | Atleta matriculado em uma ou mais turmas |
 
@@ -160,7 +161,7 @@ Navegador (athlonsport.vercel.app)
   sub: string;          // usuario.id
   email: string;
   nome: string;
-  perfil: "PROFESSOR" | "ALUNO";
+  perfil: "ADM" | "PROFESSOR" | "ALUNO";
   professorId?: string;
   alunoId?: string;
 }
@@ -175,6 +176,7 @@ Navegador (athlonsport.vercel.app)
 |------------|---------|--------|
 | `authenticate` | `middleware/auth.ts` | Exige `Authorization: Bearer <token>` |
 | `requireProfessor` | `middleware/auth.ts` | Apenas perfil professor |
+| `requireAdmin` | `middleware/auth.ts` | Apenas perfil ADM |
 | `requireAluno` | `middleware/auth.ts` | Apenas perfil aluno |
 | `requireAlunoSemBloqueio` | `middleware/inadimplencia-guard.ts` | Bloqueia aluno inadimplente (403) |
 | `requireCronAuth` | `middleware/cron-auth.ts` | Protege `/api/cron/*` com `CRON_SECRET` |
@@ -187,6 +189,7 @@ Navegador (athlonsport.vercel.app)
 | `GuestRoute` | Login/cadastro - redireciona logados para `/` |
 | `ProtectedRoute` | Exige usuário autenticado |
 | `ProfessorRoute` | Apenas professor |
+| `AdminRoute` | Apenas ADM |
 | `AlunoRoute` | Apenas aluno |
 | `AlunoTurmasRoute` | Aluno sem bloqueio por inadimplência |
 
@@ -212,9 +215,8 @@ Navegador (athlonsport.vercel.app)
 
 ```
 1. Acessa /login → escolhe "Treinador"
-2. Cadastro (/cadastro/professor)
-   - Nome, e-mail, senha, chave PIX padrão
-3. Login → Dashboard professor
+2. Login (/login/professor) — conta criada pelo ADM
+3. Dashboard professor
    - Métricas: recebido no mês, pendente, em análise, atrasado
 4. Cria turma (/turmas/nova)
    - Nome, modalidade, nível, dias/horário, local
@@ -260,7 +262,21 @@ Navegador (athlonsport.vercel.app)
 8. Recebe notificações in-app e push (se habilitado)
 ```
 
-### 6.3 Fluxo de comprovante (detalhado)
+### 6.3 Jornada do Administrador (ADM)
+
+```
+1. Acessa /login/admin (link no rodapé de /login)
+2. Login com perfil ADM
+3. Dashboard (/admin) — métricas globais e lista de professores
+4. Cria professor (/admin/professores/novo) e repassa credenciais
+5. Inspeciona professor (/admin/professores/:id) — turmas e alunos (leitura)
+6. Desativa/reativa professor se necessário
+7. Perfil (/admin/perfil) — alterar senha, logout
+```
+
+Seed: `pnpm seed:admin` (variáveis `ADMIN_EMAIL`, `ADMIN_PASSWORD` em `apps/backend/.env`)
+
+### 6.4 Fluxo de comprovante (detalhado)
 
 ```
 Aluno                          Storage (Supabase)              Professor
@@ -288,7 +304,12 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/login` | ProfileSelectPage | Escolha professor ou aluno |
 | `/login/professor` | LoginFormPage | Login treinador |
 | `/login/aluno` | LoginFormPage | Login aluno |
-| `/cadastro/professor` | RegisterProfessorPage | Cadastro treinador |
+| `/login/admin` | LoginAdminPage | Login administrativo |
+| `/login/professor/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (treinador) |
+| `/login/aluno/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (aluno) |
+| `/login/professor/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (treinador) |
+| `/login/aluno/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (aluno) |
+| `/login/admin` | LoginAdminPage | Login administrativo |
 | `/cadastro/aluno` | RegisterAlunoPage | Cadastro aluno |
 | `/termos` | TermosDeUsoPage | Termos de uso |
 | `/privacidade` | PoliticaPrivacidadePage | Política de privacidade |
@@ -314,10 +335,21 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/perfil` | Protected | PerfilPage | Dados, senha, logout |
 | `/perfil/gerir-turmas` | Professor | GerirTurmasPage | Gestão via perfil |
 
+### Rotas ADM (`AdminRoute`)
+
+| Rota | Tela | Descrição |
+|------|------|-----------|
+| `/admin` | AdminDashboardPage | Dashboard global |
+| `/admin/professores` | AdminProfessoresPage | Lista de professores |
+| `/admin/professores/novo` | AdminNovoProfessorPage | Criar professor |
+| `/admin/professores/:id` | AdminProfessorDetailPage | Detalhe do professor |
+| `/admin/perfil` | AdminPerfilPage | Perfil do ADM |
+
 ### Navegação inferior (`BottomNav.tsx`)
 
 **Professor:** Início | Mensalidades | Alunos | Turmas  
-**Aluno:** Início | Mensalidades | Turmas (oculta se bloqueado) | Perfil
+**Aluno:** Início | Mensalidades | Turmas (oculta se bloqueado) | Perfil  
+**ADM:** Início | Professores | Perfil (`AdminBottomNav`)
 
 ---
 
@@ -333,15 +365,28 @@ Montagem: `apps/backend/src/app.ts`
 
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
-| POST | `/register/professor` | Público | Cadastro professor |
 | POST | `/register/aluno` | Público | Cadastro aluno + matrícula |
-| POST | `/login` | Público | Login (e-mail + senha + perfil) |
+| POST | `/login` | Público | Login (e-mail + senha + perfil: ADM, PROFESSOR ou ALUNO) |
+| POST | `/recuperar-senha/solicitar` | Público | Envia código de 6 dígitos + link por e-mail |
+| POST | `/recuperar-senha/confirmar` | Público | Redefine senha com código ou token do link |
 | GET | `/me` | JWT | Perfil atual |
 | PATCH | `/me` | JWT | Atualizar perfil |
-| POST | `/me/senha` | JWT | Alterar senha |
+| POST | `/me/senha` | JWT | Alterar senha (logado; exige senha atual) |
 | POST | `/refresh` | Público | Renovar tokens |
 
-Rate limit: 20 tentativas / 15 min em login e cadastro.
+Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
+
+### Admin - `/api/v1/admin` (ADM)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/dashboard` | Métricas globais + lista de professores (`?busca`, `?ativo`) |
+| GET | `/professores` | Lista de professores com contagens |
+| POST | `/professores` | Criar professor |
+| GET | `/professores/:id` | Detalhe + turmas + alunos |
+| PATCH | `/professores/:id/status` | `{ ativo: boolean }` desativar/reativar |
+| GET | `/professores/:id/turmas` | Turmas do professor |
+| GET | `/professores/:id/alunos` | Alunos do professor (`?turmaId`) |
 
 ### Turmas - `/api/v1/turmas` (Professor)
 
@@ -445,6 +490,9 @@ Rate limit: 20 tentativas / 15 min em login e cadastro.
 **Migrations:**
 - `apps/backend/supabase/migrations/20250612000000_schema.sql` - schema principal
 - `apps/backend/supabase/migrations/20250615000000_cron_avisos.sql` - pg_cron para avisos
+- `apps/backend/supabase/migrations/20250624000000_enable_rls_public_tables.sql` - RLS em tabelas públicas
+- `apps/backend/supabase/migrations/20250624100000_recuperacao_senha.sql` - tokens de recuperação de senha
+- `apps/backend/supabase/migrations/20250625100000_perfil_adm.sql` - perfil ADM no enum
 
 ### Diagrama de relacionamentos
 
@@ -456,6 +504,7 @@ Aluno + Turma ── (N) Pagamento
 Pagamento (1) ── (N) Comprovante
 Turma (1) ── (N) Evento ── (N) Presenca   [sem UI]
 Usuario (1) ── (N) Notificacao
+Usuario (1) ── (N) RecuperacaoSenha
 Usuario (1) ── (N) TokenPushFcm
 Professor + Turma ── (N) AvisoProfessor
 ```
@@ -472,6 +521,7 @@ Professor + Turma ── (N) AvisoProfessor
 | `Pagamento` | Mensalidade de um mês (status, vencimento, valor) |
 | `Comprovante` | Arquivo enviado pelo aluno |
 | `Notificacao` | Notificação in-app |
+| `RecuperacaoSenha` | Código e link mágico para redefinir senha (expira em 15 min) |
 | `TokenPushFcm` | Subscription Web Push (nome legado) |
 | `AvisoProfessor` | Avisos do professor para turma |
 | `Evento` / `Presenca` | Preparado para futuro (chamada) |
@@ -567,6 +617,43 @@ Toda notificação in-app também tenta enviar **Web Push** se VAPID estiver con
 - **Nunca** expor `SUPABASE_SERVICE_ROLE_KEY` no frontend.
 - `service_role` só no backend/Vercel Environment Variables.
 
+### Recuperação de senha ("Esqueci minha senha")
+
+Fluxo em duas etapas, disponível nas telas de login de **treinador** e **aluno**:
+
+1. Usuário informa o e-mail → `POST /auth/recuperar-senha/solicitar`
+2. Sistema gera **código de 6 dígitos** + **link mágico** (válidos por 15 minutos) e tenta enviar por e-mail
+3. Usuário confirma identidade de uma das formas:
+   - **Código:** digita o código + nova senha em `/login/{professor|aluno}/esqueci-senha`
+   - **Link:** abre o link do e-mail em `/login/{professor|aluno}/redefinir-senha/:token`
+4. `POST /auth/recuperar-senha/confirmar` atualiza a senha e invalida tokens pendentes
+
+A resposta do passo 1 é sempre genérica (*"Se o e-mail estiver cadastrado, você receberá um código"*) para não revelar se o e-mail existe.
+
+**Alterar senha no perfil** (`POST /auth/me/senha`) continua separado: exige estar logado e informar a senha atual.
+
+#### Envio de e-mail (Resend)
+
+O backend envia os e-mails via [Resend](https://resend.com) (`apps/backend/src/lib/email.ts`).
+
+| Variável | Descrição |
+|----------|-----------|
+| `RESEND_API_KEY` | Chave da API Resend |
+| `EMAIL_FROM` | Remetente (ex.: `ATHLON <noreply@seudominio.com>`) |
+| `APP_URL` | URL do frontend para montar o link mágico (ex.: `http://localhost:5173` em dev) |
+
+> **Status atual (jun/2026):** o envio via **Resend ainda não está configurado/funcionando em produção**. O fluxo de recuperação já está implementado no código, mas os e-mails reais não são entregues até `RESEND_API_KEY`, `EMAIL_FROM` e domínio no Resend serem ajustados. **Pendência consciente — será resolvida depois.** Ver também `docs/Melhoria.md`.
+
+**Desenvolvimento local sem Resend:** se `RESEND_API_KEY` estiver vazio, o backend **não envia e-mail** e imprime no terminal do `pnpm dev:backend`:
+
+```
+[email:dev] Recuperação de senha para usuario@email.com
+  Código: 123456
+  Link: http://localhost:5173/login/professor/redefinir-senha/...
+```
+
+Use esse log para testar o fluxo localmente.
+
 ---
 
 ## 13. PWA e Web Push
@@ -610,6 +697,12 @@ pnpm --filter @athlon/backend generate-vapid-keys
 | `VAPID_PUBLIC_KEY` | Opcional | Web Push |
 | `VAPID_PRIVATE_KEY` | Opcional | Web Push |
 | `VAPID_SUBJECT` | Opcional | Ex: `mailto:seu@email.com` |
+| `RESEND_API_KEY` | Recuperação de senha | Chave Resend (**pendente configuração — ver §12**) |
+| `EMAIL_FROM` | Recuperação de senha | Remetente dos e-mails (ex.: `ATHLON <noreply@seudominio.com>`) |
+| `APP_URL` | Recuperação de senha | URL do frontend para links mágicos (default: `CORS_ORIGIN`) |
+| `ADMIN_EMAIL` | Seed ADM | E-mail do administrador (`pnpm seed:admin`) |
+| `ADMIN_PASSWORD` | Seed ADM | Senha inicial do administrador |
+| `ADMIN_NOME` | Seed ADM | Nome exibido (opcional) |
 
 ### Frontend - `apps/frontend/.env`
 
@@ -745,6 +838,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `pnpm build` | Build completo (shared-types + backend + frontend) |
 | `pnpm build:vercel` | Build para deploy Vercel |
 | `pnpm test:db` | Testa conexão Supabase |
+| `pnpm seed:admin` | Cria usuário ADM inicial no banco |
 | `pnpm --filter @athlon/backend generate-vapid-keys` | Gera chaves VAPID |
 
 ---
@@ -762,6 +856,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `api/index.ts` | Entrypoint serverless Vercel |
 | `vercel.json` | Config de deploy |
 | `apps/backend/src/middleware/auth.ts` | JWT e roles |
+| `apps/backend/src/modules/admin/` | API administrativa |
 | `apps/backend/src/lib/inadimplencia.ts` | Regra de bloqueio |
 | `apps/backend/src/lib/mensalidade-focus.ts` | Status efetivo e foco |
 | `apps/backend/src/jobs/cron.ts` | Jobs agendados |
@@ -791,11 +886,17 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 [ ] pnpm install
 [ ] Criar apps/backend/.env (copiar do .env.example ou do PC antigo - NÃO commitar)
 [ ] Criar apps/frontend/.env com VITE_API_URL apontando para o backend local
-[ ] Aplicar migrations no Supabase (se banco novo)
+[ ] Aplicar migrations no Supabase (se banco novo ou pendente):
+    - 20250624000000_enable_rls_public_tables.sql
+    - 20250624100000_recuperacao_senha.sql
+    - 20250625100000_perfil_adm.sql
+[ ] Configurar ADMIN_EMAIL e ADMIN_PASSWORD em apps/backend/.env
+[ ] pnpm seed:admin
 [ ] Criar bucket comprovantes no Supabase Storage
 [ ] pnpm test:db
 [ ] pnpm dev
 [ ] (Produção) Configurar variáveis na Vercel
+[ ] (Produção) Configurar Resend para recuperação de senha (pendente)
 [ ] (Produção) Configurar _athlon_cron_config no Supabase
 [ ] (Produção) Validar /health
 ```

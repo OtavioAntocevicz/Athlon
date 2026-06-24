@@ -12,14 +12,83 @@ import { signAccessToken, signRefreshToken } from "../../lib/jwt.js";
 import type { JwtPayload } from "../../middleware/auth.js";
 import type {
   LoginInput,
-  RegisterProfessorInput,
   RegisterAlunoInput,
   UpdateProfessorPerfilInput,
   UpdateAlunoPerfilInput,
   ChangePasswordInput,
+  RequestPasswordResetInput,
+  ConfirmPasswordResetInput,
 } from "@athlon/shared-types";
+import { sendPasswordResetEmail } from "../../lib/email.js";
+import { env } from "../../config/env.js";
+import { createHash, randomInt } from "node:crypto";
 
 const BCRYPT_ROUNDS = 12;
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+
+function hashValue(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function generateResetCode(): string {
+  return String(randomInt(100000, 1000000));
+}
+
+function perfilLoginPath(perfil: string): string {
+  return perfil === "PROFESSOR" || perfil === "ADM" ? "professor" : "aluno";
+}
+
+function perfilMatchesLogin(usuarioPerfil: string, inputPerfil: string): boolean {
+  if (usuarioPerfil === inputPerfil) return true;
+  return inputPerfil === "PROFESSOR" && usuarioPerfil === "ADM";
+}
+
+async function findUsuarioPorEmailPerfil(email: string, perfil: string) {
+  const result = await supabase
+    .from("Usuario")
+    .select("id, email, nome, perfil")
+    .eq("email", email)
+    .maybeSingle();
+
+  const usuario = result.data;
+  if (!usuario || !perfilMatchesLogin(usuario.perfil, perfil)) return null;
+  return usuario;
+}
+
+async function invalidateRecuperacoesPendentes(usuarioId: string) {
+  const ts = now();
+  await supabase
+    .from("RecuperacaoSenha")
+    .update({ usado_em: ts })
+    .eq("usuario_id", usuarioId)
+    .is("usado_em", null)
+    .gt("expira_em", ts);
+}
+
+async function findRecuperacaoAtiva(input: {
+  usuarioId?: string;
+  codigo?: string;
+  token?: string;
+}) {
+  let query = supabase
+    .from("RecuperacaoSenha")
+    .select("id, usuario_id, codigo_hash, token_hash, expira_em, usado_em")
+    .is("usado_em", null)
+    .gt("expira_em", now());
+
+  if (input.token) {
+    query = query.eq("token_hash", hashValue(input.token));
+  } else if (input.usuarioId && input.codigo) {
+    query = query
+      .eq("usuario_id", input.usuarioId)
+      .eq("codigo_hash", hashValue(input.codigo));
+  } else {
+    return null;
+  }
+
+  const result = await query.maybeSingle();
+  return result.data;
+}
 
 type UsuarioRow = {
   id: string;
@@ -66,49 +135,6 @@ async function buildAuthResponse(usuarioId: string) {
       alunoId: aluno?.id,
     },
   };
-}
-
-export async function registerProfessor(input: RegisterProfessorInput) {
-  const exists = await supabase
-    .from("Usuario")
-    .select("id")
-    .eq("email", input.email)
-    .maybeSingle();
-
-  if (exists.data) {
-    throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
-  }
-
-  const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
-  const usuarioId = generateId();
-  const professorId = generateId();
-  const ts = now();
-
-  const usuarioResult = await supabase.from("Usuario").insert({
-    id: usuarioId,
-    email: input.email,
-    nome: input.nome,
-    senha_hash,
-    perfil: "PROFESSOR",
-    criado_em: ts,
-    atualizado_em: ts,
-  });
-
-  if (usuarioResult.error?.code === "23505") {
-    throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
-  }
-  throwOnError(usuarioResult);
-
-  const professorResult = await supabase.from("Professor").insert({
-    id: professorId,
-    usuario_id: usuarioId,
-    chave_pix: input.chavePix,
-    criado_em: ts,
-    atualizado_em: ts,
-  });
-  throwOnError(professorResult);
-
-  return buildAuthResponse(usuarioId);
 }
 
 export async function registerAluno(input: RegisterAlunoInput) {
@@ -183,14 +209,18 @@ export async function registerAluno(input: RegisterAlunoInput) {
 export async function login(input: LoginInput) {
   const result = await supabase
     .from("Usuario")
-    .select("id, email, nome, senha_hash, perfil, Professor(id), Aluno(id)")
+    .select("id, email, nome, senha_hash, perfil, ativo, Professor(id), Aluno(id)")
     .eq("email", input.email)
     .maybeSingle();
 
-  const usuario = result.data as UsuarioRow | null;
+  const usuario = result.data as (UsuarioRow & { ativo: boolean }) | null;
 
-  if (!usuario || usuario.perfil !== input.perfil) {
+  if (!usuario || !perfilMatchesLogin(usuario.perfil, input.perfil)) {
     throw new AppError(401, "INVALID_CREDENTIALS", "E-mail ou senha incorretos");
+  }
+
+  if (!usuario.ativo) {
+    throw new AppError(403, "ACCOUNT_DISABLED", "Conta desativada. Entre em contato com o suporte.");
   }
 
   const valid = await bcrypt.compare(input.senha, usuario.senha_hash);
@@ -329,6 +359,98 @@ export async function alterarSenha(userId: string, input: ChangePasswordInput) {
       .update({ senha_hash, atualizado_em: now() })
       .eq("id", userId),
   );
+
+  return { ok: true };
+}
+
+export async function solicitarRecuperacaoSenha(input: RequestPasswordResetInput) {
+  const usuario = await findUsuarioPorEmailPerfil(input.email, input.perfil);
+
+  if (usuario) {
+    const codigo = generateResetCode();
+    const token = generateId() + generateId();
+    const expiraEm = new Date(Date.now() + RESET_CODE_TTL_MS).toISOString();
+    const ts = now();
+
+    await invalidateRecuperacoesPendentes(usuario.id);
+
+    throwOnError(
+      await supabase.from("RecuperacaoSenha").insert({
+        id: generateId(),
+        usuario_id: usuario.id,
+        codigo_hash: hashValue(codigo),
+        token_hash: hashValue(token),
+        expira_em: expiraEm,
+        criado_em: ts,
+      }),
+    );
+
+    const link = `${env.appUrl.replace(/\/$/, "")}/login/${perfilLoginPath(input.perfil)}/redefinir-senha/${token}`;
+
+    await sendPasswordResetEmail({
+      to: usuario.email,
+      nome: usuario.nome,
+      codigo,
+      link,
+    });
+  }
+
+  return {
+    ok: true,
+    message: "Se o e-mail estiver cadastrado, você receberá um código em instantes.",
+  };
+}
+
+export async function confirmarRecuperacaoSenha(input: ConfirmPasswordResetInput) {
+  let usuarioId: string | null = null;
+  let recuperacaoId: string | null = null;
+
+  if (input.token) {
+    const recuperacao = await findRecuperacaoAtiva({ token: input.token });
+    if (!recuperacao) {
+      throw new AppError(400, "INVALID_TOKEN", "Link inválido ou expirado. Solicite um novo código.");
+    }
+    usuarioId = recuperacao.usuario_id;
+    recuperacaoId = recuperacao.id;
+  } else if (input.email && input.perfil && input.codigo) {
+    const usuario = await findUsuarioPorEmailPerfil(input.email, input.perfil);
+    if (!usuario) {
+      throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado.");
+    }
+
+    const recuperacao = await findRecuperacaoAtiva({
+      usuarioId: usuario.id,
+      codigo: input.codigo,
+    });
+
+    if (!recuperacao) {
+      throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado.");
+    }
+
+    usuarioId = usuario.id;
+    recuperacaoId = recuperacao.id;
+  } else {
+    throw new AppError(400, "INVALID_REQUEST", "Informe o código ou use o link do e-mail.");
+  }
+
+  const senha_hash = await bcrypt.hash(input.senhaNova, BCRYPT_ROUNDS);
+  const ts = now();
+
+  throwOnError(
+    await supabase
+      .from("Usuario")
+      .update({ senha_hash, atualizado_em: ts })
+      .eq("id", usuarioId!),
+  );
+
+  throwOnError(
+    await supabase
+      .from("RecuperacaoSenha")
+      .update({ usado_em: ts })
+      .eq("id", recuperacaoId!),
+  );
+
+  await invalidateRecuperacoesPendentes(usuarioId!);
 
   return { ok: true };
 }

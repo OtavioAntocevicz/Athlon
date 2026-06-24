@@ -14,10 +14,11 @@ import { PageEnter } from "@/components/ui/page-enter";
 interface LoginFormPageProps {
   perfil: "PROFESSOR" | "ALUNO";
   title: string;
-  cadastroPath: string;
+  cadastroPath?: string;
+  esqueciSenhaPath: string;
 }
 
-export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProps) {
+export function LoginFormPage({ perfil, title, cadastroPath, esqueciSenhaPath }: LoginFormPageProps) {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [error, setError] = useState("");
@@ -35,7 +36,7 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
         body: JSON.stringify(data),
       });
       login(tokens);
-      navigate("/");
+      navigate(tokens.user.perfil === "ADM" ? "/admin" : "/");
     } catch (e) {
       setError(getErrorMessage(e, "Erro ao entrar"));
     }
@@ -74,6 +75,11 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
             {errors.senha && (
               <p className="mt-1 text-sm text-destructive">{errors.senha.message}</p>
             )}
+            <div className="mt-2 text-right">
+              <Link to={esqueciSenhaPath} className="text-sm font-medium text-primary underline decoration-primary/30">
+                Esqueci minha senha
+              </Link>
+            </div>
           </div>
           <input type="hidden" {...register("perfil")} />
 
@@ -85,12 +91,14 @@ export function LoginFormPage({ perfil, title, cadastroPath }: LoginFormPageProp
         </form>
       </PageEnter>
 
-      <PageEnter delay={210} className="mt-6 text-center text-sm text-muted-foreground">
-        Não tem conta?{" "}
-        <Link to={cadastroPath} className="font-semibold text-primary underline">
-          Cadastre-se
-        </Link>
-      </PageEnter>
+      {cadastroPath && (
+        <PageEnter delay={210} className="mt-6 text-center text-sm text-muted-foreground">
+          Não tem conta?{" "}
+          <Link to={cadastroPath} className="font-semibold text-primary underline">
+            Cadastre-se
+          </Link>
+        </PageEnter>
+      )}
     </div>
   );
 }
