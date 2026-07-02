@@ -2,14 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { foiDispensadoRecentemente, registrarDispensa } from "./pwa-install-storage";
 
-const IOS_SESSION_DELAY_MS = 30_000;
+const IOS_SAFARI_DELAY_MS = 8_000;
+const IOS_SESSION_KEY = "athlon:pwa-ios-session-start";
 
 export function detectEhIOS(): boolean {
   if (typeof navigator === "undefined") return false;
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(window as Window & { MSStream?: unknown }).MSStream
-  );
+  const ua = navigator.userAgent;
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ pode reportar como Mac
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true;
+  return false;
 }
 
 /** Chrome, Firefox, Edge, Opera e webviews no iOS não suportam instalação PWA como o Safari. */
@@ -18,7 +20,8 @@ export function detectEhSafariIOS(): boolean {
   const ua = navigator.userAgent;
   if (/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua)) return false;
   if (/FBAN|FBAV|Instagram|Line\/|Twitter/i.test(ua)) return false;
-  return /Safari/i.test(ua);
+  // Todos os browsers no iOS incluem "Safari" no UA; excluímos os não-Safari acima.
+  return true;
 }
 
 export function detectEhIOSNaoSafari(): boolean {
@@ -31,6 +34,21 @@ export function detectJaInstalado(): boolean {
   return (
     window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true
   );
+}
+
+function getSessionStartMs(): number {
+  try {
+    const raw = sessionStorage.getItem(IOS_SESSION_KEY);
+    if (raw) {
+      const parsed = Number(raw);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    const now = Date.now();
+    sessionStorage.setItem(IOS_SESSION_KEY, String(now));
+    return now;
+  } catch {
+    return Date.now();
+  }
 }
 
 export function usePwaInstall() {
@@ -47,7 +65,7 @@ export function usePwaInstall() {
   const [tutorialAberto, setTutorialAberto] = useState(false);
   const [safariModalAberto, setSafariModalAberto] = useState(false);
 
-  const routeKeyRef = useRef(location.pathname);
+  const rotasVisitadasRef = useRef(new Set([location.pathname]));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -72,22 +90,36 @@ export function usePwaInstall() {
     };
   }, []);
 
+  // Chrome/outros no iOS: aviso imediato (sem esperar 30s).
   useEffect(() => {
-    if (!ehIOS || jaInstalado) return;
+    if (ehIOSNaoSafari && !jaInstalado) {
+      setIosPronto(true);
+    }
+  }, [ehIOSNaoSafari, jaInstalado]);
 
-    timerRef.current = setTimeout(() => setIosPronto(true), IOS_SESSION_DELAY_MS);
+  // Safari no iOS: após tempo de sessão ou ao trocar de rota.
+  useEffect(() => {
+    if (!ehSafariIOS || jaInstalado || iosPronto) return;
+
+    const sessionStart = getSessionStartMs();
+    const elapsed = Date.now() - sessionStart;
+    const remaining = Math.max(0, IOS_SAFARI_DELAY_MS - elapsed);
+
+    timerRef.current = setTimeout(() => setIosPronto(true), remaining);
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [ehIOS, jaInstalado]);
+  }, [ehSafariIOS, jaInstalado, iosPronto]);
 
   useEffect(() => {
-    if (!ehIOS || jaInstalado || iosPronto) return;
-    if (location.pathname !== routeKeyRef.current) {
+    if (!ehSafariIOS || jaInstalado || iosPronto) return;
+
+    rotasVisitadasRef.current.add(location.pathname);
+    if (rotasVisitadasRef.current.size >= 2) {
       setIosPronto(true);
     }
-  }, [ehIOS, jaInstalado, iosPronto, location.pathname]);
+  }, [ehSafariIOS, jaInstalado, iosPronto, location.pathname]);
 
   const instalarAndroid = useCallback(async () => {
     const prompt = deferredPromptRef.current;

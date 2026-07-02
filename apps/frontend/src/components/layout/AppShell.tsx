@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { Header } from "./Header";
 import { BottomNav } from "./BottomNav";
 
@@ -15,7 +14,6 @@ export function AppShell({ children, showNav = true, showHeader = true }: AppShe
       {showHeader && <Header />}
       <main className={showNav ? "pb-24 px-4" : "px-4"}>{children}</main>
       {showNav && <BottomNav />}
-      <PwaInstallPrompt />
     </div>
   );
 }

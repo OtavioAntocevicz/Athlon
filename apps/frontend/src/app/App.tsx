@@ -1,6 +1,7 @@
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth-context";
+import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { AppRouter } from "./router";
 
 const queryClient = new QueryClient({
@@ -18,6 +19,7 @@ export function App() {
       <AuthProvider>
         <BrowserRouter>
           <AppRouter />
+          <PwaInstallPrompt />
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

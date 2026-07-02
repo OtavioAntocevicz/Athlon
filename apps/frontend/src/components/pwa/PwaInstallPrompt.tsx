@@ -1,10 +1,31 @@
 import { Download, ExternalLink, Smartphone, X } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { usePwaInstall } from "@/lib/use-pwa-install";
 import { Button } from "@/components/ui/button";
 import { TutorialInstalacaoIOS } from "./TutorialInstalacaoIOS";
 import { AbrirNoSafariModal } from "./AbrirNoSafariModal";
 
+const PREFIXOS_COM_BOTTOM_NAV = [
+  "/admin",
+  "/mensalidades",
+  "/comprovantes",
+  "/turmas",
+  "/alunos",
+  "/avisos",
+  "/minhas-turmas",
+  "/gerir-turmas",
+  "/perfil",
+] as const;
+
+function rotaTemBottomNav(pathname: string): boolean {
+  if (pathname === "/") return true;
+  return PREFIXOS_COM_BOTTOM_NAV.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 export function PwaInstallPrompt() {
+  const location = useLocation();
   const {
     jaInstalado,
     mostrarConviteIOS,
@@ -24,11 +45,16 @@ export function PwaInstallPrompt() {
 
   const mostrarBanner = mostrarConviteAndroid || mostrarConviteIOS || mostrarAvisoAbrirSafari;
   const conviteIOS = mostrarConviteIOS || mostrarAvisoAbrirSafari;
+  const comBottomNav = rotaTemBottomNav(location.pathname);
 
   return (
     <>
       {mostrarBanner && (
-        <div className="fixed bottom-[4.5rem] left-0 right-0 z-40 mx-auto max-w-mobile px-4 lg:bottom-6 lg:max-w-5xl">
+        <div
+          className={`fixed left-0 right-0 z-[60] mx-auto max-w-mobile px-4 lg:max-w-5xl ${
+            comBottomNav ? "bottom-[4.5rem]" : "bottom-4"
+          }`}
+        >
           <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-3 shadow-lg">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               {mostrarConviteAndroid ? (
