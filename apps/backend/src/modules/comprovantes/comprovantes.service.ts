@@ -205,6 +205,7 @@ export async function aprovarComprovante(
       "Comprovante aprovado",
       `Seu comprovante de pagamento de ${mes} foi aprovado.`,
       "COMPROVANTE_APROVADO",
+      `/mensalidades/${pag.id}`,
     );
   }
 
@@ -258,6 +259,7 @@ export async function recusarComprovante(
       "Comprovante recusado",
       `Seu comprovante foi recusado. Motivo: ${motivo}. Envie um novo comprovante.`,
       "COMPROVANTE_RECUSADO",
+      `/mensalidades/${pag.id}`,
     );
   }
 

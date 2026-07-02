@@ -1,5 +1,7 @@
 import { supabase } from "../../config/supabase.js";
 import { now, throwOnError } from "../../lib/db.js";
+import { registrarDispositivo } from "../../lib/devices/device.service.js";
+import { PlatformDispositivo, PushProvider } from "@athlon/shared-types";
 
 export async function listarNotificacoes(usuarioId: string) {
   const result = await supabase
@@ -15,6 +17,7 @@ export async function listarNotificacoes(usuarioId: string) {
     titulo: n.titulo,
     corpo: n.corpo,
     tipo: n.tipo,
+    url: n.url ?? null,
     lida: n.lida,
     criadoEm: new Date(n.criado_em).toISOString(),
   }));
@@ -52,26 +55,12 @@ export async function marcarTodasLidas(usuarioId: string) {
   return { ok: true };
 }
 
+/** @deprecated Use POST /dispositivos. Mantido para compatibilidade com PWA. */
 export async function registrarPushToken(usuarioId: string, token: string) {
-  const existing = await supabase
-    .from("TokenPushFcm")
-    .select("id")
-    .eq("usuario_id", usuarioId)
-    .eq("token", token)
-    .maybeSingle();
-
-  if (existing.data) return { ok: true };
-
-  const ts = now();
-  const { generateId } = await import("../../lib/db.js");
-  throwOnError(
-    await supabase.from("TokenPushFcm").insert({
-      id: generateId(),
-      usuario_id: usuarioId,
-      token,
-      criado_em: ts,
-      atualizado_em: ts,
-    }),
-  );
-  return { ok: true };
+  return registrarDispositivo(usuarioId, {
+    platform: PlatformDispositivo.WEB,
+    pushProvider: PushProvider.WEB,
+    pushToken: token,
+    notificationPermission: "granted",
+  });
 }

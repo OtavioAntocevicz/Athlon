@@ -54,7 +54,7 @@ Publique a pasta `apps/frontend/dist` em um host estático com fallback para `in
 1. Aluno faz login
 2. O componente de notificações pede permissão ao navegador
 3. O frontend busca a chave pública em `GET /api/v1/notificacoes/vapid-public-key`
-4. Cria a subscription via `PushManager` e envia para `POST /api/v1/notificacoes/push-token`
+4. Cria a subscription via `PushManager` e envia para `POST /api/v1/dispositivos` (`pushProvider: WEB`). O endpoint legado `POST /notificacoes/push-token` ainda funciona.
 5. Quando o backend cria uma notificação in-app, também dispara push via `web-push`
 
 ## 5. Testar em produção

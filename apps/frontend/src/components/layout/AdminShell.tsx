@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { Header } from "./Header";
 import { AdminBottomNav } from "./AdminBottomNav";
 
@@ -14,6 +15,7 @@ export function AdminShell({ children, showNav = true, showHeader = true }: Admi
       {showHeader && <Header />}
       <main className={showNav ? "px-4 pb-24 lg:px-8" : "px-4 lg:px-8"}>{children}</main>
       {showNav && <AdminBottomNav />}
+      <PwaInstallPrompt />
     </div>
   );
 }

@@ -16,7 +16,7 @@ function mapStorageError(message?: string): string {
     lower.includes("bucket not found") ||
     lower.includes("nosuchbucket")
   ) {
-    return `Armazenamento não configurado. Crie o bucket "${env.storageBucket}" no Supabase Storage (ou rode a migration storage_comprovantes).`;
+    return `Armazenamento não configurado. Crie o bucket "${env.storageBucket}" no Supabase Storage (ou rode o schema em migrations/20250612000000_schema.sql).`;
   }
   return message;
 }

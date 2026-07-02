@@ -5,4 +5,5 @@ export * from "./schemas/turma.js";
 export * from "./schemas/aluno.js";
 export * from "./schemas/comprovante.js";
 export * from "./schemas/aviso.js";
+export * from "./schemas/dispositivo.js";
 export * from "./api-contracts.js";

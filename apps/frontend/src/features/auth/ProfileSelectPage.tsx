@@ -59,9 +59,9 @@ export function ProfileSelectPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="mx-auto flex h-dvh max-h-dvh max-w-mobile flex-col overflow-hidden bg-background px-6 pt-3">
+    <div className="mx-auto grid h-dvh max-h-dvh max-w-mobile grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-background px-6 py-3">
       <PageEnter>
-        <header className="grid place-items-center text-center">
+        <header className="grid shrink-0 place-items-center text-center">
           <p className="text-2xl font-bold leading-tight text-primary">ATHLON</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             Gestão esportiva para treinadores e atletas
@@ -69,47 +69,47 @@ export function ProfileSelectPage() {
         </header>
       </PageEnter>
 
-      <PageEnter delay={80} className="mt-3 flex justify-center">
-        <img
-          src="/logo.png"
-          alt=""
-          className="mx-auto w-full object-contain"
-          draggable={false}
-        />
-      </PageEnter>
-
-      <div className="mt-3 space-y-2">
-        <PageEnter delay={160} className="text-center">
-          <h1 className="text-base font-bold text-primary">Como você deseja entrar?</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">Selecione seu perfil para continuar</p>
+      <div className="flex min-h-0 flex-col justify-center gap-3 overflow-y-auto overscroll-contain">
+        <PageEnter delay={80} className="flex shrink-0 justify-center">
+          <img
+            src="/logo.png"
+            alt=""
+            className="mx-auto max-h-[clamp(72px,22dvh,180px)] w-full object-contain"
+            draggable={false}
+          />
         </PageEnter>
 
-        <div className="space-y-2">
-          <PageEnter delay={240}>
-            <ProfileOption
-              variant="professor"
-              icon={GraduationCap}
-              title="Sou Treinador"
-              subtitle="Crie turmas, acompanhe mensalidades e valide comprovantes dos alunos."
-              onClick={() => navigate("/login/professor")}
-            />
+        <div className="shrink-0 space-y-2">
+          <PageEnter delay={160} className="text-center">
+            <h1 className="text-base font-bold text-primary">Como você deseja entrar?</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">Selecione seu perfil para continuar</p>
           </PageEnter>
-          <PageEnter delay={320}>
-            <ProfileOption
-              variant="aluno"
-              icon={User}
-              title="Sou Aluno"
-              subtitle="Veja suas turmas, pague mensalidades e envie comprovantes pelo celular."
-              onClick={() => navigate("/login/aluno")}
-            />
-          </PageEnter>
+
+          <div className="space-y-2">
+            <PageEnter delay={240}>
+              <ProfileOption
+                variant="professor"
+                icon={GraduationCap}
+                title="Sou Treinador"
+                subtitle="Crie turmas, acompanhe mensalidades e valide comprovantes dos alunos."
+                onClick={() => navigate("/login/professor")}
+              />
+            </PageEnter>
+            <PageEnter delay={320}>
+              <ProfileOption
+                variant="aluno"
+                icon={User}
+                title="Sou Aluno"
+                subtitle="Veja suas turmas, pague mensalidades e envie comprovantes pelo celular."
+                onClick={() => navigate("/login/aluno")}
+              />
+            </PageEnter>
+          </div>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1" aria-hidden />
-
-      <PageEnter delay={400} className="mt-auto flex flex-col items-center pb-6 text-center">
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+      <PageEnter delay={400} className="shrink-0 pt-2 text-center safe-bottom">
+        <p className="text-[11px] leading-snug text-muted-foreground">
           Ao entrar, você concorda com nossos{" "}
           <Link
             to="/termos"
@@ -125,7 +125,7 @@ export function ProfileSelectPage() {
             Privacidade
           </Link>
         </p>
-        <p className="mt-1.5 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
+        <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
           V1.7.1
         </p>
       </PageEnter>

@@ -283,6 +283,7 @@ export async function marcarPagoManual(
       "Pagamento confirmado",
       `Sua mensalidade de ${mes} foi confirmada pelo professor.`,
       "PAGAMENTO_CONFIRMADO",
+      `/mensalidades/${id}`,
     );
   }
 

@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { AuthUser, AuthTokens } from "@athlon/shared-types";
 import { api, setTokens, clearTokens } from "./api";
+import { track } from "./analytics/analytics";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -49,9 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(tokens.accessToken, tokens.refreshToken);
     localStorage.setItem("athlon_user", JSON.stringify(tokens.user));
     setUser(tokens.user);
+    track("login", { perfil: tokens.user.perfil });
   };
 
   const logout = () => {
+    track("logout");
     clearTokens();
     setUser(null);
   };

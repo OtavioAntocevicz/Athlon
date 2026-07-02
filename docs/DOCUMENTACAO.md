@@ -31,6 +31,7 @@ Este documento descreve o sistema por completo para facilitar onboarding em outr
 19. [Decisões arquiteturais](#19-decisões-arquiteturais)
 20. [Checklist para clonar em outro PC](#20-checklist-para-clonar-em-outro-pc)
 21. [Funcionalidades futuras](#21-funcionalidades-futuras)
+22. [Testes automatizados](#22-testes-automatizados)
 
 ---
 
@@ -40,7 +41,7 @@ O **ATHLON** é uma plataforma **mobile-first** (PWA) de gestão esportiva volta
 
 O núcleo do MVP é o **fluxo financeiro de mensalidades**:
 
-1. Treinador cria conta e cadastra turmas com valor de mensalidade e chave PIX.
+1. Administrador (ADM) cria a conta do treinador; o treinador cadastra turmas com valor de mensalidade e chave PIX.
 2. Aluno se cadastra com código de convite da turma.
 3. Aluno visualiza mensalidades, copia o PIX e envia comprovante de pagamento.
 4. Treinador valida comprovantes na fila (aprovar ou recusar).
@@ -54,6 +55,7 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 
 | Público | Perfil no sistema | Necessidade atendida |
 |---------|-------------------|---------------------|
+| Operador da plataforma | `ADM` | Criar professores, monitorar a base, desativar contas |
 | Treinador / professor | `PROFESSOR` | Criar turmas, gerenciar alunos, validar pagamentos, comunicar turma |
 | Atleta / aluno | `ALUNO` | Pagar mensalidade, enviar comprovante, acompanhar situação financeira |
 | Dono do produto | - | Gestão esportiva simplificada sem planilhas |
@@ -70,7 +72,9 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 | **Backend** | Node.js, Express 4, TypeScript, JWT, bcryptjs, Zod |
 | **Banco** | PostgreSQL via Supabase |
 | **Arquivos** | Supabase Storage (comprovantes) |
-| **Push** | Web Push API + `web-push` (VAPID) |
+| **Push** | Web Push (VAPID) |
+| **Instalação** | PWA instalável pelo navegador (Android: prompt nativo; iOS: tutorial manual) |
+| **Testes** | Vitest (shared-types + frontend) |
 | **Monorepo** | pnpm workspaces |
 | **Tipos compartilhados** | `@athlon/shared-types` (Zod schemas + enums) |
 | **Produção** | Vercel (frontend estático + API serverless) + Supabase |
@@ -95,7 +99,7 @@ Athlon/
 │   │   │   ├── app/             # App.tsx, router.tsx, guards.tsx
 │   │   │   ├── features/        # Páginas por domínio (auth, turmas, etc.)
 │   │   │   ├── components/      # Layout, UI, componentes de domínio
-│   │   │   └── lib/             # api.ts, auth-context, push, format
+│   │   │   └── lib/             # api.ts, auth-context, use-pwa-install, analytics
 │   │   ├── public/              # Ícones PWA, push-handler.js
 │   │   └── vite.config.ts
 │   │
@@ -105,11 +109,11 @@ Athlon/
 │       │   ├── server.ts        # Dev local (listen + node-cron)
 │       │   ├── config/          # env.ts, supabase.ts
 │       │   ├── middleware/      # auth, validate, error-handler, cron-auth
-│       │   ├── modules/         # Rotas por domínio
-│       │   ├── lib/             # db, jwt, inadimplencia, notificacoes, push
+│       │   ├── modules/         # Rotas por domínio (auth, admin, turmas, etc.)
+│       │   ├── lib/             # db, jwt, email, inadimplencia, notificacoes, push
 │       │   └── jobs/cron.ts     # Lógica dos jobs agendados
 │       ├── supabase/migrations/ # Schema SQL
-│       └── scripts/             # test-db, generate-vapid-keys
+│       └── scripts/             # test-db, seed-admin, generate-vapid-keys
 │
 ├── packages/
 │   └── shared-types/            # Contratos Zod + enums compartilhados
@@ -186,14 +190,22 @@ Navegador (athlonsport.vercel.app)
 
 | Guard | Uso |
 |-------|-----|
-| `GuestRoute` | Login/cadastro - redireciona logados para `/` |
+| `GuestRoute` | Login/cadastro — redireciona logados para `/` (ADM vai para `/admin`) |
 | `ProtectedRoute` | Exige usuário autenticado |
 | `ProfessorRoute` | Apenas professor |
-| `AdminRoute` | Apenas ADM |
+| `AdminRoute` | Apenas ADM; sem login redireciona para `/login/professor` |
 | `AlunoRoute` | Apenas aluno |
 | `AlunoTurmasRoute` | Aluno sem bloqueio por inadimplência |
 
-### Matriz de acesso resumida
+| Perfil | Início | Mensalidades | Alunos | Turmas | Admin |
+|--------|--------|--------------|--------|--------|-------|
+| Professor | Sim | Sim | Sim | Sim | Não |
+| Aluno | Sim | Próprias | Não | Minhas turmas* | Não |
+| ADM | `/admin` | Não | Não | Não | Sim |
+
+\* Aluno bloqueado: sem acesso a minhas turmas.
+
+### Matriz de acesso resumida (professor e aluno)
 
 | Recurso | Professor | Aluno | Aluno bloqueado |
 |---------|-----------|-------|-----------------|
@@ -265,14 +277,18 @@ Navegador (athlonsport.vercel.app)
 ### 6.3 Jornada do Administrador (ADM)
 
 ```
-1. Acessa /login/admin (link no rodapé de /login)
-2. Login com perfil ADM
+1. Acessa /login → escolhe "Treinador" (ou vai direto a /login/professor)
+2. Login com e-mail e senha de ADM (mesma tela do treinador)
+   - Backend aceita perfil ADM quando o login é feito como PROFESSOR
+   - Após login, redireciona automaticamente para /admin
 3. Dashboard (/admin) — métricas globais e lista de professores
 4. Cria professor (/admin/professores/novo) e repassa credenciais
 5. Inspeciona professor (/admin/professores/:id) — turmas e alunos (leitura)
 6. Desativa/reativa professor se necessário
 7. Perfil (/admin/perfil) — alterar senha, logout
 ```
+
+> `/login/admin` redireciona para `/login/professor` (compatibilidade com links antigos).
 
 Seed: `pnpm seed:admin` (variáveis `ADMIN_EMAIL`, `ADMIN_PASSWORD` em `apps/backend/.env`)
 
@@ -302,14 +318,13 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | Rota | Tela | Descrição |
 |------|------|-----------|
 | `/login` | ProfileSelectPage | Escolha professor ou aluno |
-| `/login/professor` | LoginFormPage | Login treinador |
+| `/login/professor` | LoginFormPage | Login treinador **e administrador (ADM)** |
 | `/login/aluno` | LoginFormPage | Login aluno |
-| `/login/admin` | LoginAdminPage | Login administrativo |
-| `/login/professor/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (treinador) |
+| `/login/admin` | Redirect | Redireciona para `/login/professor` |
+| `/login/professor/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (treinador e ADM) |
 | `/login/aluno/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (aluno) |
-| `/login/professor/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (treinador) |
+| `/login/professor/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (treinador/ADM) |
 | `/login/aluno/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (aluno) |
-| `/login/admin` | LoginAdminPage | Login administrativo |
 | `/cadastro/aluno` | RegisterAlunoPage | Cadastro aluno |
 | `/termos` | TermosDeUsoPage | Termos de uso |
 | `/privacidade` | PoliticaPrivacidadePage | Política de privacidade |
@@ -366,7 +381,7 @@ Montagem: `apps/backend/src/app.ts`
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
 | POST | `/register/aluno` | Público | Cadastro aluno + matrícula |
-| POST | `/login` | Público | Login (e-mail + senha + perfil: ADM, PROFESSOR ou ALUNO) |
+| POST | `/login` | Público | Login (e-mail + senha + perfil). ADM pode entrar com `perfil: "PROFESSOR"` na tela de treinador |
 | POST | `/recuperar-senha/solicitar` | Público | Envia código de 6 dígitos + link por e-mail |
 | POST | `/recuperar-senha/confirmar` | Público | Redefine senha com código ou token do link |
 | GET | `/me` | JWT | Perfil atual |
@@ -454,7 +469,13 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | GET | `/contagem` | Contagem não lidas |
 | PATCH | `/:id/lida` | Marcar como lida |
 | POST | `/marcar-todas-lidas` | Marcar todas |
-| POST | `/push-token` | Registrar subscription push |
+| POST | `/push-token` | Registrar subscription push (alias → DeviceService) |
+
+### Dispositivos - `/api/v1/dispositivos`
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/` | Registrar/atualizar dispositivo (web ou mobile) |
 
 ### Avisos - `/api/v1/avisos` (Professor)
 
@@ -487,12 +508,9 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 
 ## 9. Banco de dados (Supabase)
 
-**Migrations:**
-- `apps/backend/supabase/migrations/20250612000000_schema.sql` - schema principal
-- `apps/backend/supabase/migrations/20250615000000_cron_avisos.sql` - pg_cron para avisos
-- `apps/backend/supabase/migrations/20250624000000_enable_rls_public_tables.sql` - RLS em tabelas públicas
-- `apps/backend/supabase/migrations/20250624100000_recuperacao_senha.sql` - tokens de recuperação de senha
-- `apps/backend/supabase/migrations/20250625100000_perfil_adm.sql` - perfil ADM no enum
+**Migration (banco novo):**
+- `apps/backend/supabase/migrations/20250612000000_schema.sql` — schema completo
+- `apps/backend/supabase/migrations/20250627000000_dispositivos.sql` — tabela `Dispositivo` (bancos existentes)
 
 ### Diagrama de relacionamentos
 
@@ -505,7 +523,8 @@ Pagamento (1) ── (N) Comprovante
 Turma (1) ── (N) Evento ── (N) Presenca   [sem UI]
 Usuario (1) ── (N) Notificacao
 Usuario (1) ── (N) RecuperacaoSenha
-Usuario (1) ── (N) TokenPushFcm
+Usuario (1) ── (N) Dispositivo
+Usuario (1) ── (N) TokenPushFcm   [legado — migrado para Dispositivo]
 Professor + Turma ── (N) AvisoProfessor
 ```
 
@@ -522,7 +541,8 @@ Professor + Turma ── (N) AvisoProfessor
 | `Comprovante` | Arquivo enviado pelo aluno |
 | `Notificacao` | Notificação in-app |
 | `RecuperacaoSenha` | Código e link mágico para redefinir senha (expira em 15 min) |
-| `TokenPushFcm` | Subscription Web Push (nome legado) |
+| `Dispositivo` | Dispositivo registrado (web/mobile) para push e metadados |
+| `TokenPushFcm` | Subscription Web Push (legado; migrado para `Dispositivo`) |
 | `AvisoProfessor` | Avisos do professor para turma |
 | `Evento` / `Presenca` | Preparado para futuro (chamada) |
 | `_athlon_cron_config` | URL Vercel + CRON_SECRET para pg_cron |
@@ -556,10 +576,12 @@ Professor + Turma ── (N) AvisoProfessor
 
 ### Comprovantes
 
-- Upload direto ao Supabase Storage (signed URL).
+- Upload direto ao Supabase Storage (signed URL), bucket `comprovantes` (privado).
 - Tipos aceitos: JPEG, PNG, WebP, PDF.
 - Status que permitem envio: `PENDENTE`, `RECUSADO`, `ATRASADO`.
 - Envio → `EM_ANALISE`; aprovação → `PAGO`; recusa → `RECUSADO`.
+- O bucket é criado pelo schema SQL ou automaticamente no primeiro upload (`storage.service.ts`).
+- **Intenção de produto:** o arquivo é temporário — após aprovação, some da fila do professor. A exclusão física do arquivo no Storage após aprovação/recusa está prevista em `docs/Melhoria.md` (ainda não implementada).
 
 ### Turmas
 
@@ -589,7 +611,29 @@ Professor + Turma ── (N) AvisoProfessor
 | Comprovante recusado | Aluno | `COMPROVANTE_RECUSADO` | Ação do professor |
 | Pagamento confirmado | Aluno | `PAGAMENTO_CONFIRMADO` | Marcar pago manual |
 
-Toda notificação in-app também tenta enviar **Web Push** se VAPID estiver configurado.
+Toda notificação in-app também dispara **Web Push** (PWA), conforme dispositivos registrados.
+
+### Arquitetura de notificações
+
+```
+Evento de negócio
+       ↓
+NotificationService.send()
+       ↓
+├── InAppProvider      → tabela Notificacao (+ url deep link)
+└── WebPushProvider    → dispositivos push_provider = WEB
+```
+
+Registro de dispositivos via `DeviceService` (`POST /api/v1/dispositivos`):
+
+| Campo | Descrição |
+|-------|-----------|
+| `platform` | `WEB`, `ANDROID`, `IOS` |
+| `pushProvider` | `WEB` (subscription VAPID) ou `EXPO` (legado, dispositivos antigos) |
+| `pushToken` | Token do canal |
+| `notificationPermission` | `granted`, `denied`, `default` |
+
+O endpoint legado `POST /notificacoes/push-token` delega ao `DeviceService` (compatibilidade PWA).
 
 ### Agendadores
 
@@ -619,7 +663,7 @@ Toda notificação in-app também tenta enviar **Web Push** se VAPID estiver con
 
 ### Recuperação de senha ("Esqueci minha senha")
 
-Fluxo em duas etapas, disponível nas telas de login de **treinador** e **aluno**:
+Fluxo em duas etapas, disponível nas telas de login de **treinador** (inclui ADM), **aluno**:
 
 1. Usuário informa o e-mail → `POST /auth/recuperar-senha/solicitar`
 2. Sistema gera **código de 6 dígitos** + **link mágico** (válidos por 15 minutos) e tenta enviar por e-mail
@@ -658,20 +702,35 @@ Use esse log para testar o fluxo localmente.
 
 ## 13. PWA e Web Push
 
-### PWA
+Web e PWA usam **o mesmo código** (`apps/frontend`). A diferença é que o PWA é instalável (Add to Home Screen) e registra push via Service Worker.
 
-- Instalável no celular (Add to Home Screen).
-- Manifest: nome ATHLON, tema `#5C3D2E`, display standalone.
-- Service Worker com auto-update.
+### PWA e instalação
 
-### Web Push
+- Manifest: nome ATHLON, `start_url: /`, tema `#5C3D2E`, display `standalone`, ícones 192×192 e 512×512.
+- Service Worker com auto-update (`vite-plugin-pwa`).
+- **Android / Chromium:** banner com botão "Instalar app" aciona o prompt nativo (`beforeinstallprompt`).
+- **iOS / Safari:** banner aparece após ~30s de uso ou primeira navegação; abre tutorial em 3 passos (Compartilhar → Adicionar à Tela de Início). Dispensa fica salva por 7 dias no `localStorage`.
+- Nenhum convite é exibido se o app já estiver em modo standalone (instalado).
 
-1. Após login, painel de notificações solicita permissão.
-2. Frontend obtém chave VAPID pública da API.
-3. Registra subscription e envia para `POST /notificacoes/push-token`.
+**Arquivos:**
+
+| Arquivo | Papel |
+|---------|-------|
+| `apps/frontend/src/lib/use-pwa-install.ts` | Hook: detecção iOS/standalone, eventos de instalação, timing |
+| `apps/frontend/src/lib/pwa-install-storage.ts` | Persistência da dispensa do tutorial iOS |
+| `apps/frontend/src/components/pwa/PwaInstallPrompt.tsx` | Banner de convite (Android e iOS) |
+| `apps/frontend/src/components/pwa/TutorialInstalacaoIOS.tsx` | Modal passo a passo para iOS |
+
+### Web Push (PWA no browser)
+
+1. Após login de **aluno**, o painel de notificações solicita permissão.
+2. Frontend obtém chave VAPID pública da API (`GET /notificacoes/vapid-public-key`).
+3. Registra subscription no Service Worker e envia para `POST /api/v1/dispositivos` (`pushProvider: WEB`).
 4. `public/push-handler.js` exibe notificações no service worker.
 
-**Guia detalhado:** `docs/web-push-producao.md`
+O endpoint legado `POST /notificacoes/push-token` ainda funciona (delega ao `DeviceService`).
+
+**Guia detalhado (VAPID em produção):** `docs/web-push-producao.md`
 
 **Gerar chaves VAPID:**
 ```bash
@@ -716,13 +775,14 @@ Copiar variáveis do backend + ajustar:
 
 ```
 CORS_ORIGIN=https://seu-dominio.vercel.app
+APP_URL=https://seu-dominio.vercel.app
 ```
 
 **Não** definir `VITE_API_URL` na Vercel.
 
 ### Supabase (após deploy)
 
-Configurar cron de avisos (se aplicou migration `20250615000000_cron_avisos.sql`):
+Configurar cron de avisos (após aplicar o schema):
 
 ```sql
 INSERT INTO "_athlon_cron_config" (vercel_url, cron_secret)
@@ -754,9 +814,9 @@ pnpm install
 
 # 3. Configurar Supabase
 #    - Criar projeto em supabase.com
-#    - SQL Editor: executar migrations em apps/backend/supabase/migrations/
+#    - SQL Editor: executar apps/backend/supabase/migrations/20250612000000_schema.sql
 
-# 4. Criar bucket "comprovantes" no Supabase Storage
+# 4. Bucket "comprovantes" — incluído no schema (ou criado automaticamente no 1º upload)
 
 # 5. Configurar variáveis
 cp .env.example apps/backend/.env
@@ -776,6 +836,9 @@ pnpm dev:frontend   # PWA em http://localhost:5173
 
 # Ou ambos juntos:
 pnpm dev
+
+# 8. Rodar testes automatizados (recomendado antes do deploy)
+pnpm test
 ```
 
 ### Proxy local
@@ -795,9 +858,9 @@ O Vite (`vite.config.ts`) faz proxy de `/api` para o backend em desenvolvimento 
 
 1. **Supabase**
    - Criar projeto
-   - Aplicar migrations SQL
-   - Criar bucket `comprovantes`
+   - Aplicar `20250612000000_schema.sql` no SQL Editor
    - Configurar `_athlon_cron_config` (avisos horários)
+   - `pnpm seed:admin` para criar o primeiro ADM
 
 2. **Git**
    - Push para GitHub/GitLab
@@ -806,7 +869,7 @@ O Vite (`vite.config.ts`) faz proxy de `/api` para o backend em desenvolvimento 
    - Importar repositório
    - Root Directory: `./` (raiz)
    - Framework: Other (usa `vercel.json`)
-   - Environment Variables: todas do backend
+   - Environment Variables: todas do backend (incl. `APP_URL` e `CORS_ORIGIN` com a URL final)
    - `CORS_ORIGIN` = URL final do app
 
 4. **Deploy**
@@ -815,7 +878,10 @@ O Vite (`vite.config.ts`) faz proxy de `/api` para o backend em desenvolvimento 
 
 5. **Validar**
    - `https://seu-dominio.vercel.app/health` → `{"status":"ok"}`
+   - `pnpm test`
    - Testar login e fluxo de comprovante
+   - Chrome DevTools → Application → Manifest (Installability OK)
+   - Testar instalação PWA no Android e tutorial iOS no Safari
 
 ### O que NÃO vai no Git
 
@@ -837,8 +903,10 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `pnpm dev:backend` | Só backend (Express + crons locais) |
 | `pnpm build` | Build completo (shared-types + backend + frontend) |
 | `pnpm build:vercel` | Build para deploy Vercel |
+| `pnpm test` | Testes automatizados (shared-types + frontend) |
 | `pnpm test:db` | Testa conexão Supabase |
 | `pnpm seed:admin` | Cria usuário ADM inicial no banco |
+| `pnpm --filter @athlon/frontend test:watch` | Testes do PWA em modo watch |
 | `pnpm --filter @athlon/backend generate-vapid-keys` | Gera chaves VAPID |
 
 ---
@@ -857,10 +925,17 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `vercel.json` | Config de deploy |
 | `apps/backend/src/middleware/auth.ts` | JWT e roles |
 | `apps/backend/src/modules/admin/` | API administrativa |
+| `apps/backend/src/modules/comprovantes/storage.service.ts` | Upload Storage (bucket + URLs assinadas) |
+| `apps/backend/src/lib/email.ts` | Envio de e-mail (Resend) |
+| `apps/backend/scripts/seed-admin.ts` | Seed do usuário ADM inicial |
+| `apps/frontend/src/features/admin/` | Telas do painel administrativo |
 | `apps/backend/src/lib/inadimplencia.ts` | Regra de bloqueio |
 | `apps/backend/src/lib/mensalidade-focus.ts` | Status efetivo e foco |
 | `apps/backend/src/jobs/cron.ts` | Jobs agendados |
 | `packages/shared-types/` | Schemas Zod compartilhados |
+| `apps/frontend/src/lib/use-pwa-install.ts` | Hook de instalação PWA (Android + iOS) |
+| `apps/frontend/src/components/pwa/PwaInstallPrompt.tsx` | Banner de convite para instalar |
+| `apps/frontend/src/lib/push-notifications.ts` | Registro push VAPID (PWA) |
 | `apps/backend/supabase/migrations/` | Schema do banco |
 
 ---
@@ -886,19 +961,20 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 [ ] pnpm install
 [ ] Criar apps/backend/.env (copiar do .env.example ou do PC antigo - NÃO commitar)
 [ ] Criar apps/frontend/.env com VITE_API_URL apontando para o backend local
-[ ] Aplicar migrations no Supabase (se banco novo ou pendente):
-    - 20250624000000_enable_rls_public_tables.sql
-    - 20250624100000_recuperacao_senha.sql
-    - 20250625100000_perfil_adm.sql
+[ ] Aplicar schema no Supabase (banco novo):
+    - apps/backend/supabase/migrations/20250612000000_schema.sql
+[ ] (Banco existente) Aplicar migration Dispositivo:
+    - apps/backend/supabase/migrations/20250627000000_dispositivos.sql
 [ ] Configurar ADMIN_EMAIL e ADMIN_PASSWORD em apps/backend/.env
 [ ] pnpm seed:admin
-[ ] Criar bucket comprovantes no Supabase Storage
+[ ] (Opcional) Criar bucket comprovantes manualmente — já incluso no schema
 [ ] pnpm test:db
+[ ] pnpm test
 [ ] pnpm dev
-[ ] (Produção) Configurar variáveis na Vercel
+[ ] (Produção) Configurar variáveis na Vercel (incluir APP_URL e CORS_ORIGIN com a URL final)
 [ ] (Produção) Configurar Resend para recuperação de senha (pendente)
 [ ] (Produção) Configurar _athlon_cron_config no Supabase
-[ ] (Produção) Validar /health
+[ ] (Produção) Validar /health e fluxo de upload de comprovante
 ```
 
 ### Subir para o Git (primeira vez)
@@ -927,8 +1003,48 @@ pnpm install
 Documentadas em `docs/Melhoria.md`:
 
 - Presença/chamada (tabelas `Evento` e `Presenca` já existem)
+- Exclusão do arquivo de comprovante no Storage após aprovação/recusa
 - Notificação ao professor quando aluno envia comprovante
 - Bloqueio mais rígido de inadimplência (redirecionar direto para mensalidades)
+
+---
+
+## 22. Testes automatizados
+
+O projeto usa **Vitest** para validar schemas compartilhados e lógica do frontend PWA.
+
+### Executar
+
+```bash
+pnpm test
+```
+
+Roda, em sequência:
+
+1. Build de `@athlon/shared-types`
+2. Testes dos schemas Zod
+3. Testes do frontend (push, instalação PWA)
+
+### O que é coberto
+
+| Pacote | Arquivo(s) | Cenários |
+|--------|------------|----------|
+| `frontend` | `push-notifications.test.ts` | Fluxo VAPID no browser |
+| `frontend` | `pwa-install-storage.test.ts` | Dispensa do tutorial iOS (localStorage) |
+| `frontend` | `use-pwa-install.test.ts` | Detecção iOS e modo standalone |
+
+### O que não é coberto (manual ou futuro)
+
+- `beforeinstallprompt` real no Chrome Android (testar em dispositivo)
+- Tutorial iOS no Safari real
+- `POST /dispositivos` contra API real
+- E2E de login e fluxo completo (Playwright)
+
+### Modo watch (desenvolvimento)
+
+```bash
+pnpm --filter @athlon/frontend test:watch
+```
 
 ---
 

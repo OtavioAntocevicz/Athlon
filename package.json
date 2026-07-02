@@ -11,7 +11,8 @@
     "build": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
     "build:vercel": "pnpm run --filter @athlon/shared-types build && pnpm run --filter @athlon/backend build && pnpm run --filter @athlon/frontend build",
     "test:db": "pnpm --filter @athlon/backend test:db",
-    "seed:admin": "pnpm --filter @athlon/backend seed:admin"
+    "seed:admin": "pnpm --filter @athlon/backend seed:admin",
+    "test": "pnpm --filter @athlon/shared-types build && pnpm --filter @athlon/frontend test"
   },
   "dependencies": {
     "@athlon/backend": "workspace:*",

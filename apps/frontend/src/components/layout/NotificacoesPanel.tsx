@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/cn";
 import { registrarPushNotifications } from "@/lib/push-notifications";
+import { track } from "@/lib/analytics/analytics";
 
 interface Notificacao {
   id: string;
   titulo: string;
   corpo: string | null;
   tipo: string | null;
+  url: string | null;
   lida: boolean;
   criadoEm: string;
 }
 
 export function NotificacoesPanel() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [aberto, setAberto] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -112,7 +116,15 @@ export function NotificacoesPanel() {
                 "w-full border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted/50",
                 !n.lida && "bg-accent/10",
               )}
-              onClick={() => !n.lida && marcarLida.mutate(n.id)}
+              onClick={() => {
+                if (!n.lida) marcarLida.mutate(n.id);
+                if (n.url) {
+                  track("notification_opened", { tipo: n.tipo });
+                  track("deep_link_opened", { url: n.url });
+                  navigate(n.url);
+                  setAberto(false);
+                }
+              }}
             >
               <p className="text-sm font-medium text-primary">{n.titulo}</p>
               {n.corpo && (

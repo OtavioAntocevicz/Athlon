@@ -16,6 +16,8 @@ export default defineConfig({
         name: "ATHLON",
         short_name: "ATHLON",
         description: "Gestão esportiva para treinadores e atletas",
+        start_url: "/",
+        scope: "/",
         theme_color: "#5C3D2E",
         background_color: "#FDF8F3",
         display: "standalone",

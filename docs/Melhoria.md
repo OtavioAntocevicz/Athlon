@@ -16,6 +16,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 - Visão consolidada para o professor: recebimentos por período, inadimplência por turma, projeção de caixa.
 - Pode incluir exportação (PDF/CSV) em fase posterior.
 
+### Instalação PWA
+
+- Implementado: banner Android (`beforeinstallprompt`) + tutorial iOS com timing e dispensa persistente.
+- Pendente em produção: validar Installability no Chrome DevTools após deploy.
+
 ### Web Push em produção
 
 - Código implementado; falta configurar no ambiente de deploy.
@@ -25,6 +30,26 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 ---
 
 ## Refinamento
+
+### Testes E2E (futuro)
+
+- Testes unitários do PWA já existem (`pnpm test`, Vitest).
+- Pendente: E2E com Playwright (PWA no browser, incluindo fluxo de instalação simulado).
+- Pendente: testes de integração da API `POST /dispositivos` com banco de teste.
+
+### Analytics e Feature Flags
+
+- Camadas desacopladas no frontend (`lib/analytics/`, `lib/feature-flags/`) com providers no-op.
+- Pendente: integrar PostHog, Firebase Analytics ou Amplitude; Feature Flags reais por ambiente/plataforma.
+
+### Sentry no frontend web
+
+- Pendente: `@sentry/react` no frontend web para crash reporting.
+
+### Comprovante temporário (Storage)
+
+- Hoje o arquivo permanece no bucket após aprovação ou recusa; só sai da fila do professor.
+- Melhoria: apagar o arquivo no Supabase Storage e limpar `arquivo_url` após aprovação (e opcionalmente após recusa).
 
 ### Recuperação de senha — Resend (e-mail)
 

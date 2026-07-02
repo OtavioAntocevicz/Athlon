@@ -28,11 +28,22 @@ async function notificarNovasMensalidades() {
     for (const m of matriculas ?? []) {
       const usuarioId = await usuarioIdDoAluno(m.aluno_id);
       if (!usuarioId) continue;
+
+      const { data: pagamento } = await supabase
+        .from("Pagamento")
+        .select("id")
+        .eq("aluno_id", m.aluno_id)
+        .eq("turma_id", turma.id)
+        .order("mes_referencia", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       await criarNotificacao(
         usuarioId,
         "Nova mensalidade",
         `Você tem uma nova mensalidade da turma ${turma.nome} com vencimento no dia ${turma.dia_vencimento}.`,
         "MENSALIDADE_NOVA",
+        pagamento?.id ? `/mensalidades/${pagamento.id}` : "/mensalidades",
       );
     }
   }
@@ -41,7 +52,7 @@ async function notificarNovasMensalidades() {
 async function notificarAtrasos() {
   const { data: pagamentos } = await supabase
     .from("Pagamento")
-    .select("aluno_id, turma_id, status, mes_referencia, vencimento, Turma(nome)")
+    .select("id, aluno_id, turma_id, status, mes_referencia, vencimento, Turma(nome)")
     .eq("status", "ATRASADO");
 
   for (const p of pagamentos ?? []) {
@@ -54,6 +65,7 @@ async function notificarAtrasos() {
       "Mensalidade em atraso",
       `Sua mensalidade da turma ${turma.nome} está em atraso. Regularize o quanto antes.`,
       `MENSALIDADE_ATRASADA:${p.turma_id}`,
+      `/mensalidades/${p.id}`,
     );
   }
 }

@@ -4,7 +4,22 @@ import { AppError } from "../../middleware/error-handler.js";
 import { criarNotificacao, usuarioIdDoAluno } from "../../lib/notificacoes.js";
 import type { CriarAvisoInput } from "@athlon/shared-types";
 
-async function enviarAvisoParaTurma(turmaId: string, titulo: string, descricao: string) {
+async function enviarAvisoParaTurma(
+  turmaId: string,
+  professorId: string,
+  titulo: string,
+  descricao: string,
+) {
+  const profResult = await supabase
+    .from("Professor")
+    .select("Usuario(nome)")
+    .eq("id", professorId)
+    .maybeSingle();
+
+  const usuario = profResult.data?.Usuario as { nome: string } | { nome: string }[] | null;
+  const professorNome = Array.isArray(usuario) ? usuario[0]?.nome : usuario?.nome;
+  const nome = professorNome ?? "Seu professor";
+
   const { data: matriculas } = await supabase
     .from("MatriculaTurma")
     .select("aluno_id")
@@ -14,7 +29,13 @@ async function enviarAvisoParaTurma(turmaId: string, titulo: string, descricao: 
   for (const m of matriculas ?? []) {
     const usuarioId = await usuarioIdDoAluno(m.aluno_id);
     if (!usuarioId) continue;
-    await criarNotificacao(usuarioId, titulo, descricao, "AVISO_PROFESSOR");
+    await criarNotificacao(
+      usuarioId,
+      "Novo aviso da sua turma",
+      `Professor ${nome} enviou um novo comunicado.`,
+      "AVISO_PROFESSOR",
+      "/",
+    );
   }
 }
 
@@ -54,7 +75,7 @@ export async function criarAviso(professorId: string, input: CriarAvisoInput) {
   );
 
   if (enviarAgora) {
-    await enviarAvisoParaTurma(input.turmaId, input.titulo, input.descricao);
+    await enviarAvisoParaTurma(input.turmaId, professorId, input.titulo, input.descricao);
   }
 
   return {
@@ -96,13 +117,18 @@ export async function processarAvisosAgendados() {
   const agora = new Date().toISOString();
   const { data: pendentes } = await supabase
     .from("AvisoProfessor")
-    .select("id, turma_id, titulo, descricao")
+    .select("id, turma_id, professor_id, titulo, descricao")
     .is("enviado_em", null)
     .not("agendado_para", "is", null)
     .lte("agendado_para", agora);
 
   for (const aviso of pendentes ?? []) {
-    await enviarAvisoParaTurma(aviso.turma_id, aviso.titulo, aviso.descricao);
+    await enviarAvisoParaTurma(
+      aviso.turma_id,
+      aviso.professor_id,
+      aviso.titulo,
+      aviso.descricao,
+    );
     await supabase
       .from("AvisoProfessor")
       .update({ enviado_em: now() })
