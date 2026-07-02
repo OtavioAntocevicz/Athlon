@@ -69,12 +69,12 @@ export function ProfileSelectPage() {
         </header>
       </PageEnter>
 
-      <div className="flex min-h-0 flex-col justify-center gap-3 overflow-y-auto overscroll-contain">
-        <PageEnter delay={80} className="flex shrink-0 justify-center">
+      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain">
+        <PageEnter delay={80} className="flex min-h-0 flex-1 items-center justify-center">
           <img
             src="/logo.png"
             alt=""
-            className="mx-auto max-h-[clamp(72px,22dvh,180px)] w-full object-contain"
+            className="mx-auto h-full max-h-full w-full max-w-[500px] object-contain"
             draggable={false}
           />
         </PageEnter>
@@ -126,7 +126,7 @@ export function ProfileSelectPage() {
           </Link>
         </p>
         <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
-          V1.7.1
+          V1.7.9
         </p>
       </PageEnter>
     </div>
