@@ -1,23 +1,29 @@
-import { Download, Smartphone, X } from "lucide-react";
+import { Download, ExternalLink, Smartphone, X } from "lucide-react";
 import { usePwaInstall } from "@/lib/use-pwa-install";
 import { Button } from "@/components/ui/button";
 import { TutorialInstalacaoIOS } from "./TutorialInstalacaoIOS";
+import { AbrirNoSafariModal } from "./AbrirNoSafariModal";
 
 export function PwaInstallPrompt() {
   const {
     jaInstalado,
     mostrarConviteIOS,
+    mostrarAvisoAbrirSafari,
     mostrarConviteAndroid,
     tutorialAberto,
+    safariModalAberto,
     instalarAndroid,
     abrirTutorialIOS,
     fecharTutorialIOS,
+    abrirModalSafari,
+    fecharModalSafari,
     dispensarTutorialIOS,
   } = usePwaInstall();
 
   if (jaInstalado) return null;
 
-  const mostrarBanner = mostrarConviteAndroid || mostrarConviteIOS;
+  const mostrarBanner = mostrarConviteAndroid || mostrarConviteIOS || mostrarAvisoAbrirSafari;
+  const conviteIOS = mostrarConviteIOS || mostrarAvisoAbrirSafari;
 
   return (
     <>
@@ -27,26 +33,44 @@ export function PwaInstallPrompt() {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               {mostrarConviteAndroid ? (
                 <Download className="h-5 w-5" />
+              ) : mostrarAvisoAbrirSafari ? (
+                <ExternalLink className="h-5 w-5" />
               ) : (
                 <Smartphone className="h-5 w-5" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-primary">Instale o ATHLON</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Acesso rápido na tela inicial e melhor experiência offline.
-              </p>
+              {mostrarAvisoAbrirSafari ? (
+                <>
+                  <p className="text-sm font-semibold text-primary">Use o Safari para instalar</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    No iPhone, a instalação na tela inicial só funciona pelo Safari — não pelo
+                    Chrome ou outros navegadores.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-primary">Instale o ATHLON</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Acesso rápido na tela inicial e melhor experiência offline.
+                  </p>
+                </>
+              )}
               <div className="mt-2 flex flex-wrap gap-2">
                 {mostrarConviteAndroid ? (
                   <Button type="button" size="sm" onClick={() => instalarAndroid()}>
                     Instalar app
+                  </Button>
+                ) : mostrarAvisoAbrirSafari ? (
+                  <Button type="button" size="sm" onClick={abrirModalSafari}>
+                    Abrir no Safari
                   </Button>
                 ) : (
                   <Button type="button" size="sm" onClick={abrirTutorialIOS}>
                     Como instalar
                   </Button>
                 )}
-                {mostrarConviteIOS && (
+                {conviteIOS && (
                   <Button
                     type="button"
                     size="sm"
@@ -59,7 +83,7 @@ export function PwaInstallPrompt() {
                 )}
               </div>
             </div>
-            {mostrarConviteIOS && (
+            {conviteIOS && (
               <button
                 type="button"
                 onClick={dispensarTutorialIOS}
@@ -76,6 +100,12 @@ export function PwaInstallPrompt() {
       <TutorialInstalacaoIOS
         open={tutorialAberto}
         onClose={fecharTutorialIOS}
+        onDismiss={dispensarTutorialIOS}
+      />
+
+      <AbrirNoSafariModal
+        open={safariModalAberto}
+        onClose={fecharModalSafari}
         onDismiss={dispensarTutorialIOS}
       />
     </>

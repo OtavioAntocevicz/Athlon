@@ -12,6 +12,19 @@ export function detectEhIOS(): boolean {
   );
 }
 
+/** Chrome, Firefox, Edge, Opera e webviews no iOS não suportam instalação PWA como o Safari. */
+export function detectEhSafariIOS(): boolean {
+  if (!detectEhIOS()) return false;
+  const ua = navigator.userAgent;
+  if (/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua)) return false;
+  if (/FBAN|FBAV|Instagram|Line\/|Twitter/i.test(ua)) return false;
+  return /Safari/i.test(ua);
+}
+
+export function detectEhIOSNaoSafari(): boolean {
+  return detectEhIOS() && !detectEhSafariIOS();
+}
+
 export function detectJaInstalado(): boolean {
   if (typeof window === "undefined") return false;
   const nav = window.navigator as Navigator & { standalone?: boolean };
@@ -26,10 +39,13 @@ export function usePwaInstall() {
 
   const [jaInstalado, setJaInstalado] = useState(detectJaInstalado);
   const [ehIOS] = useState(detectEhIOS);
+  const [ehSafariIOS] = useState(detectEhSafariIOS);
+  const [ehIOSNaoSafari] = useState(detectEhIOSNaoSafari);
   const [podeInstalarAndroid, setPodeInstalarAndroid] = useState(false);
   const [iosPronto, setIosPronto] = useState(false);
   const [iosDispensado, setIosDispensado] = useState(foiDispensadoRecentemente);
   const [tutorialAberto, setTutorialAberto] = useState(false);
+  const [safariModalAberto, setSafariModalAberto] = useState(false);
 
   const routeKeyRef = useRef(location.pathname);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,23 +114,41 @@ export function usePwaInstall() {
     registrarDispensa();
     setIosDispensado(true);
     setTutorialAberto(false);
+    setSafariModalAberto(false);
   }, []);
 
-  const mostrarConviteIOS =
+  const iosPodeMostrarConvite =
     ehIOS && !jaInstalado && iosPronto && !iosDispensado && !foiDispensadoRecentemente();
+
+  const mostrarConviteIOS = iosPodeMostrarConvite && ehSafariIOS;
+  const mostrarAvisoAbrirSafari = iosPodeMostrarConvite && ehIOSNaoSafari;
 
   const mostrarConviteAndroid = podeInstalarAndroid && !jaInstalado && !ehIOS;
 
+  const abrirModalSafari = useCallback(() => {
+    setSafariModalAberto(true);
+  }, []);
+
+  const fecharModalSafari = useCallback(() => {
+    setSafariModalAberto(false);
+  }, []);
+
   return {
     ehIOS,
+    ehSafariIOS,
+    ehIOSNaoSafari,
     jaInstalado,
     podeInstalarAndroid,
     mostrarConviteIOS,
+    mostrarAvisoAbrirSafari,
     mostrarConviteAndroid,
     tutorialAberto,
+    safariModalAberto,
     instalarAndroid,
     abrirTutorialIOS,
     fecharTutorialIOS,
+    abrirModalSafari,
+    fecharModalSafari,
     dispensarTutorialIOS,
   };
 }
