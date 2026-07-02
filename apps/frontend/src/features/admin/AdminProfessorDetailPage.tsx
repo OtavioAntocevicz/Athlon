@@ -84,7 +84,7 @@ export function AdminProfessorDetailPage() {
           <h1 className="text-2xl font-bold text-primary">{data.nome}</h1>
           <p className="text-sm text-muted-foreground">{data.email}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            PIX: {data.chavePix ?? "—"} · Cadastro: {formatDate(data.criadoEm)}
+            PIX: {data.chavePix ?? "-"} · Cadastro: {formatDate(data.criadoEm)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

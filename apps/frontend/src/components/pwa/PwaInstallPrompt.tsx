@@ -70,7 +70,7 @@ export function PwaInstallPrompt() {
                 <>
                   <p className="text-sm font-semibold text-primary">Use o Safari para instalar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    No iPhone, a instalação na tela inicial só funciona pelo Safari — não pelo
+                    No iPhone, a instalação na tela inicial só funciona pelo Safari - não pelo
                     Chrome ou outros navegadores.
                   </p>
                 </>
