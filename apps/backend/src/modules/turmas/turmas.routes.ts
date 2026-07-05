@@ -2,6 +2,8 @@ import { Router } from "express";
 import {
   createAlunoSchema,
   createTurmaSchema,
+  criarEventoSchema,
+  atualizarEventoSchema,
   updateTurmaBasicoSchema,
   updateTurmaSchema,
 } from "@athlon/shared-types";
@@ -10,6 +12,7 @@ import { validate } from "../../middleware/validate.js";
 import * as turmasService from "./turmas.service.js";
 import * as alunosService from "../alunos/alunos.service.js";
 import * as mensalidadesService from "../mensalidades/mensalidades.service.js";
+import * as eventosService from "../eventos/eventos.service.js";
 
 export const turmasRouter = Router();
 
@@ -111,6 +114,62 @@ turmasRouter.get("/:id/mensalidades", async (req, res, next) => {
       professorId: req.user!.professorId!,
       turmaId: String(req.params.id),
     });
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+turmasRouter.get("/:id/eventos", async (req, res, next) => {
+  try {
+    const data = await eventosService.listarEventosDaTurma(
+      String(req.params.id),
+      req.user!.professorId!,
+    );
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+turmasRouter.post("/:id/eventos", validate(criarEventoSchema), async (req, res, next) => {
+  try {
+    const data = await eventosService.criarEvento(
+      req.user!.professorId!,
+      String(req.params.id),
+      req.body,
+    );
+    res.status(201).json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+turmasRouter.patch(
+  "/:id/eventos/:eventoId",
+  validate(atualizarEventoSchema),
+  async (req, res, next) => {
+    try {
+      const data = await eventosService.atualizarEvento(
+        req.user!.professorId!,
+        String(req.params.id),
+        String(req.params.eventoId),
+        req.body,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+turmasRouter.delete("/:id/eventos/:eventoId", async (req, res, next) => {
+  try {
+    const data = await eventosService.excluirEvento(
+      req.user!.professorId!,
+      String(req.params.id),
+      String(req.params.eventoId),
+    );
     res.json({ data });
   } catch (e) {
     next(e);

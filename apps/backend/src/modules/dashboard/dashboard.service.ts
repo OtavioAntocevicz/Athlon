@@ -8,6 +8,7 @@ import {
 } from "../../lib/mensalidade-focus.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { chaveMesCalendario, chaveMesFromIso, isMesFuturo } from "../../lib/utils.js";
+import { proximoEventoDoAluno } from "../eventos/eventos.service.js";
 
 const EMPTY_PROFESSOR_DASH = {
   recebidoMesCentavos: 0,
@@ -160,6 +161,7 @@ export async function dashboardAluno(alunoId: string) {
 
   const totalAtrasadas = contarMensalidadesAtrasadas(pagamentos, hoje);
   const totalEmAberto = contarMensalidadesEmAberto(pagamentos);
+  const proximoEvento = await proximoEventoDoAluno(alunoId);
 
   return {
     situacaoFinanceira: {
@@ -196,7 +198,7 @@ export async function dashboardAluno(alunoId: string) {
         },
       ];
     }),
-    proximoTreino: null,
+    proximoEvento,
     bloqueiosInadimplencia: await (async () => {
       const { listarBloqueiosAluno } = await import("../../lib/inadimplencia.js");
       return listarBloqueiosAluno(alunoId);

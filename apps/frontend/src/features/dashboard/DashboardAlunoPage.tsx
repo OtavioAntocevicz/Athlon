@@ -3,13 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
-import { formatCurrency, formatDate, formatMes } from "@/lib/format";
+import { formatCurrency, formatDate, formatDateTime, formatMes } from "@/lib/format";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { Button } from "@/components/ui/button";
 import type { StatusMensalidade } from "@athlon/shared-types";
 import { PageEnter } from "@/components/ui/page-enter";
+import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
+import { MapPin } from "lucide-react";
 
 interface DashboardAluno {
   situacaoFinanceira: {
@@ -30,6 +32,16 @@ interface DashboardAluno {
     horarioInicio: string | null;
     local: string | null;
   }[];
+  proximoEvento: {
+    id: string;
+    turmaId: string;
+    turmaNome: string;
+    tipo: string;
+    titulo: string;
+    adversario: string | null;
+    local: string | null;
+    inicio: string;
+  } | null;
   bloqueiosInadimplencia: { turmaId: string; turmaNome: string }[];
 }
 
@@ -60,6 +72,7 @@ export function DashboardAlunoPage() {
   }
 
   const fin = data!.situacaoFinanceira;
+  const proximoEvento = data!.proximoEvento;
   const precisaPagar = fin.status !== "PAGO" && fin.status !== "EM_ANALISE";
 
   const copyPix = () => {
@@ -140,6 +153,35 @@ export function DashboardAlunoPage() {
           Ver mensalidades
         </Button>
       </Card>
+
+      {!bloqueado && proximoEvento && (() => {
+        const styles = eventoTipoStyles(proximoEvento.tipo);
+        const Icon = styles.Icon;
+        return (
+          <Card
+            className={`mt-4 cursor-pointer p-4 active:scale-[0.99] ${styles.cardClass}`}
+            onClick={() => navigate(`/minhas-turmas/${proximoEvento.turmaId}`)}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="font-semibold text-primary">Próximo evento</p>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.badgeClass}`}
+              >
+                <Icon className="h-3 w-3" />
+                {labelTipoEvento(proximoEvento.tipo)}
+              </span>
+            </div>
+            <p className="font-medium text-primary">{proximoEvento.titulo}</p>
+            <p className="text-sm text-muted-foreground">{proximoEvento.turmaNome}</p>
+            <p className="mt-2 text-sm font-medium">{formatDateTime(proximoEvento.inicio)}</p>
+            {proximoEvento.local && (
+              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5" /> {proximoEvento.local}
+              </p>
+            )}
+          </Card>
+        );
+      })()}
 
       {!bloqueado && data!.turmas.length > 0 && (
         <>

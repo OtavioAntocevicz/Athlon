@@ -13,6 +13,7 @@ import {
 import { listarBloqueiosAluno } from "../../lib/inadimplencia.js";
 import { validate } from "../../middleware/validate.js";
 import * as alunosService from "./alunos.service.js";
+import * as eventosService from "../eventos/eventos.service.js";
 
 export const alunosRouter = Router();
 
@@ -62,6 +63,23 @@ alunosRouter.get("/minhas-turmas/:turmaId", requireAluno, requireAlunoSemBloquei
     next(e);
   }
 });
+
+alunosRouter.get(
+  "/minhas-turmas/:turmaId/eventos",
+  requireAluno,
+  requireAlunoSemBloqueio,
+  async (req, res, next) => {
+    try {
+      const data = await eventosService.proximosEventosDaTurmaAluno(
+        req.user!.alunoId!,
+        String(req.params.turmaId),
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 alunosRouter.patch(
   "/minhas-turmas/:turmaId",

@@ -35,3 +35,10 @@ export const NivelTurma = {
 } as const;
 
 export type NivelTurma = (typeof NivelTurma)[keyof typeof NivelTurma];
+
+export const TipoEvento = {
+  AMISTOSO: "AMISTOSO",
+  CAMPEONATO: "CAMPEONATO",
+} as const;
+
+export type TipoEvento = (typeof TipoEvento)[keyof typeof TipoEvento];

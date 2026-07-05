@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Check, Users, MapPin, Clock } from "lucide-react";
+import { ArrowLeft, Copy, Check, Users, MapPin, Clock, CalendarDays } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatCurrency, getInitials } from "@/lib/format";
+import { formatCurrency, formatDateTime, getInitials } from "@/lib/format";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
 
 interface Colega {
   nome: string;
@@ -32,6 +33,16 @@ interface TurmaAlunoDetail {
   alunos: Colega[];
 }
 
+interface EventoTurmaItem {
+  id: string;
+  tipo: string;
+  titulo: string;
+  adversario: string | null;
+  descricao: string | null;
+  local: string | null;
+  inicio: string;
+}
+
 export function TurmaAlunoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -45,6 +56,12 @@ export function TurmaAlunoDetailPage() {
   const { data: turma, isLoading } = useQuery({
     queryKey: ["minha-turma", id],
     queryFn: () => api<TurmaAlunoDetail>(`/alunos/minhas-turmas/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: eventos } = useQuery({
+    queryKey: ["minha-turma", id, "eventos"],
+    queryFn: () => api<EventoTurmaItem[]>(`/alunos/minhas-turmas/${id}/eventos`),
     enabled: !!id,
   });
 
@@ -157,6 +174,48 @@ export function TurmaAlunoDetailPage() {
           </Button>
         </div>
       </Card>
+
+      {eventos && eventos.length > 0 && (
+        <>
+          <h2 className="mb-3 mt-6 flex items-center gap-2 font-bold text-primary">
+            <CalendarDays className="h-5 w-5" /> Próximos eventos
+          </h2>
+          <div className="space-y-2">
+            {eventos.map((evento) => {
+              const styles = eventoTipoStyles(evento.tipo);
+              const Icon = styles.Icon;
+              return (
+                <Card key={evento.id} className={`p-4 ${styles.cardClass}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`rounded-lg bg-white p-2 ${styles.iconClass}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.badgeClass}`}
+                      >
+                        {labelTipoEvento(evento.tipo)}
+                      </span>
+                      <p className="mt-1 font-semibold text-primary">{evento.titulo}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDateTime(evento.inicio)}
+                      </p>
+                      {evento.local && (
+                        <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5" /> {evento.local}
+                        </p>
+                      )}
+                      {evento.descricao && (
+                        <p className="mt-2 text-sm text-muted-foreground">{evento.descricao}</p>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       <Card className="mt-4 space-y-3 p-4">
         <h2 className="font-semibold text-primary">Minha camisa e posição</h2>
