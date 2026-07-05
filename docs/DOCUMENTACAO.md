@@ -60,7 +60,7 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 | Atleta / aluno | `ALUNO` | Pagar mensalidade, enviar comprovante, acompanhar situação financeira |
 | Dono do produto | - | Gestão esportiva simplificada sem planilhas |
 
-**Não é** (ainda): sistema de presença/chamada em produção (tabelas existem no banco, mas sem API/UI).
+**Não é** (ainda): sistema de presença/chamada (RSVP) em produção — a tabela `Presenca` existe no banco, mas sem API/UI. **Eventos de turma** (amistoso e campeonato) já estão implementados (ver §10).
 
 ---
 
@@ -217,6 +217,7 @@ Navegador (athlonsport.vercel.app)
 | Entrar em nova turma | Não | Sim | **Não** |
 | Lista de alunos | Sim | Não | Não |
 | Avisos (criar) | Sim | Não | Não |
+| Eventos de turma (criar) | Sim | Não | Não |
 | Perfil | Sim | Sim | Sim |
 
 ---
@@ -245,7 +246,10 @@ Navegador (athlonsport.vercel.app)
 8. Pode marcar mensalidade como paga manualmente (sem comprovante)
 9. Envia avisos (/avisos)
    - Imediato ou agendado para data/hora futura
-10. Edita perfil, altera senha, gerencia/exclui turmas
+10. Cadastra eventos na turma (/turmas/:id)
+    - Amistoso ou campeonato (data, adversário, local, descrição)
+    - Notificação automática aos alunos matriculados
+11. Edita perfil, altera senha, gerencia/exclui turmas
 ```
 
 ### 6.2 Jornada do Aluno
@@ -257,6 +261,7 @@ Navegador (athlonsport.vercel.app)
    - Matrícula automática na turma
 3. Login → Dashboard aluno
    - Destaque da mensalidade em foco (mais urgente)
+   - Próximo evento (amistoso/campeonato mais próximo entre todas as turmas)
    - Turmas, horários, PIX
 4. Mensalidades (/mensalidades)
    - Lista com filtros por status
@@ -267,6 +272,7 @@ Navegador (athlonsport.vercel.app)
    c) POST confirmar comprovante → status EM_ANALISE
 6. Minhas turmas (/minhas-turmas)
    - Ver colegas, camisa, posição
+   - Ver próximos eventos da turma (amistoso/campeonato)
    - Entrar em nova turma com código (se não bloqueado)
 7. Se inadimplente (2+ meses atrasados na mesma turma):
    - Bloqueado em "Minhas turmas" e entrar turma
@@ -340,12 +346,12 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/comprovantes/:id` | Professor | ComprovanteValidacaoPage | Aprovar/recusar |
 | `/turmas` | Professor | TurmasPage | Lista de turmas |
 | `/turmas/nova` | Professor | NovaTurmaPage | Criar turma |
-| `/turmas/:id` | Professor | TurmaDetailPage | Detalhe e alunos |
+| `/turmas/:id` | Professor | TurmaDetailPage | Detalhe, alunos e eventos |
 | `/alunos` | Professor | AlunosPage | Lista de alunos |
 | `/alunos/:id` | Professor | AlunoDetailPage | Perfil do aluno |
 | `/avisos` | Professor | AvisosProfessorPage | Criar/listar avisos |
 | `/minhas-turmas` | AlunoTurmas | TurmasAlunoPage | Turmas do aluno |
-| `/minhas-turmas/:id` | AlunoTurmas | TurmaAlunoDetailPage | Detalhe da turma |
+| `/minhas-turmas/:id` | AlunoTurmas | TurmaAlunoDetailPage | Detalhe da turma e próximos eventos |
 | `/gerir-turmas` | Professor | GerirTurmasPage | Excluir turmas |
 | `/perfil` | Protected | PerfilPage | Dados, senha, logout |
 | `/perfil/gerir-turmas` | Professor | GerirTurmasPage | Gestão via perfil |
@@ -416,6 +422,10 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | POST | `/:id/alunos` | Adicionar aluno |
 | DELETE | `/:id` | Excluir turma |
 | GET | `/:id/mensalidades` | Mensalidades da turma |
+| GET | `/:id/eventos` | Listar eventos da turma (futuros e passados) |
+| POST | `/:id/eventos` | Criar evento (amistoso/campeonato) |
+| PATCH | `/:id/eventos/:eventoId` | Editar evento |
+| DELETE | `/:id/eventos/:eventoId` | Excluir evento (soft delete) |
 
 ### Alunos - `/api/v1/alunos`
 
@@ -425,6 +435,7 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | GET | `/me/bloqueio` | Aluno | Status de bloqueio |
 | GET | `/minhas-turmas` | Aluno sem bloqueio | Turmas do aluno |
 | GET | `/minhas-turmas/:turmaId` | Aluno sem bloqueio | Detalhe |
+| GET | `/minhas-turmas/:turmaId/eventos` | Aluno sem bloqueio | Próximos eventos da turma |
 | PATCH | `/minhas-turmas/:turmaId` | Aluno sem bloqueio | Camisa/posição |
 | GET | `/:id` | Ownership | Detalhe |
 | PATCH | `/:id` | Ownership | Atualizar |
@@ -520,7 +531,7 @@ Usuario (1) ── (0..1) Aluno
 Aluno (N) ── MatriculaTurma ── (N) Turma
 Aluno + Turma ── (N) Pagamento
 Pagamento (1) ── (N) Comprovante
-Turma (1) ── (N) Evento ── (N) Presenca   [sem UI]
+Turma (1) ── (N) Evento ── (N) Presenca   [Presenca sem UI]
 Usuario (1) ── (N) Notificacao
 Usuario (1) ── (N) RecuperacaoSenha
 Usuario (1) ── (N) Dispositivo
@@ -544,7 +555,8 @@ Professor + Turma ── (N) AvisoProfessor
 | `Dispositivo` | Dispositivo registrado (web/mobile) para push e metadados |
 | `TokenPushFcm` | Subscription Web Push (legado; migrado para `Dispositivo`) |
 | `AvisoProfessor` | Avisos do professor para turma |
-| `Evento` / `Presenca` | Preparado para futuro (chamada) |
+| `Evento` | Amistosos e campeonatos por turma (avisos informativos) |
+| `Presenca` | Preparado para futuro (chamada/RSVP) |
 | `_athlon_cron_config` | URL Vercel + CRON_SECRET para pg_cron |
 
 ### Segurança do banco
@@ -596,6 +608,18 @@ Professor + Turma ── (N) AvisoProfessor
 - Imediato ou agendado (`agendado_para`).
 - Agendados processados pelo cron horário.
 
+### Eventos de turma
+
+- Tipos expostos na UI: **AMISTOSO** e **CAMPEONATO** (treino não é cadastrado pelo app).
+- Professor cadastra na tela da turma (`/turmas/:id`): tipo, adversário, data/hora, local e descrição opcional.
+- Título gerado automaticamente quando omitido (ex.: "Amistoso vs Time X").
+- `permite_confirmacao_aluno` sempre `false` — **sem RSVP**; é apenas aviso informativo.
+- Exclusão é soft delete (`ativo = false`).
+- Ao criar, notificação `EVENTO_TURMA` para todos alunos ativos da turma (in-app + push).
+- **Aluno:** card "Próximo evento" no dashboard (o mais próximo entre todas as turmas); lista "Próximos eventos" na tela da turma.
+- Eventos passados somem das listas do aluno; o professor ainda vê passados para editar/excluir.
+- Implementação: `apps/backend/src/modules/eventos/eventos.service.ts`, migration `20250705000000_eventos_turma.sql`.
+
 ---
 
 ## 11. Notificações e cron jobs
@@ -607,6 +631,7 @@ Professor + Turma ── (N) AvisoProfessor
 | Nova mensalidade | Aluno | `MENSALIDADE_NOVA` | Cron mensal (dia 1) |
 | Mensalidade atrasada | Aluno | `MENSALIDADE_ATRASADA:{turmaId}` | Cron diário (máx. 1x/semana) |
 | Aviso do professor | Aluno | `AVISO_PROFESSOR` | Imediato ou cron horário |
+| Evento da turma | Aluno | `EVENTO_TURMA` | Professor cria amistoso/campeonato |
 | Comprovante aprovado | Aluno | `COMPROVANTE_APROVADO` | Ação do professor |
 | Comprovante recusado | Aluno | `COMPROVANTE_RECUSADO` | Ação do professor |
 | Pagamento confirmado | Aluno | `PAGAMENTO_CONFIRMADO` | Marcar pago manual |
@@ -929,6 +954,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `apps/backend/src/lib/email.ts` | Envio de e-mail (Resend) |
 | `apps/backend/scripts/seed-admin.ts` | Seed do usuário ADM inicial |
 | `apps/frontend/src/features/admin/` | Telas do painel administrativo |
+| `apps/backend/src/modules/eventos/eventos.service.ts` | Eventos de turma (amistoso/campeonato) |
 | `apps/backend/src/lib/inadimplencia.ts` | Regra de bloqueio |
 | `apps/backend/src/lib/mensalidade-focus.ts` | Status efetivo e foco |
 | `apps/backend/src/jobs/cron.ts` | Jobs agendados |
@@ -949,7 +975,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 5. **Crons híbridos** - Vercel (diário/mensal) + Supabase pg_cron (avisos horários).
 6. **Upload direto ao Storage** - backend não proxya arquivos.
 7. **Bloqueio por turma** - inadimplência granular, não bloqueia o app inteiro.
-8. **Tabelas Evento/Presenca** - preparadas para expansão pós-MVP.
+8. **Eventos de turma** - amistoso/campeonato informativos, sem presença/RSVP; tabela `Presenca` reservada para expansão futura.
 
 ---
 
@@ -965,6 +991,8 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
     - apps/backend/supabase/migrations/20250612000000_schema.sql
 [ ] (Banco existente) Aplicar migration Dispositivo:
     - apps/backend/supabase/migrations/20250627000000_dispositivos.sql
+[ ] (Banco existente) Aplicar migration Eventos de turma:
+    - apps/backend/supabase/migrations/20250705000000_eventos_turma.sql
 [ ] Configurar ADMIN_EMAIL e ADMIN_PASSWORD em apps/backend/.env
 [ ] pnpm seed:admin
 [ ] (Opcional) Criar bucket comprovantes manualmente — já incluso no schema
@@ -1002,7 +1030,8 @@ pnpm install
 
 Documentadas em `docs/Melhoria.md`:
 
-- Presença/chamada (tabelas `Evento` e `Presenca` já existem)
+- Presença/chamada com RSVP (tabela `Presenca` — eventos de turma já existem, mas sem confirmação de presença)
+- Histórico de eventos passados visível para o aluno
 - Exclusão do arquivo de comprovante no Storage após aprovação/recusa
 - Notificação ao professor quando aluno envia comprovante
 - Bloqueio mais rígido de inadimplência (redirecionar direto para mensalidades)

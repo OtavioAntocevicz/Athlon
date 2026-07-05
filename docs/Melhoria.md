@@ -6,10 +6,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 ## Pós-MVP
 
-### Presença / chamada
+### Presença / chamada (RSVP)
 
-- Tabelas `Evento` e `Presenca` já existem no banco, mas não há tela nem fluxo no app.
-- Escopo sugerido: professor registra chamada por turma/evento; aluno visualiza histórico (opcional).
+- **Já implementado:** eventos de turma do tipo **amistoso** e **campeonato** — aviso informativo na tela da turma (professor) e no dashboard/turma do aluno, com notificação `EVENTO_TURMA`. Sem confirmação de presença.
+- **Pendente:** usar a tabela `Presenca` para chamada/RSVP — professor registra presença por evento; aluno confirma ou visualiza histórico (opcional).
+- Ver regras em [DOCUMENTACAO.md §10 — Eventos de turma](./DOCUMENTACAO.md#eventos-de-turma).
 
 ### Relatório financeiro
 
@@ -30,6 +31,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 ---
 
 ## Refinamento
+
+### Eventos de turma
+
+- Histórico de eventos passados visível para o aluno (hoje somem das listas após a data).
+- Notificação ao editar evento (hoje só dispara na criação).
 
 ### Testes E2E (futuro)
 
