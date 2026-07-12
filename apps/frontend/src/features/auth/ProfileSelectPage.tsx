@@ -1,5 +1,6 @@
+import { useLayoutEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronRight, GraduationCap, User } from "lucide-react";
+import { ChevronRight, ClipboardList, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageEnter } from "@/components/ui/page-enter";
 
@@ -21,7 +22,7 @@ function ProfileOption({ title, subtitle, icon: Icon, variant, onClick }: Profil
       className="group w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <div
-        className={`relative overflow-hidden rounded-xl border bg-card p-3 shadow-md transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-lg group-active:scale-[0.99] ${
+        className={`relative overflow-hidden rounded-xl border bg-card p-3 shadow-brand-card transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-brand-card-hover group-active:scale-[0.99] ${
           isProfessor
             ? "border-primary/15 group-hover:border-accent/60"
             : "border-primary/10 group-hover:border-primary/25"
@@ -29,14 +30,14 @@ function ProfileOption({ title, subtitle, icon: Icon, variant, onClick }: Profil
       >
         <div
           className={`absolute inset-y-0 left-0 w-1.5 ${
-            isProfessor ? "bg-accent" : "bg-primary/30 group-hover:bg-primary/50"
+            isProfessor ? "bg-accent" : "bg-primary"
           }`}
         />
 
         <div className="flex items-center gap-3 pl-1.5">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-              isProfessor ? "bg-primary text-accent" : "bg-muted text-primary"
+              isProfessor ? "bg-accent text-white" : "bg-primary text-white"
             }`}
           >
             <Icon className="h-5 w-5" strokeWidth={2.25} />
@@ -58,44 +59,76 @@ function ProfileOption({ title, subtitle, icon: Icon, variant, onClick }: Profil
 export function ProfileSelectPage() {
   const navigate = useNavigate();
 
-  return (
-    <div className="mx-auto grid h-dvh max-h-dvh max-w-mobile grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-background px-6 py-3">
-      <PageEnter>
-        <header className="grid shrink-0 place-items-center text-center">
-          <p className="text-2xl font-bold leading-tight text-primary">ATHLON</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Gestão esportiva para treinadores e atletas
-          </p>
-        </header>
-      </PageEnter>
+  useLayoutEffect(() => {
+    const html = document.documentElement;
+    const { body } = document;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
 
-      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain">
-        <PageEnter delay={80} className="flex min-h-0 flex-1 items-center justify-center">
-          <img
-            src="/logo.png"
-            alt=""
-            className="mx-auto h-full max-h-full w-full max-w-[500px] object-contain"
-            draggable={false}
-          />
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-x-0 top-0 bottom-0 mx-auto flex max-w-mobile flex-col overflow-hidden bg-background px-6 pb-2 pt-10">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-64 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(-25deg, #E8B84A 0px, #E8B84A 2px, transparent 2px, transparent 22px)",
+          maskImage: "linear-gradient(to bottom, black, transparent)",
+          WebkitMaskImage: "linear-gradient(to bottom, black, transparent)",
+        }}
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col gap-12 overflow-hidden">
+        <PageEnter variant="fade">
+          <header className="relative shrink-0 text-center">
+            <p className="text-2xl font-bold leading-tight text-primary">ATHLON</p>
+            <p className="mt-0.5 text-xs font-medium text-accent-strong">
+              Gestão esportiva para treinadores e atletas
+            </p>
+          </header>
+        </PageEnter>
+
+        <PageEnter variant="fade" delay={60} className="flex shrink-0 justify-center">
+          <div className="relative flex w-full max-w-[380px] items-center justify-center">
+            <div
+              aria-hidden
+              className="absolute h-[85%] w-[85%] rounded-full bg-accent/25 blur-3xl"
+            />
+            <img
+              src="/logo.png"
+              alt="Athlon"
+              className="relative h-auto max-h-[280px] w-full object-contain drop-shadow-[0_16px_28px_rgba(92,61,46,0.26)]"
+              draggable={false}
+            />
+          </div>
         </PageEnter>
 
         <div className="shrink-0 space-y-2">
-          <PageEnter delay={160} className="text-center">
+          <PageEnter variant="fade" delay={100} className="text-center">
             <h1 className="text-base font-bold text-primary">Como você deseja entrar?</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">Selecione seu perfil para continuar</p>
           </PageEnter>
 
           <div className="space-y-2">
-            <PageEnter delay={240}>
+            <PageEnter variant="fade" delay={150}>
               <ProfileOption
                 variant="professor"
-                icon={GraduationCap}
+                icon={ClipboardList}
                 title="Sou Treinador"
                 subtitle="Crie turmas, acompanhe mensalidades e valide comprovantes dos alunos."
                 onClick={() => navigate("/login/professor")}
               />
             </PageEnter>
-            <PageEnter delay={320}>
+            <PageEnter variant="fade" delay={150}>
               <ProfileOption
                 variant="aluno"
                 icon={User}
@@ -108,7 +141,7 @@ export function ProfileSelectPage() {
         </div>
       </div>
 
-      <PageEnter delay={400} className="shrink-0 pt-2 text-center safe-bottom">
+      <div className="shrink-0 pt-1 text-center safe-bottom">
         <p className="text-[11px] leading-snug text-muted-foreground">
           Ao entrar, você concorda com nossos{" "}
           <Link
@@ -125,10 +158,7 @@ export function ProfileSelectPage() {
             Privacidade
           </Link>
         </p>
-        <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/70">
-          V1.7.9
-        </p>
-      </PageEnter>
+      </div>
     </div>
   );
 }

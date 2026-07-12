@@ -364,6 +364,7 @@ export async function listarMinhasTurmas(alunoId: string) {
       horario_fim: string | null;
       mensalidade_centavos: number;
       codigo_convite: string;
+      foto_url: string | null;
     } | null;
     if (!t) return [];
     return [
@@ -376,6 +377,7 @@ export async function listarMinhasTurmas(alunoId: string) {
         horarioFim: t.horario_fim,
         mensalidadeCentavos: t.mensalidade_centavos,
         codigoConvite: t.codigo_convite,
+        fotoUrl: t.foto_url ?? null,
         numeroCamisa: m.numero_camisa,
         posicao: m.posicao,
       },
@@ -418,6 +420,7 @@ export async function getMinhaTurma(alunoId: string, turmaId: string) {
     mensalidade_centavos: number;
     codigo_convite: string;
     dia_vencimento: number;
+    foto_url: string | null;
   };
 
   const colegasResult = await supabase
@@ -449,6 +452,7 @@ export async function getMinhaTurma(alunoId: string, turmaId: string) {
     mensalidadeCentavos: turma.mensalidade_centavos,
     codigoConvite: turma.codigo_convite,
     diaVencimento: turma.dia_vencimento,
+    fotoUrl: turma.foto_url ?? null,
     numeroCamisa: matricula.numero_camisa,
     posicao: matricula.posicao,
     bloqueadoInadimplencia: bloqueioResult.data?.bloqueado_inadimplencia ?? false,

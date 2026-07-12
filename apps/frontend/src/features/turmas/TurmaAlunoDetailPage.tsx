@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageEnter } from "@/components/ui/page-enter";
 import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
 
 interface Colega {
@@ -27,6 +28,7 @@ interface TurmaAlunoDetail {
   mensalidadeCentavos: number;
   codigoConvite: string;
   diaVencimento: number;
+  fotoUrl?: string | null;
   numeroCamisa: number | null;
   posicao: string | null;
   bloqueadoInadimplencia: boolean;
@@ -106,6 +108,7 @@ export function TurmaAlunoDetailPage() {
 
   return (
     <AppShell>
+      <PageEnter variant="fade">
       <button
         onClick={() => navigate(-1)}
         className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"
@@ -123,57 +126,80 @@ export function TurmaAlunoDetailPage() {
         </Card>
       )}
 
-      <h1 className="text-2xl font-bold text-primary">{turma.nome}</h1>
-      <p className="text-sm text-muted-foreground">
-        {turma.modalidade} · {turma.nivel}
-      </p>
-
-      <Card className="mt-4 space-y-3 p-4">
-        {turma.horarioInicio && (
-          <div className="flex items-start gap-2">
-            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Horário</p>
-              <p className="text-sm font-medium">
-                {turma.horarioInicio}
-                {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
+      <div className="flex items-stretch gap-3.5">
+        <div className="w-1/2 shrink-0">
+          {turma.fotoUrl ? (
+            <img
+              src={turma.fotoUrl}
+              alt={turma.nome}
+              className="aspect-square w-full rounded-[10px] border-2 border-accent object-cover shadow-brand-card"
+            />
+          ) : (
+            <div className="flex aspect-square w-full items-center justify-center rounded-[10px] border-2 border-accent bg-primary text-3xl font-bold text-white shadow-brand-card">
+              {getInitials(turma.nome)}
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 py-0.5">
+          <div>
+            <h1 className="text-xl font-bold leading-tight text-primary">{turma.nome}</h1>
+            <div className="mt-2 inline-flex max-w-full items-center gap-1 rounded-md bg-accent/10 px-1.5 py-1">
+              <p className="min-w-0 truncate text-[11px] font-semibold tracking-wide text-accent-strong">
+                {turma.codigoConvite}
               </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-6 shrink-0 px-1.5"
+                onClick={copyCodigo}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+              </Button>
             </div>
           </div>
-        )}
-        {turma.local && (
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-            <div>
-              <p className="text-xs text-muted-foreground">Local</p>
-              <p className="text-sm font-medium">{turma.local}</p>
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
+              {turma.modalidade}
+            </span>
+            <span className="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
+              {turma.nivel}
+            </span>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {(turma.local || turma.horarioInicio) && (
+          <Card className="p-4">
+            <p className="mb-3 text-sm font-semibold text-primary">Treino</p>
+            <div className="space-y-2.5">
+              {turma.local && (
+                <div className="flex items-start gap-2 text-sm">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <p className="text-primary">{turma.local}</p>
+                </div>
+              )}
+              {turma.horarioInicio && (
+                <div className="flex items-start gap-2 text-sm">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <p className="text-primary">
+                    {turma.horarioInicio}
+                    {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
+                  </p>
+                </div>
+              )}
+            </div>
+          </Card>
         )}
-        <div>
-          <p className="text-xs text-muted-foreground">Mensalidade</p>
-          <p className="text-sm font-medium">
+
+        <Card className="p-4">
+          <p className="mb-2 text-sm font-semibold text-primary">Mensalidade</p>
+          <p className="text-sm font-medium text-primary">
             {formatCurrency(turma.mensalidadeCentavos)}/mês · venc. dia {turma.diaVencimento}
           </p>
-        </div>
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Código da turma</p>
-            <p className="truncate text-sm font-semibold text-accent">{turma.codigoConvite}</p>
-          </div>
-          <Button type="button" variant="secondary" size="sm" onClick={copyCodigo}>
-            {copied ? (
-              <>
-                <Check className="h-4 w-4" /> Copiado
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" /> Copiar
-              </>
-            )}
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      </div>
 
       {eventos && eventos.length > 0 && (
         <>
@@ -244,7 +270,7 @@ export function TurmaAlunoDetailPage() {
           </div>
         </div>
         {saveError && <p className="text-sm text-destructive">{saveError}</p>}
-        {saveOk && <p className="text-sm text-green-600">Salvo com sucesso!</p>}
+        {saveOk && <p className="text-sm text-success">Salvo com sucesso!</p>}
         <Button
           className="w-full"
           disabled={salvarMutation.isPending}
@@ -260,7 +286,7 @@ export function TurmaAlunoDetailPage() {
       <div className="space-y-2">
         {turma.alunos.map((a, i) => (
           <Card key={`${a.nome}-${i}`} className="flex items-center gap-3 p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-primary">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
               {getInitials(a.nome)}
             </div>
             <div className="min-w-0 flex-1">
@@ -273,6 +299,7 @@ export function TurmaAlunoDetailPage() {
           </Card>
         ))}
       </div>
+      </PageEnter>
     </AppShell>
   );
 }

@@ -39,6 +39,7 @@ export async function listarTurmas(professorId: string) {
       horarioFim: t.horario_fim,
       diasTreino: t.dias_treino,
       totalAlunos: count ?? 0,
+      fotoUrl: (t.foto_url as string | null) ?? null,
       criadoEm: new Date(t.criado_em).toISOString(),
     });
   }
@@ -164,6 +165,7 @@ function mapTurmaDetalhe(turma: Record<string, unknown>, totalAlunos: number) {
     local: turma.local as string | null,
     horarioInicio: turma.horario_inicio as string | null,
     horarioFim: turma.horario_fim as string | null,
+    fotoUrl: (turma.foto_url as string | null) ?? null,
     totalAlunos,
   };
 }
@@ -274,7 +276,7 @@ export async function listarAlunosTurma(turmaId: string, professorId: string) {
 export async function excluirTurma(id: string, professorId: string) {
   const turmaCheck = await supabase
     .from("Turma")
-    .select("id, nome")
+    .select("id, nome, foto_url")
     .eq("id", id)
     .eq("professor_id", professorId)
     .maybeSingle();
@@ -284,6 +286,13 @@ export async function excluirTurma(id: string, professorId: string) {
   }
 
   const { removerArquivoStorage } = await import("../comprovantes/storage.service.js");
+  const { removerFotoTurmaStorage } = await import("./turma-foto.storage.js");
+
+  try {
+    await removerFotoTurmaStorage(turmaCheck.data.foto_url);
+  } catch {
+    /* ignora falha de storage */
+  }
 
   const eventosResult = await supabase.from("Evento").select("id").eq("turma_id", id);
   const eventoIds = (eventosResult.data ?? []).map((e) => e.id);
@@ -317,4 +326,71 @@ export async function excluirTurma(id: string, professorId: string) {
   throwOnError(await supabase.from("Turma").delete().eq("id", id));
 
   return { ok: true, nome: turmaCheck.data.nome };
+}
+
+export async function criarUploadUrlFoto(
+  turmaId: string,
+  professorId: string,
+  contentType: string,
+) {
+  const turmaCheck = await supabase
+    .from("Turma")
+    .select("id")
+    .eq("id", turmaId)
+    .eq("professor_id", professorId)
+    .maybeSingle();
+
+  if (!turmaCheck.data) {
+    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  }
+
+  const { criarUploadUrlFotoTurma } = await import("./turma-foto.storage.js");
+  return criarUploadUrlFotoTurma(turmaId, contentType);
+}
+
+export async function atualizarFotoTurma(
+  turmaId: string,
+  professorId: string,
+  fotoUrl: string,
+) {
+  const existing = await supabase
+    .from("Turma")
+    .select("id, foto_url")
+    .eq("id", turmaId)
+    .eq("professor_id", professorId)
+    .maybeSingle();
+
+  if (!existing.data) {
+    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  }
+
+  const antiga = existing.data.foto_url as string | null;
+
+  // Grava a nova primeiro; só remove a antiga depois do sucesso no banco.
+  // Se o upload ou este PATCH falhar, a foto antiga permanece intacta.
+  const result = await supabase
+    .from("Turma")
+    .update({ foto_url: fotoUrl, atualizado_em: now() })
+    .eq("id", turmaId)
+    .select()
+    .single();
+
+  const turma = throwOnError(result);
+
+  if (antiga && antiga !== fotoUrl) {
+    const { removerFotoTurmaStorage } = await import("./turma-foto.storage.js");
+    try {
+      await removerFotoTurmaStorage(antiga);
+    } catch {
+      /* ignora falha de limpeza - a nova já está salva */
+    }
+  }
+
+  const { count } = await supabase
+    .from("MatriculaTurma")
+    .select("*", { count: "exact", head: true })
+    .eq("turma_id", turmaId)
+    .eq("afastado", false);
+
+  return mapTurmaDetalhe(turma, count ?? 0);
 }

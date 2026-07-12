@@ -55,12 +55,12 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 
 | Público | Perfil no sistema | Necessidade atendida |
 |---------|-------------------|---------------------|
-| Operador da plataforma | `ADM` | Criar professores, monitorar a base, desativar contas |
+| Operador da plataforma | `ADM` | Criar professores, consultar alunos/turmas, matricular/afastar, desbloquear, ativar/desativar contas |
 | Treinador / professor | `PROFESSOR` | Criar turmas, gerenciar alunos, validar pagamentos, comunicar turma |
 | Atleta / aluno | `ALUNO` | Pagar mensalidade, enviar comprovante, acompanhar situação financeira |
 | Dono do produto | - | Gestão esportiva simplificada sem planilhas |
 
-**Não é** (ainda): sistema de presença/chamada (RSVP) em produção — a tabela `Presenca` existe no banco, mas sem API/UI. **Eventos de turma** (amistoso e campeonato) já estão implementados (ver §10).
+**Não é** (ainda): sistema de presença/chamada (RSVP) em produção - a tabela `Presenca` existe no banco, mas sem API/UI. **Eventos de turma** (amistoso e campeonato) já estão implementados (ver §10).
 
 ---
 
@@ -144,7 +144,7 @@ Navegador (athlonsport.vercel.app)
 
 | Valor | Descrição |
 |-------|-----------|
-| `ADM` | Operador da plataforma — cria professores e monitora a base |
+| `ADM` | Operador da plataforma - cria professores, consulta alunos/turmas e executa edições administrativas |
 | `PROFESSOR` | Treinador com turmas, alunos e validação de comprovantes |
 | `ALUNO` | Atleta matriculado em uma ou mais turmas |
 
@@ -190,7 +190,7 @@ Navegador (athlonsport.vercel.app)
 
 | Guard | Uso |
 |-------|-----|
-| `GuestRoute` | Login/cadastro — redireciona logados para `/` (ADM vai para `/admin`) |
+| `GuestRoute` | Login/cadastro - redireciona logados para `/` (ADM vai para `/admin`) |
 | `ProtectedRoute` | Exige usuário autenticado |
 | `ProfessorRoute` | Apenas professor |
 | `AdminRoute` | Apenas ADM; sem login redireciona para `/login/professor` |
@@ -228,28 +228,32 @@ Navegador (athlonsport.vercel.app)
 
 ```
 1. Acessa /login → escolhe "Treinador"
-2. Login (/login/professor) — conta criada pelo ADM
+2. Login (/login/professor) - conta criada pelo ADM
 3. Dashboard professor
-   - Métricas: recebido no mês, pendente, em análise, atrasado
+   - Métricas: turmas ativas, alunos, comprovantes aguardando, inadimplentes
 4. Cria turma (/turmas/nova)
    - Nome, modalidade, nível, dias/horário, local
    - Valor mensalidade, dia vencimento, chave PIX da turma
    - Sistema gera código de convite e mensalidades iniciais
-5. Compartilha código de convite com alunos
-6. Gerencia alunos (/alunos, /turmas/:id)
+5. No detalhe da turma (/turmas/:id)
+   - Pode enviar/alterar foto da turma
+   - Visualiza dados em hero + chips + treino + financeiro
+6. Compartilha código de convite com alunos
+7. Gerencia alunos (/alunos, /turmas/:id)
+   - Filtros por status financeiro e turma; busca por nome
    - Pode adicionar aluno manualmente (com ou sem conta)
    - Pode afastar aluno da turma
    - Pode desbloquear inadimplência manualmente
-7. Recebe comprovantes na fila (/comprovantes)
+8. Recebe comprovantes na fila (/comprovantes)
    - Aprova → mensalidade PAGO + notificação ao aluno
    - Recusa → mensalidade RECUSADO + motivo + notificação
-8. Pode marcar mensalidade como paga manualmente (sem comprovante)
-9. Envia avisos (/avisos)
-   - Imediato ou agendado para data/hora futura
-10. Cadastra eventos na turma (/turmas/:id)
+9. Pode marcar mensalidade como paga manualmente (sem comprovante)
+10. Envia avisos (/avisos) - formulário sob demanda
+11. Lista eventos agregados (/eventos) e cadastra no detalhe da turma
     - Amistoso ou campeonato (data, adversário, local, descrição)
     - Notificação automática aos alunos matriculados
-11. Edita perfil, altera senha, gerencia/exclui turmas
+12. BottomNav: Eventos | Mensal | Início | Turmas | Alunos
+13. Edita perfil, altera senha, gerencia/exclui turmas
 ```
 
 ### 6.2 Jornada do Aluno
@@ -287,11 +291,30 @@ Navegador (athlonsport.vercel.app)
 2. Login com e-mail e senha de ADM (mesma tela do treinador)
    - Backend aceita perfil ADM quando o login é feito como PROFESSOR
    - Após login, redireciona automaticamente para /admin
-3. Dashboard (/admin) — métricas globais e lista de professores
-4. Cria professor (/admin/professores/novo) e repassa credenciais
-5. Inspeciona professor (/admin/professores/:id) — turmas e alunos (leitura)
-6. Desativa/reativa professor se necessário
-7. Perfil (/admin/perfil) — alterar senha, logout
+3. Dashboard (/admin) - métricas globais + ações rápidas (sem lista duplicada)
+4. Professores (/admin/professores)
+   - Lista, busca, filtro ativos/inativos, criar professor
+5. Detalhe do professor (/admin/professores/:id)
+   - Dados, PIX, ativar/desativar
+   - Turmas clicáveis → /admin/turmas/:id
+   - Alunos clicáveis → /admin/alunos/:id
+6. Jornada de leitura:
+   Professor → turma → dados da turma → aluno → perfil do aluno
+7. Alunos (/admin/alunos)
+   - Busca por nome, e-mail, CPF ou RG
+   - Filtro "Sem turma" + atalho para matricular
+8. Perfil do aluno (/admin/alunos/:id)
+   - Dados, data de criação da conta, data de entrada em cada turma
+   - Atalhos de edição (matricular, remover, trocar, desbloquear)
+9. Edição (/admin/edicao)
+   - Matricular aluno em turma
+   - Remover aluno da turma
+   - Trocar aluno de turma
+   - Desbloquear inadimplência
+   - Ativar/desativar professor
+   - Atalho para alunos sem turma
+10. Perfil (/admin/perfil) - alterar senha, logout
+11. BottomNav: Profs | Alunos | Início | Edição | Perfil
 ```
 
 > `/login/admin` redireciona para `/login/professor` (compatibilidade com links antigos).
@@ -350,6 +373,7 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/alunos` | Professor | AlunosPage | Lista de alunos |
 | `/alunos/:id` | Professor | AlunoDetailPage | Perfil do aluno |
 | `/avisos` | Professor | AvisosProfessorPage | Criar/listar avisos |
+| `/eventos` | Professor | EventosProfessorPage | Lista agregada de eventos |
 | `/minhas-turmas` | AlunoTurmas | TurmasAlunoPage | Turmas do aluno |
 | `/minhas-turmas/:id` | AlunoTurmas | TurmaAlunoDetailPage | Detalhe da turma e próximos eventos |
 | `/gerir-turmas` | Professor | GerirTurmasPage | Excluir turmas |
@@ -360,17 +384,26 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 
 | Rota | Tela | Descrição |
 |------|------|-----------|
-| `/admin` | AdminDashboardPage | Dashboard global |
+| `/admin` | AdminDashboardPage | Dashboard (métricas + atalhos) |
 | `/admin/professores` | AdminProfessoresPage | Lista de professores |
 | `/admin/professores/novo` | AdminNovoProfessorPage | Criar professor |
 | `/admin/professores/:id` | AdminProfessorDetailPage | Detalhe do professor |
+| `/admin/alunos` | AdminAlunosPage | Lista global de alunos |
+| `/admin/alunos/:id` | AdminAlunoDetailPage | Perfil do aluno (leitura + atalhos) |
+| `/admin/turmas/:id` | AdminTurmaDetailPage | Detalhe da turma (leitura) |
+| `/admin/edicao` | AdminEdicaoPage | Hub de ações administrativas |
+| `/admin/edicao/matricular` | AdminEdicaoMatricularPage | Matricular aluno |
+| `/admin/edicao/remover` | AdminEdicaoRemoverPage | Remover aluno da turma |
+| `/admin/edicao/trocar` | AdminEdicaoTrocarPage | Trocar aluno de turma |
+| `/admin/edicao/desbloquear` | AdminEdicaoDesbloquearPage | Desbloquear inadimplência |
+| `/admin/edicao/professores` | AdminEdicaoProfessoresPage | Ativar/desativar professor |
 | `/admin/perfil` | AdminPerfilPage | Perfil do ADM |
 
-### Navegação inferior (`BottomNav.tsx`)
+### Navegação inferior (`BottomNav.tsx` / `AdminBottomNav.tsx`)
 
-**Professor:** Início | Mensalidades | Alunos | Turmas  
-**Aluno:** Início | Mensalidades | Turmas (oculta se bloqueado) | Perfil  
-**ADM:** Início | Professores | Perfil (`AdminBottomNav`)
+**Professor:** Eventos | Mensal | Início (centro) | Turmas | Alunos  
+**Aluno:** Início | Mensal | Turmas (oculta se bloqueado) | Perfil  
+**ADM:** Profs | Alunos | Início (centro) | Edição | Perfil
 
 ---
 
@@ -401,13 +434,22 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET | `/dashboard` | Métricas globais + lista de professores (`?busca`, `?ativo`) |
-| GET | `/professores` | Lista de professores com contagens |
+| GET | `/dashboard` | Métricas globais (+ lista de professores no payload) |
+| GET | `/professores` | Lista de professores com contagens (`?busca`, `?ativo`) |
 | POST | `/professores` | Criar professor |
 | GET | `/professores/:id` | Detalhe + turmas + alunos |
 | PATCH | `/professores/:id/status` | `{ ativo: boolean }` desativar/reativar |
 | GET | `/professores/:id/turmas` | Turmas do professor |
 | GET | `/professores/:id/alunos` | Alunos do professor (`?turmaId`) |
+| GET | `/turmas` | Lista turmas da plataforma (`?busca`) |
+| GET | `/turmas/:id` | Detalhe da turma (dados + alunos) |
+| GET | `/alunos` | Lista alunos (`?busca`, `?semTurma=true`) |
+| GET | `/alunos/:id` | Perfil admin (conta, matrículas com datas, mensalidades) |
+| GET | `/bloqueios` | Alunos bloqueados por inadimplência |
+| POST | `/alunos/:id/matricular` | `{ turmaId }` matricular e gerar mensalidades |
+| POST | `/alunos/:id/afastar` | `{ turmaId }` remover da turma |
+| POST | `/alunos/:id/trocar-turma` | `{ turmaOrigemId, turmaDestinoId }` |
+| POST | `/alunos/:id/desbloquear` | `{ turmaId }` liberar bloqueio de inadimplência |
 
 ### Turmas - `/api/v1/turmas` (Professor)
 
@@ -418,6 +460,8 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | GET | `/:id` | Detalhe |
 | PATCH | `/:id` | Atualização parcial |
 | PATCH | `/:id/basico` | Edição completa dos campos básicos |
+| POST | `/:id/foto/upload-url` | URL assinada para upload da foto |
+| PATCH | `/:id/foto` | `{ fotoUrl }` grava foto (apaga antiga só após sucesso) |
 | GET | `/:id/alunos` | Alunos + status financeiro |
 | POST | `/:id/alunos` | Adicionar aluno |
 | DELETE | `/:id` | Excluir turma |
@@ -471,6 +515,14 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | GET | `/professor` | Professor |
 | GET | `/aluno` | Aluno |
 
+### Eventos - `/api/v1/eventos` (Professor)
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/` | Lista agregada de eventos de todas as turmas do professor |
+
+CRUD por turma continua em `/api/v1/turmas/:id/eventos`.
+
 ### Notificações - `/api/v1/notificacoes`
 
 | Método | Rota | Descrição |
@@ -520,8 +572,10 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 ## 9. Banco de dados (Supabase)
 
 **Migration (banco novo):**
-- `apps/backend/supabase/migrations/20250612000000_schema.sql` — schema completo
-- `apps/backend/supabase/migrations/20250627000000_dispositivos.sql` — tabela `Dispositivo` (bancos existentes)
+- `apps/backend/supabase/migrations/20250612000000_schema.sql` - schema completo
+- `apps/backend/supabase/migrations/20250627000000_dispositivos.sql` - tabela `Dispositivo` (bancos existentes)
+- `apps/backend/supabase/migrations/20250705000000_eventos_turma.sql` - eventos de turma
+- `apps/backend/supabase/migrations/20250711000000_turma_foto.sql` - coluna `foto_url` + bucket `turmas-fotos`
 
 ### Diagrama de relacionamentos
 
@@ -535,7 +589,7 @@ Turma (1) ── (N) Evento ── (N) Presenca   [Presenca sem UI]
 Usuario (1) ── (N) Notificacao
 Usuario (1) ── (N) RecuperacaoSenha
 Usuario (1) ── (N) Dispositivo
-Usuario (1) ── (N) TokenPushFcm   [legado — migrado para Dispositivo]
+Usuario (1) ── (N) TokenPushFcm   [legado - migrado para Dispositivo]
 Professor + Turma ── (N) AvisoProfessor
 ```
 
@@ -593,7 +647,7 @@ Professor + Turma ── (N) AvisoProfessor
 - Status que permitem envio: `PENDENTE`, `RECUSADO`, `ATRASADO`.
 - Envio → `EM_ANALISE`; aprovação → `PAGO`; recusa → `RECUSADO`.
 - O bucket é criado pelo schema SQL ou automaticamente no primeiro upload (`storage.service.ts`).
-- **Intenção de produto:** o arquivo é temporário — após aprovação, some da fila do professor. A exclusão física do arquivo no Storage após aprovação/recusa está prevista em `docs/Melhoria.md` (ainda não implementada).
+- Após **aprovar** ou **recusar**, o arquivo é removido do Storage e `arquivo_url` fica `null` (migration `20250713000000_comprovante_arquivo_nullable.sql`).
 
 ### Turmas
 
@@ -613,7 +667,7 @@ Professor + Turma ── (N) AvisoProfessor
 - Tipos expostos na UI: **AMISTOSO** e **CAMPEONATO** (treino não é cadastrado pelo app).
 - Professor cadastra na tela da turma (`/turmas/:id`): tipo, adversário, data/hora, local e descrição opcional.
 - Título gerado automaticamente quando omitido (ex.: "Amistoso vs Time X").
-- `permite_confirmacao_aluno` sempre `false` — **sem RSVP**; é apenas aviso informativo.
+- `permite_confirmacao_aluno` sempre `false` - **sem RSVP**; é apenas aviso informativo.
 - Exclusão é soft delete (`ativo = false`).
 - Ao criar, notificação `EVENTO_TURMA` para todos alunos ativos da turma (in-app + push).
 - **Aluno:** card "Próximo evento" no dashboard (o mais próximo entre todas as turmas); lista "Próximos eventos" na tela da turma.
@@ -711,8 +765,7 @@ O backend envia os e-mails via [Resend](https://resend.com) (`apps/backend/src/l
 | `EMAIL_FROM` | Remetente (ex.: `ATHLON <noreply@seudominio.com>`) |
 | `APP_URL` | URL do frontend para montar o link mágico (ex.: `http://localhost:5173` em dev) |
 
-> **Status atual (jun/2026):** o envio via **Resend ainda não está configurado/funcionando em produção**. O fluxo de recuperação já está implementado no código, mas os e-mails reais não são entregues até `RESEND_API_KEY`, `EMAIL_FROM` e domínio no Resend serem ajustados. **Pendência consciente — será resolvida depois.** Ver também `docs/Melhoria.md`.
-
+> **Status:** o código está pronto; falta configurar Resend em produção. **Passo a passo:** [config-resend-web-push.md](./config-resend-web-push.md).
 **Desenvolvimento local sem Resend:** se `RESEND_API_KEY` estiver vazio, o backend **não envia e-mail** e imprime no terminal do `pnpm dev:backend`:
 
 ```
@@ -755,7 +808,7 @@ Web e PWA usam **o mesmo código** (`apps/frontend`). A diferença é que o PWA 
 
 O endpoint legado `POST /notificacoes/push-token` ainda funciona (delega ao `DeviceService`).
 
-**Guia detalhado (VAPID em produção):** `docs/web-push-producao.md`
+**Guia detalhado (VAPID em produção):** [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md)
 
 **Gerar chaves VAPID:**
 ```bash
@@ -781,7 +834,7 @@ pnpm --filter @athlon/backend generate-vapid-keys
 | `VAPID_PUBLIC_KEY` | Opcional | Web Push |
 | `VAPID_PRIVATE_KEY` | Opcional | Web Push |
 | `VAPID_SUBJECT` | Opcional | Ex: `mailto:seu@email.com` |
-| `RESEND_API_KEY` | Recuperação de senha | Chave Resend (**pendente configuração — ver §12**) |
+| `RESEND_API_KEY` | Recuperação de senha | Chave Resend (**pendente configuração - ver §12**) |
 | `EMAIL_FROM` | Recuperação de senha | Remetente dos e-mails (ex.: `ATHLON <noreply@seudominio.com>`) |
 | `APP_URL` | Recuperação de senha | URL do frontend para links mágicos (default: `CORS_ORIGIN`) |
 | `ADMIN_EMAIL` | Seed ADM | E-mail do administrador (`pnpm seed:admin`) |
@@ -841,7 +894,7 @@ pnpm install
 #    - Criar projeto em supabase.com
 #    - SQL Editor: executar apps/backend/supabase/migrations/20250612000000_schema.sql
 
-# 4. Bucket "comprovantes" — incluído no schema (ou criado automaticamente no 1º upload)
+# 4. Bucket "comprovantes" - incluído no schema (ou criado automaticamente no 1º upload)
 
 # 5. Configurar variáveis
 cp .env.example apps/backend/.env
@@ -993,9 +1046,10 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
     - apps/backend/supabase/migrations/20250627000000_dispositivos.sql
 [ ] (Banco existente) Aplicar migration Eventos de turma:
     - apps/backend/supabase/migrations/20250705000000_eventos_turma.sql
+    - apps/backend/supabase/migrations/20250711000000_turma_foto.sql
 [ ] Configurar ADMIN_EMAIL e ADMIN_PASSWORD em apps/backend/.env
 [ ] pnpm seed:admin
-[ ] (Opcional) Criar bucket comprovantes manualmente — já incluso no schema
+[ ] (Opcional) Criar bucket comprovantes manualmente - já incluso no schema
 [ ] pnpm test:db
 [ ] pnpm test
 [ ] pnpm dev
@@ -1030,11 +1084,54 @@ pnpm install
 
 Documentadas em `docs/Melhoria.md`:
 
-- Presença/chamada com RSVP (tabela `Presenca` — eventos de turma já existem, mas sem confirmação de presença)
+- Presença/chamada com RSVP (tabela `Presenca` - eventos de turma já existem, mas sem confirmação de presença)
 - Histórico de eventos passados visível para o aluno
 - Exclusão do arquivo de comprovante no Storage após aprovação/recusa
 - Notificação ao professor quando aluno envia comprovante
 - Bloqueio mais rígido de inadimplência (redirecionar direto para mensalidades)
+- Exclusão definitiva de conta de professor (hoje só inativação)
+- BottomNav do aluno alinhado ao padrão do professor (Início no centro), se desejado
+
+---
+
+## 21.1. Atualizações recentes (jul/2026)
+
+### UX / marca (professor)
+
+- Login e seleção de perfil alinhados à marca (marrom + dourado)
+- Dashboard com métricas operacionais (turmas, alunos, comprovantes, inadimplentes)
+- Cards de turmas com foto, nome e código; detalhe com hero + treino + financeiro
+- Foto da turma (upload no detalhe; migration `20250711000000_turma_foto.sql`)
+- Lista de alunos com filtros de status financeiro, contador e empty states
+- BottomNav: Eventos | Mensal | Início | Turmas | Alunos
+- Página `/eventos` com listagem agregada
+
+### UX / marca (aluno)
+
+- BottomNav: Eventos | Mensal | Início (elevado) | Turmas | Perfil (Turmas ocultas se bloqueado)
+- Página `/eventos` agrega amistosos/campeonatos de todas as turmas do aluno
+- Dashboard com métricas financeiras, CTA de pagamento e aviso de bloqueio por turma
+- Lista e detalhe de turmas com foto / hero alinhados ao professor
+- Perfil com atalho **Chamado (suporte)**
+
+### Chamados (suporte)
+
+- Aluno: `GET/POST /api/v1/chamados`, `GET /api/v1/chamados/:id` - telas `/chamados` e `/chamados/:id`
+- ADM: `GET/PATCH /api/v1/admin/chamados` - telas em Edição → Chamados (`/admin/chamados`)
+- Migration: `20250712000000_chamados.sql` (enum `StatusChamado`, tabela `Chamado`)
+
+### Painel ADM
+
+- Dashboard só com métricas + atalhos (lista completa em Professores)
+- Jornada Professor → Turma → Aluno
+- Aba Alunos global (busca nome/e-mail/CPF/RG; filtro sem turma)
+- Perfil do aluno com data de conta e data de matrícula por turma
+- Aba **Edição**: chamados, matricular, remover, trocar turma, desbloquear, ativar/desativar professor
+- BottomNav: Profs | Alunos | Início | Edição | Perfil
+
+### Padronização de texto
+
+- Travessões tipográficos (em dash / en dash Unicode) substituídos por hífen (`-`) no código e na documentação
 
 ---
 

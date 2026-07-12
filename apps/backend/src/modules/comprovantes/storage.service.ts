@@ -70,21 +70,30 @@ export async function criarUploadUrl(pagamentoId: string, contentType: string) {
   };
 }
 
-export async function removerArquivoStorage(arquivoUrl: string) {
+export async function removerArquivoStorage(arquivoUrl: string | null | undefined) {
+  if (!arquivoUrl) return;
+
   const bucketPrefix = `/storage/v1/object/${env.storageBucket}/`;
   const idx = arquivoUrl.indexOf(bucketPrefix);
   if (idx === -1) return;
 
-  const path = arquivoUrl.slice(idx + bucketPrefix.length);
-  await supabase.storage.from(env.storageBucket).remove([path]);
+  const path = arquivoUrl.slice(idx + bucketPrefix.length).split("?")[0];
+  if (!path) return;
+
+  const { error } = await supabase.storage.from(env.storageBucket).remove([path]);
+  if (error) {
+    console.error("[storage] Falha ao remover arquivo:", path, error.message);
+  }
 }
 
-export async function getSignedReadUrl(arquivoUrl: string) {
+export async function getSignedReadUrl(arquivoUrl: string | null | undefined) {
+  if (!arquivoUrl) return null;
+
   const bucketPrefix = `/storage/v1/object/${env.storageBucket}/`;
   const idx = arquivoUrl.indexOf(bucketPrefix);
   if (idx === -1) return arquivoUrl;
 
-  const path = arquivoUrl.slice(idx + bucketPrefix.length);
+  const path = arquivoUrl.slice(idx + bucketPrefix.length).split("?")[0];
   const { data, error } = await supabase.storage
     .from(env.storageBucket)
     .createSignedUrl(path, 300);

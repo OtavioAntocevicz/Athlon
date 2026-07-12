@@ -99,7 +99,7 @@ export function NotificacoesPanel() {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border bg-white shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border bg-white shadow-brand-lg">
           <div className="border-b px-4 py-3">
             <p className="font-semibold text-primary">Notificações</p>
           </div>

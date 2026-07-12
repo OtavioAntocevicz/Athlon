@@ -17,6 +17,8 @@ import { avisosRouter } from "./modules/avisos/avisos.routes.js";
 import { cronRouter } from "./modules/cron/cron.routes.js";
 import { adminRouter } from "./modules/admin/admin.routes.js";
 import { dispositivosRouter } from "./modules/dispositivos/dispositivos.routes.js";
+import { eventosRouter } from "./modules/eventos/eventos.routes.js";
+import { chamadosRouter, adminChamadosRouter } from "./modules/chamados/chamados.routes.js";
 
 const app = express();
 
@@ -46,6 +48,9 @@ api.use("/dashboard", dashboardRouter);
 api.use("/notificacoes", notificacoesRouter);
 api.use("/dispositivos", dispositivosRouter);
 api.use("/avisos", avisosRouter);
+api.use("/eventos", eventosRouter);
+api.use("/chamados", chamadosRouter);
+api.use("/admin/chamados", adminChamadosRouter);
 api.use("/admin", adminRouter);
 
 app.use("/api/v1", api);

@@ -2,6 +2,10 @@ import { Router } from "express";
 import {
   createProfessorAdminSchema,
   updateProfessorStatusSchema,
+  adminMatricularSchema,
+  adminAfastarSchema,
+  adminTrocarTurmaSchema,
+  adminDesbloquearSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import { authenticate, requireAdmin } from "../../middleware/auth.js";
@@ -104,3 +108,113 @@ adminRouter.get("/professores/:id/alunos", async (req, res, next) => {
     next(e);
   }
 });
+
+adminRouter.get("/turmas", async (req, res, next) => {
+  try {
+    const busca = typeof req.query.busca === "string" ? req.query.busca : undefined;
+    const data = await adminService.listarTurmasAdmin(busca);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/turmas/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const data = await adminService.obterTurmaAdmin(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/bloqueios", async (req, res, next) => {
+  try {
+    const data = await adminService.listarBloqueiosAdmin();
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/alunos", async (req, res, next) => {
+  try {
+    const busca = typeof req.query.busca === "string" ? req.query.busca : undefined;
+    const semTurma = req.query.semTurma === "true";
+    const data = await adminService.listarAlunosAdmin({ busca, semTurma });
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/alunos/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const data = await adminService.obterAlunoAdmin(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.post(
+  "/alunos/:id/matricular",
+  validate(adminMatricularSchema),
+  async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const data = await adminService.matricularAlunoAdmin(id, req.body.turmaId);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+adminRouter.post(
+  "/alunos/:id/afastar",
+  validate(adminAfastarSchema),
+  async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const data = await adminService.afastarAlunoAdmin(id, req.body.turmaId);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+adminRouter.post(
+  "/alunos/:id/trocar-turma",
+  validate(adminTrocarTurmaSchema),
+  async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const data = await adminService.trocarTurmaAdmin(
+        id,
+        req.body.turmaOrigemId,
+        req.body.turmaDestinoId,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+adminRouter.post(
+  "/alunos/:id/desbloquear",
+  validate(adminDesbloquearSchema),
+  async (req, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const data = await adminService.desbloquearAlunoAdmin(id, req.body.turmaId);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);

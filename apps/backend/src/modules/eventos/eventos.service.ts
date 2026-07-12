@@ -1,5 +1,5 @@
 import { supabase } from "../../config/supabase.js";
-import { generateId, now, relOne, throwOnError } from "../../lib/db.js";
+import { generateId, now, relOne, throwOnError, turmaIdsDoProfessor } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { criarNotificacao, usuarioIdDoAluno } from "../../lib/notificacoes.js";
 import { TipoEvento, type AtualizarEventoInput, type CriarEventoInput } from "@athlon/shared-types";
@@ -194,6 +194,37 @@ export async function listarEventosDaTurma(turmaId: string, professorId: string)
     .select("*, Turma(nome)")
     .eq("turma_id", turmaId)
     .eq("ativo", true)
+    .order("inicio", { ascending: true });
+
+  const eventos = throwOnError(result) as EventoRow[];
+  return eventos.map((e) => mapEvento(e));
+}
+
+export async function listarEventosDoProfessor(professorId: string) {
+  const turmaIds = await turmaIdsDoProfessor(professorId);
+  if (turmaIds.length === 0) return [];
+
+  const result = await supabase
+    .from("Evento")
+    .select("*, Turma(nome)")
+    .in("turma_id", turmaIds)
+    .eq("ativo", true)
+    .order("inicio", { ascending: true });
+
+  const eventos = throwOnError(result) as EventoRow[];
+  return eventos.map((e) => mapEvento(e));
+}
+
+export async function listarEventosDoAluno(alunoId: string) {
+  const turmaIds = await turmaIdsDoAluno(alunoId);
+  if (turmaIds.length === 0) return [];
+
+  const result = await supabase
+    .from("Evento")
+    .select("*, Turma(nome)")
+    .in("turma_id", turmaIds)
+    .eq("ativo", true)
+    .in("tipo", [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO])
     .order("inicio", { ascending: true });
 
   const eventos = throwOnError(result) as EventoRow[];

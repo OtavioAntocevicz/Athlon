@@ -1,9 +1,9 @@
-import { useState, type MouseEvent } from "react";
+import { useState, useRef, type MouseEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Users, Copy, Check, ClipboardList, Pencil, X, MapPin, Clock, Plus, CalendarDays, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, Copy, Check, ClipboardList, Pencil, X, MapPin, Clock, Plus, CalendarDays, Trash2, Camera, Wallet } from "lucide-react";
 import {
   updateTurmaBasicoSchema,
   type UpdateTurmaBasicoInput,
@@ -39,6 +39,7 @@ interface TurmaDetail {
   local: string | null;
   horarioInicio: string | null;
   horarioFim: string | null;
+  fotoUrl: string | null;
 }
 
 interface AlunoTurma {
@@ -104,6 +105,9 @@ export function TurmaDetailPage() {
   const [eventoEditId, setEventoEditId] = useState<string | null>(null);
   const [eventoForm, setEventoForm] = useState<EventoFormState>(EMPTY_EVENTO_FORM);
   const [eventoError, setEventoError] = useState("");
+  const [fotoError, setFotoError] = useState("");
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: turma, isLoading } = useQuery({
     queryKey: ["turma", id],
@@ -160,6 +164,51 @@ export function TurmaDetailPage() {
     },
     onError: (e: Error) => setSaveError(e.message),
   });
+
+  const uploadFotoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      setUploadingFoto(true);
+      setFotoError("");
+      const { uploadUrl, fotoUrl, token } = await api<{
+        uploadUrl: string;
+        fotoUrl: string;
+        token: string;
+      }>(`/turmas/${id}/foto/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({ contentType: file.type || "image/jpeg" }),
+      });
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type || "image/jpeg",
+          Authorization: `Bearer ${token}`,
+        },
+        body: file,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Falha ao enviar a foto. Tente novamente.");
+      }
+
+      return api<TurmaDetail>(`/turmas/${id}/foto`, {
+        method: "PATCH",
+        body: JSON.stringify({ fotoUrl }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["turma", id] });
+      queryClient.invalidateQueries({ queryKey: ["turmas"] });
+    },
+    onError: (e: Error) => setFotoError(e.message),
+    onSettled: () => setUploadingFoto(false),
+  });
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadFotoMutation.mutate(file);
+    e.target.value = "";
+  };
 
   const salvarEventoMutation = useMutation({
     mutationFn: (payload: EventoFormState) => {
@@ -304,23 +353,99 @@ export function TurmaDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Voltar
       </button>
 
-      <Card className="space-y-4 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-primary">Dados da turma</h2>
-          {!editing && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={iniciarEdicao}
-              aria-label="Editar dados da turma"
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
+      {/* Hero - identidade */}
+      <div className="flex items-stretch gap-3.5">
+        <div className="relative w-1/2 shrink-0">
+          {turma.fotoUrl ? (
+            <img
+              src={turma.fotoUrl}
+              alt={turma.nome}
+              className="aspect-square w-full rounded-[10px] border-2 border-accent object-cover shadow-brand-card"
+            />
+          ) : (
+            <div className="flex aspect-square w-full items-center justify-center rounded-[10px] border-2 border-accent bg-primary text-3xl font-bold text-white shadow-brand-card">
+              {getInitials(turma.nome)}
+            </div>
           )}
+          <input
+            ref={fotoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFotoChange}
+          />
+          <button
+            type="button"
+            onClick={() => fotoInputRef.current?.click()}
+            disabled={uploadingFoto}
+            className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-primary shadow-brand-card disabled:opacity-60"
+            aria-label="Alterar foto da turma"
+          >
+            <Camera className="h-4 w-4" />
+          </button>
         </div>
 
-        {editing ? (
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 py-0.5">
+          <div>
+            <h1 className="text-xl font-bold leading-tight text-primary">{turma.nome}</h1>
+
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <div className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-md bg-accent/10 px-1.5 py-1">
+                <p className="min-w-0 truncate text-[11px] font-semibold tracking-wide text-accent-strong">
+                  {turma.codigoConvite}
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 shrink-0 px-1.5"
+                  onClick={copyCodigo}
+                  aria-label={copiedCodigo ? "Copiado" : "Copiar código"}
+                >
+                  {copiedCodigo ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </Button>
+              </div>
+              {!editing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 px-2"
+                  onClick={iniciarEdicao}
+                  aria-label="Editar dados da turma"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+
+            {uploadingFoto && (
+              <p className="mt-1 text-xs text-muted-foreground">Enviando foto...</p>
+            )}
+            {fotoError && <p className="mt-1 text-xs text-destructive">{fotoError}</p>}
+          </div>
+
+          {!editing && (
+            <div className="flex flex-col gap-1.5">
+              <span className="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
+                {turma.modalidade}
+              </span>
+              <span className="w-fit rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
+                {turma.nivel}
+              </span>
+              <span className="inline-flex w-fit items-center gap-1 rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-primary">
+                <Users className="h-3.5 w-3.5" />
+                {alunos?.length ?? 0}{" "}
+                {(alunos?.length ?? 0) === 1 ? "aluno" : "alunos"}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {editing ? (
+        <Card className="mt-5 space-y-4 p-4">
+          <h2 className="font-semibold text-primary">Editar turma</h2>
           <form
             onSubmit={handleSubmit((data) => salvarMutation.mutate(data))}
             className="space-y-4"
@@ -425,79 +550,58 @@ export function TurmaDetailPage() {
               </Button>
             </div>
           </form>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-muted-foreground">Nome</p>
-              <p className="font-medium text-primary">{turma.nome}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Modalidade</p>
-              <p className="font-medium text-primary">{turma.modalidade}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Nível</p>
-              <p className="font-medium text-primary">{turma.nivel}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Mensalidade</p>
-              <p className="font-medium text-primary">
-                {formatCurrency(turma.mensalidadeCentavos)}/mês
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Vencimento</p>
-              <p className="font-medium text-primary">Dia {turma.diaVencimento}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Chave PIX</p>
-              <p className="truncate font-medium text-primary">{turma.chavePix}</p>
-            </div>
-            {turma.local && (
-              <div className="sm:col-span-2">
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3" /> Local
-                </p>
-                <p className="font-medium text-primary">{turma.local}</p>
+        </Card>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {(turma.local || turma.horarioInicio) && (
+            <Card className="p-4">
+              <p className="mb-3 text-sm font-semibold text-primary">Treino</p>
+              <div className="space-y-2.5">
+                {turma.local && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <p className="text-primary">{turma.local}</p>
+                  </div>
+                )}
+                {turma.horarioInicio && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <p className="text-primary">
+                      {turma.horarioInicio}
+                      {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-            {turma.horarioInicio && (
-              <div className="sm:col-span-2">
-                <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" /> Horário
-                </p>
-                <p className="font-medium text-primary">
-                  {turma.horarioInicio}
-                  {turma.horarioFim ? ` - ${turma.horarioFim}` : ""}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+            </Card>
+          )}
 
-        <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Código da turma</p>
-            <p className="truncate text-sm font-semibold text-accent">
-              {turma.codigoConvite}
+          <Card className="p-4">
+            <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
+              <Wallet className="h-4 w-4" /> Financeiro
             </p>
-          </div>
-          <Button type="button" variant="secondary" size="sm" onClick={copyCodigo}>
-            {copiedCodigo ? (
-              <>
-                <Check className="h-4 w-4" /> Copiado
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" /> Copiar
-              </>
-            )}
-          </Button>
+            <div className="space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Mensalidade</p>
+                <p className="font-semibold text-primary">
+                  {formatCurrency(turma.mensalidadeCentavos)}/mês
+                </p>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-xs text-muted-foreground">Vencimento</p>
+                <p className="font-medium text-primary">Dia {turma.diaVencimento}</p>
+              </div>
+              <div className="border-t border-primary/5 pt-3">
+                <p className="text-xs text-muted-foreground">Chave PIX</p>
+                <p className="mt-0.5 break-all text-sm font-medium text-primary">{turma.chavePix}</p>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
+      )}
 
       <div className="mt-6 mb-3 flex items-center justify-between gap-2">
-        <h2 className="font-bold text-primary flex items-center gap-2">
+        <h2 className="flex items-center gap-2 font-bold text-primary">
           <CalendarDays className="h-5 w-5" /> Eventos
         </h2>
         {!eventoFormOpen && (

@@ -1,18 +1,47 @@
 import { cn } from "@/lib/cn";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
-const config: Record<StatusMensalidade, { label: string; className: string }> = {
-  PENDENTE: { label: "Pendente", className: "bg-amber-100 text-amber-800" },
-  EM_ANALISE: { label: "Em análise", className: "bg-yellow-100 text-yellow-800" },
-  PAGO: { label: "Pago", className: "bg-blue-100 text-blue-800" },
-  RECUSADO: { label: "Recusado", className: "bg-red-100 text-red-800" },
-  ATRASADO: { label: "Atrasado", className: "bg-red-100 text-red-700" },
+const config: Record<
+  StatusMensalidade,
+  { label: string; className: string; dot: string }
+> = {
+  PENDENTE: {
+    label: "Pendente",
+    className: "bg-muted text-primary ring-1 ring-primary/10",
+    dot: "bg-accent-strong",
+  },
+  EM_ANALISE: {
+    label: "Em análise",
+    className: "bg-accent/15 text-accent-strong ring-1 ring-accent/30",
+    dot: "bg-accent",
+  },
+  PAGO: {
+    label: "Pago",
+    className: "bg-success/10 text-success ring-1 ring-success/20",
+    dot: "bg-success",
+  },
+  RECUSADO: {
+    label: "Recusado",
+    className: "bg-destructive/10 text-destructive ring-1 ring-destructive/20",
+    dot: "bg-destructive",
+  },
+  ATRASADO: {
+    label: "Atrasado",
+    className: "bg-destructive/10 text-destructive ring-1 ring-destructive/25",
+    dot: "bg-destructive",
+  },
 };
 
 export function StatusBadge({ status }: { status: StatusMensalidade }) {
   const c = config[status] ?? config.PENDENTE;
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", c.className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-wide",
+        c.className,
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", c.dot)} aria-hidden />
       {c.label}
     </span>
   );

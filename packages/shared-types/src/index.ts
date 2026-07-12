@@ -7,4 +7,5 @@ export * from "./schemas/comprovante.js";
 export * from "./schemas/aviso.js";
 export * from "./schemas/evento.js";
 export * from "./schemas/dispositivo.js";
+export * from "./schemas/chamado.js";
 export * from "./api-contracts.js";

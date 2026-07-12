@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, GraduationCap, Users } from "lucide-react";
+import { ArrowLeft, GraduationCap, Users, Copy, Check, ChevronRight } from "lucide-react";
+import { useState, type MouseEvent } from "react";
 import { api, getErrorMessage } from "@/lib/api";
 import type { AdminProfessorDetalhe } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -8,13 +9,16 @@ import { MetricCard } from "@/components/domain/MetricCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/domain/StatusBadge";
-import { formatDate } from "@/lib/format";
+import { PageEnter } from "@/components/ui/page-enter";
+import { formatDate, getInitials } from "@/lib/format";
+import { cn } from "@/lib/cn";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
 export function AdminProfessorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "professor", id],
@@ -32,6 +36,13 @@ export function AdminProfessorDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
   });
+
+  const copyCodigo = async (e: MouseEvent, turmaId: string, codigo: string) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(codigo);
+    setCopiedId(turmaId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   if (isLoading) {
     return (
@@ -71,103 +82,152 @@ export function AdminProfessorDetailPage() {
 
   return (
     <AdminShell>
-      <button
-        type="button"
-        onClick={() => navigate("/admin/professores")}
-        className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Voltar
-      </button>
+      <PageEnter variant="fade">
+        <button
+          type="button"
+          onClick={() => navigate("/admin/professores")}
+          className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> Voltar
+        </button>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-primary">{data.nome}</h1>
-          <p className="text-sm text-muted-foreground">{data.email}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            PIX: {data.chavePix ?? "-"} · Cadastro: {formatDate(data.criadoEm)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              data.ativo ? "bg-accent/20 text-primary" : "bg-destructive/10 text-destructive"
-            }`}
-          >
-            {data.ativo ? "Ativo" : "Inativo"}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={statusMutation.isPending}
-            onClick={toggleStatus}
-          >
-            {data.ativo ? "Desativar" : "Reativar"}
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <MetricCard title="Turmas" value={String(data.totalTurmas)} icon={GraduationCap} />
-        <MetricCard title="Alunos" value={String(data.totalAlunos)} icon={Users} />
-      </div>
-
-      <section className="mt-8">
-        <h2 className="text-lg font-bold text-primary">Turmas</h2>
-        {data.turmas.length === 0 ? (
-          <Card className="mt-3 p-4 text-sm text-muted-foreground">Nenhuma turma cadastrada.</Card>
-        ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[480px] text-left text-sm">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Turma</th>
-                  <th className="pb-2 pr-4 font-medium">Modalidade</th>
-                  <th className="pb-2 pr-4 font-medium">Alunos</th>
-                  <th className="pb-2 pr-4 font-medium">Convite</th>
-                  <th className="pb-2 font-medium">Criada em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.turmas.map((t) => (
-                  <tr key={t.id} className="border-b border-primary/5">
-                    <td className="py-3 pr-4 font-medium text-primary">{t.nome}</td>
-                    <td className="py-3 pr-4">{t.modalidade}</td>
-                    <td className="py-3 pr-4">{t.totalAlunos}</td>
-                    <td className="py-3 pr-4 font-mono text-xs">{t.codigoConvite}</td>
-                    <td className="py-3">{formatDate(t.criadoEm)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-white shadow-brand-card">
+            {getInitials(data.nome)}
           </div>
-        )}
-      </section>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold leading-tight text-primary">{data.nome}</h1>
+            <p className="mt-0.5 truncate text-sm text-muted-foreground">{data.email}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-wide ring-1",
+                  data.ativo
+                    ? "bg-success/10 text-success ring-success/20"
+                    : "bg-destructive/10 text-destructive ring-destructive/20",
+                )}
+              >
+                {data.ativo ? "Ativo" : "Inativo"}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={statusMutation.isPending}
+                onClick={toggleStatus}
+              >
+                {data.ativo ? "Desativar" : "Reativar"}
+              </Button>
+            </div>
+          </div>
+        </div>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-bold text-primary">Alunos</h2>
-        {data.alunos.length === 0 ? (
-          <Card className="mt-3 p-4 text-sm text-muted-foreground">Nenhum aluno matriculado.</Card>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {data.alunos.map((a) => (
-              <Card key={a.id} className="p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-semibold text-primary">{a.nome}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {a.turmas.map((t) => t.nome).join(", ")}
-                    </p>
-                    {a.telefone && (
-                      <p className="text-xs text-muted-foreground">{a.telefone}</p>
-                    )}
+        <Card className="mt-4 space-y-2 p-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs text-muted-foreground">Chave PIX</p>
+            <p className="max-w-[70%] break-all text-right text-sm font-medium text-primary">
+              {data.chavePix ?? "-"}
+            </p>
+          </div>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs text-muted-foreground">Cadastro</p>
+            <p className="text-sm font-medium text-primary">{formatDate(data.criadoEm)}</p>
+          </div>
+        </Card>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <MetricCard title="Turmas" value={String(data.totalTurmas)} icon={GraduationCap} />
+          <MetricCard title="Alunos" value={String(data.totalAlunos)} icon={Users} />
+        </div>
+
+        <section className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 font-bold text-primary">
+            <GraduationCap className="h-5 w-5" /> Turmas ({data.turmas.length})
+          </h2>
+          {data.turmas.length === 0 ? (
+            <Card className="p-4 text-center text-sm text-muted-foreground">
+              Nenhuma turma cadastrada.
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {data.turmas.map((t) => (
+                <Card
+                  key={t.id}
+                  className="cursor-pointer p-3 active:scale-[0.99]"
+                  onClick={() => navigate(`/admin/turmas/${t.id}`)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-primary">{t.nome}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-primary">
+                          {t.modalidade}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-primary">
+                          <Users className="h-3 w-3" />
+                          {t.totalAlunos} {t.totalAlunos === 1 ? "aluno" : "alunos"}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        Criada em {formatDate(t.criadoEm)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => copyCodigo(e, t.id, t.codigoConvite)}
+                        className="inline-flex items-center gap-1 rounded-md bg-accent/10 px-1.5 py-1 text-[11px] font-semibold text-accent-strong"
+                        aria-label="Copiar código"
+                      >
+                        <span className="max-w-[5.5rem] truncate">{t.codigoConvite}</span>
+                        {copiedId === t.id ? (
+                          <Check className="h-3 w-3" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="mt-8">
+          <h2 className="mb-3 flex items-center gap-2 font-bold text-primary">
+            <Users className="h-5 w-5" /> Alunos ({data.alunos.length})
+          </h2>
+          {data.alunos.length === 0 ? (
+            <Card className="p-4 text-center text-sm text-muted-foreground">
+              Nenhum aluno matriculado.
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {data.alunos.map((a) => (
+                <Card
+                  key={a.id}
+                  className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"
+                  onClick={() => navigate(`/admin/alunos/${a.id}`)}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
+                    {getInitials(a.nome)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-primary">{a.nome}</p>
+                    <span className="mt-1 inline-block max-w-full truncate rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-primary">
+                      {a.turmas.map((t) => t.nome).join(", ") || "Sem turma"}
+                    </span>
                   </div>
                   <StatusBadge status={a.statusFinanceiro as StatusMensalidade} />
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
+      </PageEnter>
     </AdminShell>
   );
 }

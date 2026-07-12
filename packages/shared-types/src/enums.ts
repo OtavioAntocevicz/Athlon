@@ -42,3 +42,11 @@ export const TipoEvento = {
 } as const;
 
 export type TipoEvento = (typeof TipoEvento)[keyof typeof TipoEvento];
+
+export const StatusChamado = {
+  ABERTO: "ABERTO",
+  RESPONDIDO: "RESPONDIDO",
+  FECHADO: "FECHADO",
+} as const;
+
+export type StatusChamado = (typeof StatusChamado)[keyof typeof StatusChamado];

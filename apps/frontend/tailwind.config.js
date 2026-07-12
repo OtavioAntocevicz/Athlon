@@ -12,6 +12,7 @@ export default {
         accent: {
           DEFAULT: "#E8B84A",
           foreground: "#5C3D2E",
+          strong: "#96661F",
         },
         destructive: "#C94C4C",
         success: "#3D8B5F",
@@ -24,6 +25,14 @@ export default {
       borderRadius: {
         lg: "12px",
         xl: "16px",
+      },
+      boxShadow: {
+        brand: "0 6px 16px -4px rgba(92, 61, 46, 0.18)",
+        "brand-lg": "0 14px 32px -8px rgba(92, 61, 46, 0.24)",
+        "brand-card":
+          "0 2px 6px rgba(92, 61, 46, 0.08), 0 8px 24px -4px rgba(92, 61, 46, 0.22)",
+        "brand-card-hover":
+          "0 4px 10px rgba(92, 61, 46, 0.1), 0 16px 36px -6px rgba(92, 61, 46, 0.3)",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

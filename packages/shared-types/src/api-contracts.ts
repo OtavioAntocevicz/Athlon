@@ -38,6 +38,8 @@ export interface AuthTokens {
 }
 
 export interface DashboardProfessor {
+  totalTurmas: number;
+  totalAlunos: number;
   recebidoMesCentavos: number;
   pendenteCentavos: number;
   comprovantesAguardando: number;
@@ -52,6 +54,20 @@ export interface AtividadeRecente {
   titulo: string;
   descricao: string;
   criadoEm: string;
+}
+
+export interface EventoResumo {
+  id: string;
+  turmaId: string;
+  turmaNome: string;
+  tipo: string;
+  titulo: string;
+  adversario: string | null;
+  descricao: string | null;
+  local: string | null;
+  inicio: string;
+  fim: string | null;
+  passado: boolean;
 }
 
 export interface MensalidadeResumo {

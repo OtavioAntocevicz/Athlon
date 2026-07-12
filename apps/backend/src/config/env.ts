@@ -14,6 +14,7 @@ export const env = {
   supabaseUrl: required("SUPABASE_URL"),
   supabaseServiceKey: required("SUPABASE_SERVICE_ROLE_KEY"),
   storageBucket: process.env.STORAGE_BUCKET ?? "comprovantes",
+  turmasFotosBucket: process.env.TURMAS_FOTOS_BUCKET ?? "turmas-fotos",
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
   vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:suporte@athlon.app",

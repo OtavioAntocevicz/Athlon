@@ -1,9 +1,20 @@
 import { supabase } from "../../config/supabase.js";
 import { generateId, now, relOne, throwOnError, turmaIdsDoProfessor } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
-import { getSignedReadUrl } from "./storage.service.js";
+import { getSignedReadUrl, removerArquivoStorage } from "./storage.service.js";
 
 const STATUS_ENVIAVEL = ["PENDENTE", "RECUSADO", "ATRASADO"] as const;
+
+async function limparArquivoComprovante(
+  comprovanteId: string,
+  arquivoUrl: string | null | undefined,
+) {
+  await removerArquivoStorage(arquivoUrl);
+  await supabase
+    .from("Comprovante")
+    .update({ arquivo_url: null })
+    .eq("id", comprovanteId);
+}
 
 export async function confirmarComprovante(
   pagamentoId: string,
@@ -184,6 +195,8 @@ export async function aprovarComprovante(
     .update({ revisado_em: ts })
     .eq("id", comprovanteId);
 
+  await limparArquivoComprovante(comprovanteId, c.arquivo_url as string | null);
+
   const pagDetail = await supabase
     .from("Pagamento")
     .select("mes_referencia, Aluno(usuario_id)")
@@ -244,6 +257,8 @@ export async function recusarComprovante(
       ativo: false,
     })
     .eq("id", comprovanteId);
+
+  await limparArquivoComprovante(comprovanteId, c.arquivo_url as string | null);
 
   const pagDetail = await supabase
     .from("Pagamento")

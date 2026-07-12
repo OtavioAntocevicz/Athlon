@@ -1,6 +1,21 @@
-import type { Request, Response } from "express";
+/** Entrypoint serverless Vercel → Express (apps/backend/dist/app.js) */
 
-type ExpressApp = (req: Request, res: Response) => void;
+type ApiRequest = {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+  body?: unknown;
+  query?: Record<string, string | string[] | undefined>;
+};
+
+type ApiResponse = {
+  status: (code: number) => ApiResponse;
+  json: (body: unknown) => unknown;
+  setHeader?: (name: string, value: string | number | string[]) => void;
+  end?: (chunk?: unknown) => void;
+};
+
+type ExpressApp = (req: ApiRequest, res: ApiResponse) => unknown;
 
 let app: ExpressApp | null = null;
 let loadError: string | null = null;
@@ -14,7 +29,7 @@ async function loadApp(): Promise<ExpressApp | null> {
     loading = (async () => {
       try {
         const mod = await import("../apps/backend/dist/app.js");
-        app = mod.default;
+        app = mod.default as ExpressApp;
       } catch (err) {
         console.error("[api] Falha ao carregar o backend:", err);
         loadError =
@@ -29,7 +44,7 @@ async function loadApp(): Promise<ExpressApp | null> {
   return app;
 }
 
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   const expressApp = await loadApp();
 
   if (!expressApp) {

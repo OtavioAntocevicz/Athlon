@@ -30,3 +30,9 @@ export const updateTurmaBasicoSchema = z.object({
 export type CreateTurmaInput = z.infer<typeof createTurmaSchema>;
 export type UpdateTurmaInput = z.infer<typeof updateTurmaSchema>;
 export type UpdateTurmaBasicoInput = z.infer<typeof updateTurmaBasicoSchema>;
+
+export const atualizarFotoTurmaSchema = z.object({
+  fotoUrl: z.string().url("URL da foto inválida"),
+});
+
+export type AtualizarFotoTurmaInput = z.infer<typeof atualizarFotoTurmaSchema>;

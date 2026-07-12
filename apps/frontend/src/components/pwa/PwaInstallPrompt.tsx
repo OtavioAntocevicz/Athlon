@@ -12,6 +12,7 @@ const PREFIXOS_COM_BOTTOM_NAV = [
   "/turmas",
   "/alunos",
   "/avisos",
+  "/eventos",
   "/minhas-turmas",
   "/gerir-turmas",
   "/perfil",
@@ -55,7 +56,7 @@ export function PwaInstallPrompt() {
             comBottomNav ? "bottom-[4.5rem]" : "bottom-4"
           }`}
         >
-          <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-3 shadow-lg">
+          <div className="flex items-start gap-3 rounded-xl border border-primary/20 bg-card p-3 shadow-brand-lg">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               {mostrarConviteAndroid ? (
                 <Download className="h-5 w-5" />

@@ -11,6 +11,8 @@ import { chaveMesCalendario, chaveMesFromIso, isMesFuturo } from "../../lib/util
 import { proximoEventoDoAluno } from "../eventos/eventos.service.js";
 
 const EMPTY_PROFESSOR_DASH = {
+  totalTurmas: 0,
+  totalAlunos: 0,
   recebidoMesCentavos: 0,
   pendenteCentavos: 0,
   comprovantesAguardando: 0,
@@ -43,7 +45,7 @@ export async function dashboardProfessor(professorId: string) {
   const hoje = new Date();
   const mesAtualChave = chaveMesCalendario(hoje);
 
-  const [pagamentosRes, comprovantesRes] = await Promise.all([
+  const [pagamentosRes, comprovantesRes, matriculasRes] = await Promise.all([
     supabase
       .from("Pagamento")
       .select("id, aluno_id, mes_referencia, vencimento, valor_centavos, status")
@@ -54,11 +56,21 @@ export async function dashboardProfessor(professorId: string) {
       .eq("ativo", true)
       .order("enviado_em", { ascending: false })
       .limit(20),
+    supabase
+      .from("MatriculaTurma")
+      .select("aluno_id")
+      .in("turma_id", turmaIds)
+      .eq("afastado", false),
   ]);
 
   if (pagamentosRes.error) {
     throw new AppError(500, "DB_ERROR", pagamentosRes.error.message);
   }
+  if (matriculasRes.error) {
+    throw new AppError(500, "DB_ERROR", matriculasRes.error.message);
+  }
+
+  const totalAlunos = new Set((matriculasRes.data ?? []).map((m) => m.aluno_id)).size;
 
   const pagamentos = (pagamentosRes.data ?? []).filter(
     (p) => !isMesFuturo(p.mes_referencia, hoje),
@@ -119,6 +131,8 @@ export async function dashboardProfessor(professorId: string) {
   });
 
   return {
+    totalTurmas: turmaIds.length,
+    totalAlunos,
     recebidoMesCentavos,
     pendenteCentavos,
     comprovantesAguardando,

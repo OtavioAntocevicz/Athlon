@@ -1,11 +1,23 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
-import { ProtectedRoute, GuestRoute, ProfessorRoute, AlunoTurmasRoute, AdminRoute } from "./guards";
+import { ProtectedRoute, GuestRoute, ProfessorRoute, AlunoRoute, AlunoTurmasRoute, AdminRoute } from "./guards";
 import { AdminDashboardPage } from "@/features/admin/AdminDashboardPage";
 import { AdminProfessoresPage } from "@/features/admin/AdminProfessoresPage";
 import { AdminNovoProfessorPage } from "@/features/admin/AdminNovoProfessorPage";
 import { AdminProfessorDetailPage } from "@/features/admin/AdminProfessorDetailPage";
 import { AdminPerfilPage } from "@/features/admin/AdminPerfilPage";
+import { AdminAlunosPage } from "@/features/admin/AdminAlunosPage";
+import { AdminAlunoDetailPage } from "@/features/admin/AdminAlunoDetailPage";
+import { AdminTurmaDetailPage } from "@/features/admin/AdminTurmaDetailPage";
+import { AdminEdicaoPage } from "@/features/admin/AdminEdicaoPage";
+import { AdminEdicaoMatricularPage } from "@/features/admin/AdminEdicaoMatricularPage";
+import { AdminEdicaoRemoverPage } from "@/features/admin/AdminEdicaoRemoverPage";
+import { AdminEdicaoTrocarPage } from "@/features/admin/AdminEdicaoTrocarPage";
+import { AdminEdicaoDesbloquearPage } from "@/features/admin/AdminEdicaoDesbloquearPage";
+import { AdminEdicaoProfessoresPage } from "@/features/admin/AdminEdicaoProfessoresPage";
+import { AdminChamadosPage, AdminChamadoDetailPage } from "@/features/admin/AdminChamadosPage";
+import { AlunoChamadosPage } from "@/features/chamados/AlunoChamadosPage";
+import { AlunoChamadoDetailPage } from "@/features/chamados/AlunoChamadoDetailPage";
 import { AvisosProfessorPage } from "@/features/avisos/AvisosProfessorPage";
 import { ProfileSelectPage } from "@/features/auth/ProfileSelectPage";
 import { RedefinirSenhaTokenPage } from "@/features/auth/RedefinirSenhaTokenPage";
@@ -27,6 +39,8 @@ import { AlunosPage } from "@/features/alunos/AlunosPage";
 import { AlunoDetailPage } from "@/features/alunos/AlunoDetailPage";
 import { PerfilPage } from "@/features/perfil/PerfilPage";
 import { GerirTurmasPage } from "@/features/turmas/GerirTurmasPage";
+import { EventosProfessorPage } from "@/features/eventos/EventosProfessorPage";
+import { EventosAlunoPage } from "@/features/eventos/EventosAlunoPage";
 import { TermosDeUsoPage } from "@/features/legal/TermosDeUsoPage";
 import { PoliticaPrivacidadePage } from "@/features/legal/PoliticaPrivacidadePage";
 
@@ -35,6 +49,12 @@ function HomePage() {
   if (user?.perfil === "ADM") return <Navigate to="/admin" replace />;
   if (user?.perfil === "ALUNO") return <DashboardAlunoPage />;
   return <DashboardProfessorPage />;
+}
+
+function EventosPage() {
+  const { user } = useAuth();
+  if (user?.perfil === "ALUNO") return <EventosAlunoPage />;
+  return <EventosProfessorPage />;
 }
 
 export function AppRouter() {
@@ -99,9 +119,22 @@ export function AppRouter() {
       <Route path="/admin/professores" element={<AdminRoute><AdminProfessoresPage /></AdminRoute>} />
       <Route path="/admin/professores/novo" element={<AdminRoute><AdminNovoProfessorPage /></AdminRoute>} />
       <Route path="/admin/professores/:id" element={<AdminRoute><AdminProfessorDetailPage /></AdminRoute>} />
+      <Route path="/admin/alunos" element={<AdminRoute><AdminAlunosPage /></AdminRoute>} />
+      <Route path="/admin/alunos/:id" element={<AdminRoute><AdminAlunoDetailPage /></AdminRoute>} />
+      <Route path="/admin/turmas/:id" element={<AdminRoute><AdminTurmaDetailPage /></AdminRoute>} />
+      <Route path="/admin/edicao" element={<AdminRoute><AdminEdicaoPage /></AdminRoute>} />
+      <Route path="/admin/edicao/matricular" element={<AdminRoute><AdminEdicaoMatricularPage /></AdminRoute>} />
+      <Route path="/admin/edicao/remover" element={<AdminRoute><AdminEdicaoRemoverPage /></AdminRoute>} />
+      <Route path="/admin/edicao/trocar" element={<AdminRoute><AdminEdicaoTrocarPage /></AdminRoute>} />
+      <Route path="/admin/edicao/desbloquear" element={<AdminRoute><AdminEdicaoDesbloquearPage /></AdminRoute>} />
+      <Route path="/admin/edicao/professores" element={<AdminRoute><AdminEdicaoProfessoresPage /></AdminRoute>} />
+      <Route path="/admin/chamados" element={<AdminRoute><AdminChamadosPage /></AdminRoute>} />
+      <Route path="/admin/chamados/:id" element={<AdminRoute><AdminChamadoDetailPage /></AdminRoute>} />
       <Route path="/admin/perfil" element={<AdminRoute><AdminPerfilPage /></AdminRoute>} />
 
       <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+      <Route path="/chamados" element={<AlunoRoute><AlunoChamadosPage /></AlunoRoute>} />
+      <Route path="/chamados/:id" element={<AlunoRoute><AlunoChamadoDetailPage /></AlunoRoute>} />
       <Route path="/mensalidades" element={<ProtectedRoute><MensalidadesPage /></ProtectedRoute>} />
       <Route path="/mensalidades/:id" element={<ProtectedRoute><MensalidadeDetailPage /></ProtectedRoute>} />
       <Route path="/comprovantes" element={<ProfessorRoute><ComprovantesFilaPage /></ProfessorRoute>} />
@@ -112,6 +145,7 @@ export function AppRouter() {
       <Route path="/alunos" element={<ProfessorRoute><AlunosPage /></ProfessorRoute>} />
       <Route path="/alunos/:id" element={<ProfessorRoute><AlunoDetailPage /></ProfessorRoute>} />
       <Route path="/avisos" element={<ProfessorRoute><AvisosProfessorPage /></ProfessorRoute>} />
+      <Route path="/eventos" element={<ProtectedRoute><EventosPage /></ProtectedRoute>} />
       <Route path="/minhas-turmas" element={<AlunoTurmasRoute><TurmasAlunoPage /></AlunoTurmasRoute>} />
       <Route path="/minhas-turmas/:id" element={<AlunoTurmasRoute><TurmaAlunoDetailPage /></AlunoTurmasRoute>} />
       <Route path="/gerir-turmas" element={<ProfessorRoute><GerirTurmasPage /></ProfessorRoute>} />

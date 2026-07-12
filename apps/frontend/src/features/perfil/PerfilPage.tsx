@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LogOut, Pencil, X, KeyRound, Settings } from "lucide-react";
+import { LogOut, Pencil, X, KeyRound, Settings, MessageSquare } from "lucide-react";
 import { AlterarSenhaModal } from "./AlterarSenhaModal";
 import {
   updateProfessorPerfilSchema,
@@ -37,6 +37,7 @@ export function PerfilPage() {
   });
 
   const isProfessor = user?.perfil === "PROFESSOR" || !!user?.professorId;
+  const isAluno = user?.perfil === "ALUNO";
 
   const profForm = useForm<UpdateProfessorPerfilInput>({
     resolver: zodResolver(updateProfessorPerfilSchema),
@@ -244,6 +245,14 @@ export function PerfilPage() {
         <Link to="/gerir-turmas" className="mt-4 block">
           <Button type="button" variant="outline" size="lg" className="w-full">
             <Settings className="h-4 w-4" /> Gerir turmas
+          </Button>
+        </Link>
+      )}
+
+      {isAluno && (
+        <Link to="/chamados" className="mt-4 block">
+          <Button type="button" variant="outline" size="lg" className="w-full">
+            <MessageSquare className="h-4 w-4" /> Chamado (suporte)
           </Button>
         </Link>
       )}

@@ -30,6 +30,23 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+export function formatRelativeTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.round(diffMs / 60_000);
+
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `há ${diffMin} min`;
+
+  const diffHours = Math.round(diffMin / 60);
+  if (diffHours < 24) return `há ${diffHours}h`;
+
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays === 1) return "ontem";
+  if (diffDays < 7) return `há ${diffDays} dias`;
+
+  return formatDate(iso);
+}
+
 export function getInitials(name: string): string {
   return name
     .split(" ")
