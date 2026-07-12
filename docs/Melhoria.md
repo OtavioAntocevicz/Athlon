@@ -14,9 +14,10 @@ Estes itens saíram do pendente ou foram entregues nesta rodada de UX/Admin:
 - Dashboard ADM sem lista duplicada de professores (métricas + atalhos)
 - Travessões tipográficos padronizados para hífen (`-`)
 - UX do **aluno**: BottomNav com 5 itens (Eventos | Mensal | Início | Turmas | Perfil); dashboard; turmas com foto; perfil com **Chamado**
-- **Chamados**: aluno abre/acompanha; ADM responde em Edição → Chamados (migration `20250712000000_chamados.sql`)
+- **Chamados**: aluno e professor abrem/acompanham; ADM responde em Edição → Chamados (migrations `20250712000000_chamados.sql`, `20250714000000_chamado_professor.sql`)
 - Comprovante: arquivo removido do Storage ao aprovar/recusar (migration `20250713000000_comprovante_arquivo_nullable.sql`)
 - Guia de configuração: [config-resend-web-push.md](./config-resend-web-push.md)
+- Economia free tier: polling de notificações 180s; react-query `staleTime` 90s / sem refetch on focus; signed URL só no detalhe do comprovante
 
 Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recentes-jul2026).
 
@@ -44,9 +45,8 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 ### Web Push em produção
 
-- Código implementado; falta configurar no ambiente de deploy.
-- **Passo a passo:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte B)
-- Guia complementar: [web-push-producao.md](./web-push-producao.md)
+- Código e chaves VAPID: configuração documentada em [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md).
+- **Ajuste pendente:** com VAPID na Vercel e permissão aceita pelo aluno, a notificação **ainda não aparece na barra do sistema** (só o fluxo in-app, se houver). Investigar subscription (`POST /dispositivos`), Service Worker (`push-handler.js`), envio `web-push` e diferença Android/iOS/PWA.
 
 ### Recuperação de senha - Resend (e-mail)
 
@@ -54,6 +54,14 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - **Passo a passo de configuração:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte A)
 - **Status atual:** Resend **ainda precisa ser configurado** em produção (`RESEND_API_KEY`, `EMAIL_FROM`, domínio verificado, `APP_URL`).
 - **Contorno sem domínio:** `RECOVERY_SHOW_CODE=true` mostra o código na tela (ver [config-resend-web-push.md](./config-resend-web-push.md)).
+
+### Supabase Free (consumo)
+
+- Plano free (`t4g.nano`) é suficiente até haver venda / tráfego real.
+- **Métricas normais em idle:** RAM ~40–60%, CPU baixa, conexões bem abaixo do limite - não confundir RAM com “gasto alto”.
+- **Quando upar:** Disk/conexões apertando, crons lentos/falhando, ou vários usuários ativos no dia a dia + necessidade de Storage/backup maiores.
+- Ajustes leves no app (polling, signed URL só no detalhe) reduzem requests sem mudar a UX de forma perceptível.
+- **Adiado até volume real:** batch/N+1 em `sincronizarBloqueiosInadimplencia`, listagens de alunos e loops de notificação nos crons (ver Refinamento abaixo).
 
 ---
 
@@ -87,6 +95,13 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - **Entregue:** ao aprovar ou recusar, o arquivo é removido do bucket e `arquivo_url` é limpo (`null`).
 - Migration: `20250713000000_comprovante_arquivo_nullable.sql`
 - Falha ao apagar o Storage é só logada - a aprovação/recusa do pagamento não é bloqueada.
+- Listagens (fila/mensalidades) não geram signed URL por item; preview fica no detalhe.
+
+### Otimização N+1 (Supabase) - adiado
+
+- **Adiado até volume real de matrículas/usuários.**
+- Candidatos: `sincronizarBloqueiosInadimplencia` (query por matrícula), `listarAlunos` / admin (status financeiro por aluno), loops de notificação em crons/avisos/eventos.
+- Não implementar agora: free tier ainda folgado com poucos usuários.
 
 ### Notificação de nova mensalidade
 

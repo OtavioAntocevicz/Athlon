@@ -20,7 +20,7 @@ const acoes = [
     to: "/admin/chamados",
     icon: MessageSquare,
     title: "Chamados",
-    desc: "Suporte aberto pelos alunos",
+    desc: "Suporte aberto por alunos e treinadores",
   },
   {
     to: "/admin/edicao/matricular",

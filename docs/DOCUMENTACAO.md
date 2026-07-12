@@ -648,6 +648,7 @@ Professor + Turma ── (N) AvisoProfessor
 - Envio → `EM_ANALISE`; aprovação → `PAGO`; recusa → `RECUSADO`.
 - O bucket é criado pelo schema SQL ou automaticamente no primeiro upload (`storage.service.ts`).
 - Após **aprovar** ou **recusar**, o arquivo é removido do Storage e `arquivo_url` fica `null` (migration `20250713000000_comprovante_arquivo_nullable.sql`).
+- URL assinada de leitura só no **detalhe** do comprovante (fila/listagens não geram signed URL por item - economia no free tier).
 
 ### Turmas
 
@@ -932,6 +933,13 @@ O Vite (`vite.config.ts`) faz proxy de `/api` para o backend em desenvolvimento 
 - **Vercel:** frontend (SPA) + API Express (serverless) no mesmo domínio
 - **Supabase:** PostgreSQL + Storage + pg_cron (avisos horários)
 
+### Plano Free do Supabase
+
+- O plano free (`t4g.nano`) é adequado enquanto o produto não tem tráfego de venda.
+- RAM ~40–60% em idle é **normal** (Postgres + PostgREST); não indica necessidade de upgrade.
+- Critérios para upar: Disk ou conexões apertando, crons falhando/lentos, ou muitos usuários ativos + Storage/backup maiores.
+- Detalhes e pendências de otimização: [Melhoria.md - Supabase Free](./Melhoria.md#supabase-free-consumo).
+
 ### Passo a passo
 
 1. **Supabase**
@@ -1116,9 +1124,9 @@ Documentadas em `docs/Melhoria.md`:
 
 ### Chamados (suporte)
 
-- Aluno: `GET/POST /api/v1/chamados`, `GET /api/v1/chamados/:id` - telas `/chamados` e `/chamados/:id`
+- Aluno e professor: `GET/POST /api/v1/chamados`, `GET /api/v1/chamados/:id` - telas `/chamados` e `/chamados/:id` (atalho no Perfil)
 - ADM: `GET/PATCH /api/v1/admin/chamados` - telas em Edição → Chamados (`/admin/chamados`)
-- Migration: `20250712000000_chamados.sql` (enum `StatusChamado`, tabela `Chamado`)
+- Migrations: `20250712000000_chamados.sql`, `20250714000000_chamado_professor.sql` (`aluno_id` ou `professor_id`)
 
 ### Painel ADM
 

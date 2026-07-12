@@ -16,18 +16,28 @@ export const responderChamadoSchema = z.object({
 export type CriarChamadoInput = z.infer<typeof criarChamadoSchema>;
 export type ResponderChamadoInput = z.infer<typeof responderChamadoSchema>;
 
+export type AutorChamado = "ALUNO" | "PROFESSOR";
+
 export interface ChamadoResumo {
   id: string;
   assunto: string;
   status: string;
   criadoEm: string;
   atualizadoEm: string;
+  autorTipo?: AutorChamado;
+  /** Nome de quem abriu (aluno ou professor) */
+  autorNome?: string;
+  /** @deprecated use autorNome */
   alunoNome?: string;
 }
 
 export interface ChamadoDetalhe {
   id: string;
-  alunoId: string;
+  alunoId: string | null;
+  professorId: string | null;
+  autorTipo: AutorChamado;
+  autorNome: string;
+  /** @deprecated use autorNome */
   alunoNome: string;
   assunto: string;
   mensagem: string;

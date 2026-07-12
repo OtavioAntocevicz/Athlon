@@ -89,28 +89,25 @@ export async function filaAprovacao(professorId: string) {
 
   if (error) throw new AppError(500, "DB_ERROR", error.message);
 
-  return Promise.all(
-    (items ?? []).map(async (c) => {
-      const pag = c.Pagamento as {
-        id: string;
-        mes_referencia: string;
-        valor_centavos: number;
-        Aluno: { nome: string };
-        Turma: { nome: string };
-      };
+  return (items ?? []).map((c) => {
+    const pag = c.Pagamento as {
+      id: string;
+      mes_referencia: string;
+      valor_centavos: number;
+      Aluno: { nome: string };
+      Turma: { nome: string };
+    };
 
-      return {
-        id: c.id,
-        pagamentoId: c.pagamento_id,
-        alunoNome: pag.Aluno.nome,
-        turmaNome: pag.Turma.nome,
-        mesReferencia: new Date(pag.mes_referencia).toISOString(),
-        valorCentavos: pag.valor_centavos,
-        enviadoEm: new Date(c.enviado_em).toISOString(),
-        arquivoUrl: await getSignedReadUrl(c.arquivo_url),
-      };
-    }),
-  );
+    return {
+      id: c.id,
+      pagamentoId: c.pagamento_id,
+      alunoNome: pag.Aluno.nome,
+      turmaNome: pag.Turma.nome,
+      mesReferencia: new Date(pag.mes_referencia).toISOString(),
+      valorCentavos: pag.valor_centavos,
+      enviadoEm: new Date(c.enviado_em).toISOString(),
+    };
+  });
 }
 
 export async function getComprovante(id: string, professorId: string) {

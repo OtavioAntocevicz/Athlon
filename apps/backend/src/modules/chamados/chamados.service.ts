@@ -1,39 +1,27 @@
 import { supabase } from "../../config/supabase.js";
 import { generateId, now, relOne, throwOnError } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
-import type { CriarChamadoInput, ResponderChamadoInput } from "@athlon/shared-types";
+import type {
+  AutorChamado,
+  ChamadoDetalhe,
+  CriarChamadoInput,
+  ResponderChamadoInput,
+} from "@athlon/shared-types";
 
-export async function listarMeusChamados(alunoId: string) {
-  const result = await supabase
-    .from("Chamado")
-    .select("id, assunto, status, criado_em, atualizado_em")
-    .eq("aluno_id", alunoId)
-    .order("criado_em", { ascending: false });
+type AutorIds = { alunoId?: string | null; professorId?: string | null };
 
-  return throwOnError(result).map((c) => ({
-    id: c.id as string,
-    assunto: c.assunto as string,
-    status: c.status as string,
-    criadoEm: new Date(c.criado_em as string).toISOString(),
-    atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
-  }));
-}
-
-export async function obterChamadoAluno(chamadoId: string, alunoId: string) {
-  const result = await supabase
-    .from("Chamado")
-    .select("*")
-    .eq("id", chamadoId)
-    .eq("aluno_id", alunoId)
-    .maybeSingle();
-
-  const c = result.data;
-  if (!c) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
-
+function mapDetalhe(
+  c: Record<string, unknown>,
+  autorNome: string,
+  autorTipo: AutorChamado,
+): ChamadoDetalhe {
   return {
     id: c.id as string,
-    alunoId: c.aluno_id as string,
-    alunoNome: "",
+    alunoId: (c.aluno_id as string | null) ?? null,
+    professorId: (c.professor_id as string | null) ?? null,
+    autorTipo,
+    autorNome,
+    alunoNome: autorNome,
     assunto: c.assunto as string,
     mensagem: c.mensagem as string,
     status: c.status as string,
@@ -46,14 +34,53 @@ export async function obterChamadoAluno(chamadoId: string, alunoId: string) {
   };
 }
 
-export async function criarChamado(alunoId: string, input: CriarChamadoInput) {
+export async function listarMeusChamados(autor: AutorIds) {
+  let query = supabase
+    .from("Chamado")
+    .select("id, assunto, status, criado_em, atualizado_em")
+    .order("criado_em", { ascending: false });
+
+  if (autor.alunoId) query = query.eq("aluno_id", autor.alunoId);
+  else if (autor.professorId) query = query.eq("professor_id", autor.professorId);
+  else return [];
+
+  return throwOnError(await query).map((c) => ({
+    id: c.id as string,
+    assunto: c.assunto as string,
+    status: c.status as string,
+    criadoEm: new Date(c.criado_em as string).toISOString(),
+    atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
+  }));
+}
+
+export async function obterMeuChamado(chamadoId: string, autor: AutorIds) {
+  let query = supabase.from("Chamado").select("*").eq("id", chamadoId);
+
+  if (autor.alunoId) query = query.eq("aluno_id", autor.alunoId);
+  else if (autor.professorId) query = query.eq("professor_id", autor.professorId);
+  else throw new AppError(403, "FORBIDDEN", "Acesso negado");
+
+  const result = await query.maybeSingle();
+  const c = result.data;
+  if (!c) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
+
+  const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
+  return mapDetalhe(c as Record<string, unknown>, "", autorTipo);
+}
+
+export async function criarChamado(autor: AutorIds, input: CriarChamadoInput) {
+  if (!autor.alunoId && !autor.professorId) {
+    throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  }
+
   const id = generateId();
   const ts = now();
 
   throwOnError(
     await supabase.from("Chamado").insert({
       id,
-      aluno_id: alunoId,
+      aluno_id: autor.alunoId ?? null,
+      professor_id: autor.professorId ?? null,
       assunto: input.assunto.trim(),
       mensagem: input.mensagem.trim(),
       status: "ABERTO",
@@ -62,13 +89,15 @@ export async function criarChamado(alunoId: string, input: CriarChamadoInput) {
     }),
   );
 
-  return obterChamadoAluno(id, alunoId);
+  return obterMeuChamado(id, autor);
 }
 
 export async function listarChamadosAdmin(status?: string) {
   let query = supabase
     .from("Chamado")
-    .select("id, assunto, status, criado_em, atualizado_em, Aluno(nome, sobrenome)")
+    .select(
+      "id, assunto, status, criado_em, atualizado_em, aluno_id, professor_id, Aluno(nome, sobrenome), Professor(Usuario(nome))",
+    )
     .order("criado_em", { ascending: false });
 
   if (status) query = query.eq("status", status);
@@ -77,15 +106,27 @@ export async function listarChamadosAdmin(status?: string) {
 
   return rows.map((c) => {
     const aluno = relOne(c.Aluno) as { nome: string; sobrenome: string | null } | null;
+    const professor = relOne(c.Professor) as {
+      Usuario: { nome: string } | { nome: string }[] | null;
+    } | null;
+    const profUsuario = professor ? relOne(professor.Usuario) : null;
+
+    const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
+    const autorNome = c.professor_id
+      ? (profUsuario?.nome ?? "Treinador")
+      : aluno
+        ? [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ")
+        : "Aluno";
+
     return {
       id: c.id as string,
       assunto: c.assunto as string,
       status: c.status as string,
       criadoEm: new Date(c.criado_em as string).toISOString(),
       atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
-      alunoNome: aluno
-        ? [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ")
-        : "Aluno",
+      autorTipo,
+      autorNome,
+      alunoNome: autorNome,
     };
   });
 }
@@ -93,7 +134,7 @@ export async function listarChamadosAdmin(status?: string) {
 export async function obterChamadoAdmin(chamadoId: string) {
   const result = await supabase
     .from("Chamado")
-    .select("*, Aluno(id, nome, sobrenome)")
+    .select("*, Aluno(id, nome, sobrenome), Professor(id, Usuario(nome))")
     .eq("id", chamadoId)
     .maybeSingle();
 
@@ -105,23 +146,20 @@ export async function obterChamadoAdmin(chamadoId: string) {
     nome: string;
     sobrenome: string | null;
   } | null;
+  const professor = relOne(c.Professor) as {
+    id: string;
+    Usuario: { nome: string } | { nome: string }[] | null;
+  } | null;
+  const profUsuario = professor ? relOne(professor.Usuario) : null;
 
-  return {
-    id: c.id as string,
-    alunoId: (aluno?.id ?? c.aluno_id) as string,
-    alunoNome: aluno
+  const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
+  const autorNome = c.professor_id
+    ? (profUsuario?.nome ?? "Treinador")
+    : aluno
       ? [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ")
-      : "Aluno",
-    assunto: c.assunto as string,
-    mensagem: c.mensagem as string,
-    status: c.status as string,
-    respostaAdmin: (c.resposta_admin as string | null) ?? null,
-    respondidoEm: c.respondido_em
-      ? new Date(c.respondido_em as string).toISOString()
-      : null,
-    criadoEm: new Date(c.criado_em as string).toISOString(),
-    atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
-  };
+      : "Aluno";
+
+  return mapDetalhe(c as Record<string, unknown>, autorNome, autorTipo);
 }
 
 export async function responderChamadoAdmin(

@@ -30,13 +30,17 @@ export function NotificacoesPanel() {
     queryKey: ["notificacoes", "contagem"],
     queryFn: () => api<{ total: number }>("/notificacoes/contagem"),
     enabled: user?.perfil === "ALUNO",
-    refetchInterval: 60_000,
+    // Economia free tier: menos hits enquanto o app fica aberto
+    refetchInterval: 180_000,
+    refetchOnWindowFocus: true,
+    staleTime: 60_000,
   });
 
   const { data: notificacoes } = useQuery({
     queryKey: ["notificacoes"],
     queryFn: () => api<Notificacao[]>("/notificacoes"),
     enabled: user?.perfil === "ALUNO" && aberto,
+    staleTime: 30_000,
   });
 
   const marcarLida = useMutation({

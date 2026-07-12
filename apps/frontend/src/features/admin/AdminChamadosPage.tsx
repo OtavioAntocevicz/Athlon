@@ -48,7 +48,7 @@ export function AdminChamadosPage() {
   return (
     <AdminShell>
       <PageEnter variant="fade">
-        <PageHeader title="Chamados" subtitle="Suporte aberto pelos alunos" />
+        <PageHeader title="Chamados" subtitle="Suporte aberto por alunos e treinadores" />
         <FilterPills options={filtros} value={status} onChange={setStatus} />
 
         <div className="mt-4 space-y-2.5">
@@ -64,24 +64,28 @@ export function AdminChamadosPage() {
             </Card>
           )}
 
-          {data?.map((c) => (
-            <Card
-              key={c.id}
-              className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"
-              onClick={() => navigate(`/admin/chamados/${c.id}`)}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-primary">{c.assunto}</p>
-                <p className="text-xs text-muted-foreground">
-                  {c.alunoNome} · {formatDate(c.criadoEm)}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-primary">
-                {statusLabel[c.status] ?? c.status}
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </Card>
-          ))}
+          {data?.map((c) => {
+            const nome = c.autorNome ?? c.alunoNome ?? "Usuário";
+            const tipo = c.autorTipo === "PROFESSOR" ? "Treinador" : "Aluno";
+            return (
+              <Card
+                key={c.id}
+                className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"
+                onClick={() => navigate(`/admin/chamados/${c.id}`)}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-primary">{c.assunto}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tipo} · {nome} · {formatDate(c.criadoEm)}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  {statusLabel[c.status] ?? c.status}
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </Card>
+            );
+          })}
         </div>
       </PageEnter>
     </AdminShell>
@@ -154,21 +158,34 @@ export function AdminChamadoDetailPage() {
 
         <h1 className="text-xl font-bold text-primary">{data.assunto}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {data.alunoNome} · {formatDateTime(data.criadoEm)} ·{" "}
+          {data.autorTipo === "PROFESSOR" ? "Treinador" : "Aluno"} ·{" "}
+          {data.autorNome || data.alunoNome} · {formatDateTime(data.criadoEm)} ·{" "}
           {statusLabel[data.status] ?? data.status}
         </p>
-        <Button
-          size="sm"
-          variant="outline"
-          className="mt-2"
-          onClick={() => navigate(`/admin/alunos/${data.alunoId}`)}
-        >
-          Ver perfil do aluno
-        </Button>
+        {data.alunoId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={() => navigate(`/admin/alunos/${data.alunoId}`)}
+          >
+            Ver perfil do aluno
+          </Button>
+        )}
+        {data.professorId && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={() => navigate(`/admin/professores/${data.professorId}`)}
+          >
+            Ver perfil do treinador
+          </Button>
+        )}
 
         <Card className="mt-4 space-y-2 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Mensagem do aluno
+            Mensagem
           </p>
           <p className="whitespace-pre-wrap text-sm text-primary">{data.mensagem}</p>
         </Card>

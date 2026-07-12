@@ -249,7 +249,7 @@ export function PerfilPage() {
         </Link>
       )}
 
-      {isAluno && (
+      {(isAluno || isProfessor) && (
         <Link to="/chamados" className="mt-4 block">
           <Button type="button" variant="outline" size="lg" className="w-full">
             <MessageSquare className="h-4 w-4" /> Chamado (suporte)

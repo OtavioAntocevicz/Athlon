@@ -143,36 +143,31 @@ export async function listarMensalidades(filters: {
   if (error) throw new AppError(500, "DB_ERROR", error.message);
 
   const visiveis = (data ?? []).filter((p) => !isMesFuturo(p.mes_referencia));
-  const { getSignedReadUrl } = await import("../comprovantes/storage.service.js");
 
-  return Promise.all(
-    visiveis.map(async (p) => {
-      const comprovantes = (p.Comprovante ?? []) as {
-        arquivo_url: string;
-        ativo: boolean;
-      }[];
-      const ativo = comprovantes.find((c) => c.ativo);
-      const emAnalise = p.status === "EM_ANALISE";
+  return visiveis.map((p) => {
+    const comprovantes = (p.Comprovante ?? []) as {
+      arquivo_url: string;
+      ativo: boolean;
+    }[];
+    const ativo = comprovantes.find((c) => c.ativo);
+    const emAnalise = p.status === "EM_ANALISE";
 
-      return {
-        id: p.id,
-        alunoId: p.aluno_id,
-        alunoNome: (p.Aluno as { nome: string })?.nome ?? "",
-        turmaId: p.turma_id,
-        turmaNome: (p.Turma as { nome: string })?.nome ?? "",
-        mesReferencia: new Date(p.mes_referencia).toISOString(),
-        vencimento: p.vencimento ? new Date(p.vencimento).toISOString() : null,
-        valorCentavos: p.valor_centavos,
-        status: p.status,
-        comprovanteUrl: ativo?.arquivo_url ?? null,
-        comprovanteEmAnalise: emAnalise,
-        comprovantePreviewUrl:
-          emAnalise && ativo?.arquivo_url
-            ? await getSignedReadUrl(ativo.arquivo_url)
-            : null,
-      };
-    }),
-  );
+    return {
+      id: p.id,
+      alunoId: p.aluno_id,
+      alunoNome: (p.Aluno as { nome: string })?.nome ?? "",
+      turmaId: p.turma_id,
+      turmaNome: (p.Turma as { nome: string })?.nome ?? "",
+      mesReferencia: new Date(p.mes_referencia).toISOString(),
+      vencimento: p.vencimento ? new Date(p.vencimento).toISOString() : null,
+      valorCentavos: p.valor_centavos,
+      status: p.status,
+      comprovanteUrl: ativo?.arquivo_url ?? null,
+      comprovanteEmAnalise: emAnalise,
+      // Preview só no detalhe (evita signed URL em massa na listagem)
+      comprovantePreviewUrl: null,
+    };
+  });
 }
 
 export async function getMensalidade(

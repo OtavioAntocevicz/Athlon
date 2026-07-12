@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
-import { ProtectedRoute, GuestRoute, ProfessorRoute, AlunoRoute, AlunoTurmasRoute, AdminRoute } from "./guards";
+import { ProtectedRoute, GuestRoute, ProfessorRoute, AlunoTurmasRoute, AdminRoute } from "./guards";
 import { AdminDashboardPage } from "@/features/admin/AdminDashboardPage";
 import { AdminProfessoresPage } from "@/features/admin/AdminProfessoresPage";
 import { AdminNovoProfessorPage } from "@/features/admin/AdminNovoProfessorPage";
@@ -133,8 +133,8 @@ export function AppRouter() {
       <Route path="/admin/perfil" element={<AdminRoute><AdminPerfilPage /></AdminRoute>} />
 
       <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-      <Route path="/chamados" element={<AlunoRoute><AlunoChamadosPage /></AlunoRoute>} />
-      <Route path="/chamados/:id" element={<AlunoRoute><AlunoChamadoDetailPage /></AlunoRoute>} />
+      <Route path="/chamados" element={<ProtectedRoute><AlunoChamadosPage /></ProtectedRoute>} />
+      <Route path="/chamados/:id" element={<ProtectedRoute><AlunoChamadoDetailPage /></ProtectedRoute>} />
       <Route path="/mensalidades" element={<ProtectedRoute><MensalidadesPage /></ProtectedRoute>} />
       <Route path="/mensalidades/:id" element={<ProtectedRoute><MensalidadeDetailPage /></ProtectedRoute>} />
       <Route path="/comprovantes" element={<ProfessorRoute><ComprovantesFilaPage /></ProfessorRoute>} />
