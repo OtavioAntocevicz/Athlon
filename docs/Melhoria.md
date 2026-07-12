@@ -18,6 +18,7 @@ Estes itens saíram do pendente ou foram entregues nesta rodada de UX/Admin:
 - Comprovante: arquivo removido do Storage ao aprovar/recusar (migration `20250713000000_comprovante_arquivo_nullable.sql`)
 - Guia de configuração: [config-resend-web-push.md](./config-resend-web-push.md)
 - Economia free tier: polling de notificações 180s; react-query `staleTime` 90s / sem refetch on focus; signed URL só no detalhe do comprovante
+- **Code-splitting** no frontend: rotas com `React.lazy` (só login eager); bundle inicial menor (~438 KB); chunks sob demanda
 
 Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recentes-jul2026).
 

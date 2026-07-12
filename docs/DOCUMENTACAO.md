@@ -1001,7 +1001,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 
 | Arquivo | Função |
 |---------|--------|
-| `apps/frontend/src/app/router.tsx` | Todas as rotas do app |
+| `apps/frontend/src/app/router.tsx` | Rotas do app (`React.lazy` / code-splitting) |
 | `apps/frontend/src/app/guards.tsx` | Proteção de rotas no cliente |
 | `apps/frontend/src/lib/api.ts` | Cliente HTTP, tokens, erros |
 | `apps/frontend/src/lib/auth-context.tsx` | Estado de autenticação |
@@ -1140,6 +1140,19 @@ Documentadas em `docs/Melhoria.md`:
 ### Padronização de texto
 
 - Travessões tipográficos (em dash / en dash Unicode) substituídos por hífen (`-`) no código e na documentação
+
+### Performance frontend (code-splitting)
+
+- Rotas com `React.lazy` + `Suspense` em [`apps/frontend/src/app/router.tsx`](../apps/frontend/src/app/router.tsx)
+- **Eager (bundle inicial):** `ProfileSelectPage`, `LoginFormPage`
+- **Lazy (chunk sob demanda):** demas páginas (dashboards, aluno, professor, admin, legal, recuperação de senha)
+- Bundle principal ~438 KB (antes ~550 KB); não altera quantidade de requests à API/Supabase
+
+### Economia Supabase (free tier)
+
+- Polling de notificações: 180s; React Query `staleTime` 90s e `refetchOnWindowFocus: false`
+- Signed URL de comprovante só no detalhe (não na fila/listagem)
+- Guia de métricas e quando upar: [Melhoria.md - Supabase Free](./Melhoria.md#supabase-free-consumo)
 
 ---
 

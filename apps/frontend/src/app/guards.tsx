@@ -2,7 +2,8 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
 import type { ReactNode } from "react";
-function LoadingScreen() {
+
+export function LoadingScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
