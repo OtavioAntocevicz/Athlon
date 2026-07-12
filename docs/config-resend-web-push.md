@@ -100,7 +100,20 @@ Salve as env vars e faça redeploy (ou reinicie o processo). Variáveis novas s�
 
 ---
 
-## Parte B - Web Push (notificações no celular / PWA)
+### Sem domínio próprio (contorno temporário)
+
+Se só tiver `*.vercel.app`, ative na Vercel e no `.env`:
+
+```env
+RECOVERY_SHOW_CODE=true
+EMAIL_FROM=ATHLON <onboarding@resend.dev>
+APP_URL=https://athlonsport.vercel.app
+```
+
+Com isso, ao pedir recuperação, o **código aparece na própria tela** (não depende do e-mail chegar).  
+**Desligue** `RECOVERY_SHOW_CODE` quando tiver domínio verificado no Resend (expor código na tela não é seguro para produção real).
+
+---
 
 ### O que você precisa
 

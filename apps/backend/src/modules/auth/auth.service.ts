@@ -366,6 +366,9 @@ export async function alterarSenha(userId: string, input: ChangePasswordInput) {
 export async function solicitarRecuperacaoSenha(input: RequestPasswordResetInput) {
   const usuario = await findUsuarioPorEmailPerfil(input.email, input.perfil);
 
+  let codigoExposto: string | undefined;
+  let linkExposto: string | undefined;
+
   if (usuario) {
     const codigo = generateResetCode();
     const token = generateId() + generateId();
@@ -387,17 +390,38 @@ export async function solicitarRecuperacaoSenha(input: RequestPasswordResetInput
 
     const link = `${env.appUrl.replace(/\/$/, "")}/login/${perfilLoginPath(input.perfil)}/redefinir-senha/${token}`;
 
-    await sendPasswordResetEmail({
-      to: usuario.email,
-      nome: usuario.nome,
-      codigo,
-      link,
-    });
+    try {
+      await sendPasswordResetEmail({
+        to: usuario.email,
+        nome: usuario.nome,
+        codigo,
+        link,
+      });
+    } catch (err) {
+      console.error("[auth] Falha ao enviar e-mail de recuperação:", err);
+      if (!env.recoveryShowCode) {
+        throw new AppError(
+          503,
+          "EMAIL_UNAVAILABLE",
+          "Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde.",
+        );
+      }
+    }
+
+    if (env.recoveryShowCode) {
+      codigoExposto = codigo;
+      linkExposto = link;
+    }
   }
 
   return {
     ok: true,
-    message: "Se o e-mail estiver cadastrado, você receberá um código em instantes.",
+    message: env.recoveryShowCode
+      ? "Modo temporário: use o código abaixo (e-mail pode não chegar)."
+      : "Se o e-mail estiver cadastrado, você receberá um código em instantes.",
+    ...(codigoExposto
+      ? { codigo: codigoExposto, link: linkExposto }
+      : {}),
   };
 }
 

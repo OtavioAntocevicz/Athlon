@@ -22,4 +22,6 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY ?? null,
   emailFrom: process.env.EMAIL_FROM ?? "ATHLON <onboarding@resend.dev>",
   appUrl: process.env.APP_URL ?? process.env.CORS_ORIGIN ?? "http://localhost:5173",
+  /** Temporário: devolve código/link na API e mostra na tela (sem e-mail). Desligar em produção real. */
+  recoveryShowCode: process.env.RECOVERY_SHOW_CODE === "true",
 };

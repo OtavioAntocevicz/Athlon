@@ -39,6 +39,7 @@ export function EsqueciSenhaPage({
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [emailEnviado, setEmailEnviado] = useState(initialEmail);
+  const [codigoTemporario, setCodigoTemporario] = useState("");
 
   const emailForm = useForm<RequestPasswordResetInput>({
     resolver: zodResolver(requestPasswordResetSchema),
@@ -59,14 +60,24 @@ export function EsqueciSenhaPage({
   const solicitarCodigo = async (data: RequestPasswordResetInput) => {
     setError("");
     setInfo("");
+    setCodigoTemporario("");
     try {
-      const result = await api<{ ok: boolean; message: string }>("/auth/recuperar-senha/solicitar", {
+      const result = await api<{
+        ok: boolean;
+        message: string;
+        codigo?: string;
+        link?: string;
+      }>("/auth/recuperar-senha/solicitar", {
         method: "POST",
         body: JSON.stringify(data),
       });
       setEmailEnviado(data.email);
       codigoForm.setValue("email", data.email);
       codigoForm.setValue("perfil", perfil);
+      if (result.codigo) {
+        setCodigoTemporario(result.codigo);
+        codigoForm.setValue("codigo", result.codigo);
+      }
       setInfo(result.message);
       setStep("codigo");
     } catch (e) {
@@ -167,6 +178,14 @@ export function EsqueciSenhaPage({
             <div className="mt-6 flex items-start gap-3 rounded-xl border border-primary/10 bg-muted/40 p-4 text-sm text-muted-foreground">
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p>{info}</p>
+            </div>
+          )}
+
+          {codigoTemporario && (
+            <div className="mt-3 rounded-xl border border-accent/40 bg-accent/10 p-4 text-center">
+              <p className="text-xs font-medium text-accent-strong">Código temporário (sem e-mail)</p>
+              <p className="mt-1 text-2xl font-bold tracking-[0.3em] text-primary">{codigoTemporario}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Já preenchido no campo abaixo</p>
             </div>
           )}
 

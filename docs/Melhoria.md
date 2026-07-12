@@ -53,6 +53,7 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - Fluxo implementado no código.
 - **Passo a passo de configuração:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte A)
 - **Status atual:** Resend **ainda precisa ser configurado** em produção (`RESEND_API_KEY`, `EMAIL_FROM`, domínio verificado, `APP_URL`).
+- **Contorno sem domínio:** `RECOVERY_SHOW_CODE=true` mostra o código na tela (ver [config-resend-web-push.md](./config-resend-web-push.md)).
 
 ---
 
