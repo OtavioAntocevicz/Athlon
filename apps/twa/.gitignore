@@ -1,0 +1,32 @@
+# Assinatura — nunca versionar
+android.keystore
+*.keystore
+*.jks
+.keystore-credentials
+signing-key-info.json
+
+# Artefatos Bubblewrap / Android
+app/
+gradle/
+gradlew
+gradlew.bat
+build.gradle
+settings.gradle
+local.properties
+# gradle.properties é versionado (android.overridePathCheck para paths com acentos)
+store_icon.png
+notification_icon.png
+splash_screens/
+*.apk
+*.aab
+*.idsig
+assetlinks.json
+app-release-bundle/
+app-release-signed/
+app-release-unsigned*
+output.json
+manifest-checksum.txt
+.idea/
+.gradle/
+build/
+*.iml

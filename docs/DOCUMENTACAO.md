@@ -73,7 +73,7 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 | **Banco** | PostgreSQL via Supabase |
 | **Arquivos** | Supabase Storage (comprovantes) |
 | **Push** | Web Push (VAPID) |
-| **Instalação** | PWA instalável pelo navegador (Android: prompt nativo; iOS: tutorial manual) |
+| **Instalação** | Android: TWA (APK via WhatsApp) + PWA; iOS: PWA Safari (tutorial; sem APK) |
 | **Testes** | Vitest (shared-types + frontend) |
 | **Monorepo** | pnpm workspaces |
 | **Tipos compartilhados** | `@athlon/shared-types` (Zod schemas + enums) |
@@ -102,6 +102,8 @@ Athlon/
 │   │   │   └── lib/             # api.ts, auth-context, use-pwa-install, analytics
 │   │   ├── public/              # Ícones PWA, push-handler.js
 │   │   └── vite.config.ts
+│   │
+│   ├── twa/                     # TWA Android (Bubblewrap → APK)
 │   │
 │   └── backend/                 # API REST (@athlon/backend)
 │       ├── src/
@@ -786,9 +788,10 @@ Web e PWA usam **o mesmo código** (`apps/frontend`). A diferença é que o PWA 
 ### PWA e instalação
 
 - Manifest: nome ATHLON, `start_url: /`, tema `#5C3D2E`, display `standalone`, ícones 192×192 e 512×512.
-- Service Worker com auto-update (`vite-plugin-pwa`).
-- **Android / Chromium:** banner com botão "Instalar app" aciona o prompt nativo (`beforeinstallprompt`).
-- **iOS / Safari:** banner aparece após ~30s de uso ou primeira navegação; abre tutorial em 3 passos (Compartilhar → Adicionar à Tela de Início). Dispensa fica salva por 7 dias no `localStorage`.
+- Service Worker com auto-update (`vite-plugin-pwa`); ícone maskable no manifest.
+- **Android TWA:** APK em `apps/twa/` (Bubblewrap); Asset Links em `public/.well-known/assetlinks.json`. Guia: [twa-android.md](./twa-android.md). Texto WhatsApp: [whatsapp-instalacao.md](./whatsapp-instalacao.md).
+- **Android / Chromium (PWA):** banner com botão "Instalar app" aciona o prompt nativo (`beforeinstallprompt`).
+- **iOS / Safari:** sem APK; tutorial (Safari → Compartilhar → Adicionar à Tela de Início). Dispensa por 7 dias no `localStorage`.
 - Nenhum convite é exibido se o app já estiver em modo standalone (instalado).
 
 **Arquivos:**
@@ -1153,6 +1156,13 @@ Documentadas em `docs/Melhoria.md`:
 - Polling de notificações: 180s; React Query `staleTime` 90s e `refetchOnWindowFocus: false`
 - Signed URL de comprovante só no detalhe (não na fila/listagem)
 - Guia de métricas e quando upar: [Melhoria.md - Supabase Free](./Melhoria.md#supabase-free-consumo)
+
+### TWA Android + onboarding iOS
+
+- Projeto Bubblewrap em `apps/twa/` (`packageId` `app.athlon.sport`) → APK para distribuição WhatsApp
+- Asset Links: `apps/frontend/public/.well-known/assetlinks.json` (rewrite Vercel não engole `/.well-known/`)
+- iOS continua PWA; tutorial deixa explícito que não há APK
+- Guias: [twa-android.md](./twa-android.md), [whatsapp-instalacao.md](./whatsapp-instalacao.md)
 
 ---
 

@@ -36,8 +36,9 @@ export function AbrirNoSafariModal({ open, onClose, onDismiss }: AbrirNoSafariMo
     <Modal open={open} onClose={handleClose} title="Abra no Safari">
       <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          No iPhone, a instalação do app só funciona pelo <strong className="text-primary">Safari</strong>.
-          O Chrome e outros navegadores não permitem adicionar à tela inicial da mesma forma.
+          No iPhone <strong className="text-primary">não existe baixar APK</strong>. A instalação só
+          funciona pelo <strong className="text-primary">Safari</strong> (Adicionar à Tela de Início).
+          Chrome e outros navegadores não fazem isso da mesma forma.
         </p>
 
         <div className="space-y-3 rounded-xl border bg-muted/30 p-4">

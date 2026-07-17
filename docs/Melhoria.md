@@ -19,6 +19,8 @@ Estes itens saíram do pendente ou foram entregues nesta rodada de UX/Admin:
 - Guia de configuração: [config-resend-web-push.md](./config-resend-web-push.md)
 - Economia free tier: polling de notificações 180s; react-query `staleTime` 90s / sem refetch on focus; signed URL só no detalhe do comprovante
 - **Code-splitting** no frontend: rotas com `React.lazy` (só login eager); bundle inicial menor (~438 KB); chunks sob demanda
+- **TWA Android** (`apps/twa/`): APK via Bubblewrap apontando para `https://athlonsport.vercel.app`; Digital Asset Links em `/.well-known/assetlinks.json`; guia [twa-android.md](./twa-android.md); texto WhatsApp [whatsapp-instalacao.md](./whatsapp-instalacao.md)
+- Tutorial **iOS** reforçado: iPhone não tem APK — só Safari → Tela de Início
 
 Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recentes-jul2026).
 
@@ -39,10 +41,12 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - Ver regras em [DOCUMENTACAO.md §10 - Eventos de turma](./DOCUMENTACAO.md#eventos-de-turma).
 - **Status:** pendente (outro momento).
 
-### Instalação PWA
+### Instalação PWA / TWA
 
-- Implementado: banner Android (`beforeinstallprompt`) + tutorial iOS com timing e dispensa persistente.
-- Pendente em produção: validar Installability no Chrome DevTools após deploy.
+- **Android:** TWA (APK WhatsApp) documentado em [twa-android.md](./twa-android.md). Conteúdo atualiza com deploy Vercel; novo APK só se mudar config/assinatura.
+- **iOS:** continua PWA (Safari → Adicionar à Tela de Início). Sem APK/IPA neste passo; App Store/TestFlight depois da venda.
+- Implementado: banner Android (`beforeinstallprompt`) + tutorial iOS; Asset Links para TWA em tela cheia.
+- Pendente opcional: publicar na Play Store (AAB já gerável no Bubblewrap).
 
 ### Web Push em produção
 

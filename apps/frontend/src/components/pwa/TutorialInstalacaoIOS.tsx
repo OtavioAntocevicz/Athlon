@@ -1,9 +1,15 @@
 import { useState } from "react";
-import { Check, ChevronLeft, ChevronRight, PlusSquare, Share } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Compass, PlusSquare, Share } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 
 const PASSOS = [
+  {
+    titulo: "Use o Safari",
+    descricao:
+      "No iPhone não existe baixar APK. Abra o ATHLON no Safari (não no Chrome nem em outro navegador).",
+    Icon: Compass,
+  },
   {
     titulo: "Abra o menu Compartilhar",
     descricao:
@@ -17,7 +23,8 @@ const PASSOS = [
   },
   {
     titulo: "Confirme a instalação",
-    descricao: 'Toque em "Adicionar" no canto superior direito para concluir.',
+    descricao:
+      'Toque em "Adicionar" no canto superior direito. O ícone do ATHLON aparece na tela inicial.',
     Icon: Check,
   },
 ] as const;
@@ -48,7 +55,8 @@ export function TutorialInstalacaoIOS({ open, onClose, onDismiss }: TutorialInst
     <Modal open={open} onClose={handleClose} title="Instalar o ATHLON">
       <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Instale o app na tela inicial para acesso mais rápido e melhor experiência offline.
+          No iPhone o ATHLON é instalado pela tela inicial do Safari — não há arquivo APK como no
+          Android.
         </p>
 
         <div className="flex flex-col items-center rounded-xl border bg-muted/30 px-4 py-8 text-center">

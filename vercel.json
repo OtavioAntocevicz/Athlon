@@ -10,7 +10,18 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/|\\.well-known/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/json" }
+      ]
+    }
   ],
   "crons": [
     { "path": "/api/cron/diario", "schedule": "0 6 * * *" },

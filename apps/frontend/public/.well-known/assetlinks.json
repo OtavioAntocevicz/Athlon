@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.athlon.sport",
+      "sha256_cert_fingerprints": [
+        "A9:AF:BA:7A:AC:CE:6C:1F:43:D5:4A:F6:9E:2D:8E:04:9D:46:A1:0B:D2:D6:7A:6D:F1:CC:C4:24:E5:14:38:D4"
+      ]
+    }
+  }
+]

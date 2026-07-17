@@ -71,15 +71,17 @@ export function PwaInstallPrompt() {
                 <>
                   <p className="text-sm font-semibold text-primary">Use o Safari para instalar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    No iPhone, a instalação na tela inicial só funciona pelo Safari - não pelo
-                    Chrome ou outros navegadores.
+                    No iPhone não existe APK. A instalação só funciona no Safari — abra o site por
+                    lá e adicione à Tela de Início.
                   </p>
                 </>
               ) : (
                 <>
                   <p className="text-sm font-semibold text-primary">Instale o ATHLON</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Acesso rápido na tela inicial e melhor experiência offline.
+                    {mostrarConviteAndroid
+                      ? "Acesso rápido na tela inicial e melhor experiência offline."
+                      : "No iPhone: Safari → Compartilhar → Adicionar à Tela de Início (sem APK)."}
                   </p>
                 </>
               )}
