@@ -19,7 +19,7 @@ Projeto [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap) que empacot
 
 1. Configure JDK 17 + Android SDK (`npx @bubblewrap/cli doctor`)
 2. Coloque `android.keystore` e `.keystore-credentials` nesta pasta
-3. `powershell -ExecutionPolicy Bypass -File .\scripts\build-apk.ps1`
+3. `powershell -ExecutionPolicy Bypass -File .\scripts\build-apk.ps1` → gera `ATHLON_Download.apk`
 
 Guia completo: [docs/twa-android.md](../../docs/twa-android.md)  
 Texto WhatsApp: [docs/whatsapp-instalacao.md](../../docs/whatsapp-instalacao.md)

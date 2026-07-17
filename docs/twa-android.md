@@ -82,7 +82,7 @@ npx @bubblewrap/cli build --skipPwaValidation --skipSigning
 # assinar app-release-unsigned-aligned.apk com apksigner + android.keystore
 ```
 
-Saída esperada: `apps/twa/app-release-signed.apk`
+Saída esperada: `apps/twa/ATHLON_Download.apk`
 
 > No Windows, se o monorepo estiver em caminho com acentos (`Área de Trabalho`), o Gradle precisa de `android.overridePathCheck=true` em `gradle.properties` (já previsto no script de build).
 

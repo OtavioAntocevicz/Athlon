@@ -59,7 +59,7 @@ if (-not (Test-Path $unsigned)) {
 }
 
 $aligned = Join-Path $root "app-release-aligned.apk"
-$signed = Join-Path $root "app-release-signed.apk"
+$signed = Join-Path $root "ATHLON_Download.apk"
 $buildTools = Get-ChildItem (Join-Path $env:ANDROID_HOME "build-tools") -Directory |
   Sort-Object Name -Descending | Select-Object -First 1
 if (-not $buildTools) { throw "build-tools não encontrado no SDK." }
