@@ -285,8 +285,7 @@ export async function excluirTurma(id: string, professorId: string) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const { removerArquivoStorage } = await import("../comprovantes/storage.service.js");
-  const { removerFotoTurmaStorage } = await import("./turma-foto.storage.js");
+  const { removerArquivoStorage, removerFotoTurmaStorage } = await import("../../lib/storage/index.js");
 
   try {
     await removerFotoTurmaStorage(turmaCheck.data.foto_url);
@@ -344,7 +343,7 @@ export async function criarUploadUrlFoto(
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const { criarUploadUrlFotoTurma } = await import("./turma-foto.storage.js");
+  const { criarUploadUrlFotoTurma } = await import("../../lib/storage/index.js");
   return criarUploadUrlFotoTurma(turmaId, contentType);
 }
 
@@ -378,7 +377,7 @@ export async function atualizarFotoTurma(
   const turma = throwOnError(result);
 
   if (antiga && antiga !== fotoUrl) {
-    const { removerFotoTurmaStorage } = await import("./turma-foto.storage.js");
+    const { removerFotoTurmaStorage } = await import("../../lib/storage/index.js");
     try {
       await removerFotoTurmaStorage(antiga);
     } catch {
