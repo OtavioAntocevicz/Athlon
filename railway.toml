@@ -3,8 +3,11 @@ builder = "NIXPACKS"
 buildCommand = "pnpm install && pnpm --filter @athlon/backend build"
 
 [deploy]
+<<<<<<< HEAD
 # Migra o banco na subida (rede interna do Railway) e sobe a API.
 # seed:admin é idempotente: só cria o ADM se ainda não existir.
+=======
+>>>>>>> origin/main
 startCommand = "pnpm --filter @athlon/backend db:migrate && pnpm --filter @athlon/backend seed:admin && pnpm --filter @athlon/backend start"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
