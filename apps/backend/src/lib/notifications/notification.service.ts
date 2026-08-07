@@ -1,4 +1,4 @@
-import { supabase } from "../../config/supabase.js";
+import { countQuery } from "../db.js";
 import type { NotificationPayload } from "./types.js";
 import { inAppProvider } from "./providers/in-app.provider.js";
 import { webPushProvider } from "./providers/web-push.provider.js";
@@ -13,14 +13,13 @@ async function notificacaoRecenteExiste(
   intervaloMs = INTERVALO_SEMANAL_MS,
 ): Promise<boolean> {
   const desde = new Date(Date.now() - intervaloMs).toISOString();
-  const { count } = await supabase
-    .from("Notificacao")
-    .select("*", { count: "exact", head: true })
-    .eq("usuario_id", usuarioId)
-    .eq("tipo", tipo)
-    .gte("criado_em", desde);
+  const count = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Notificacao"
+     WHERE usuario_id = $1 AND tipo = $2 AND criado_em >= $3`,
+    [usuarioId, tipo, desde],
+  );
 
-  return (count ?? 0) > 0;
+  return count > 0;
 }
 
 export async function sendNotification(

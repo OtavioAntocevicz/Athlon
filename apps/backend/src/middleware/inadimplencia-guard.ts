@@ -1,16 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
-import { supabase } from "../config/supabase.js";
+import { countQuery } from "../lib/db.js";
 import { AppError } from "./error-handler.js";
 
 export async function alunoTemBloqueioAtivo(alunoId: string): Promise<boolean> {
-  const { count } = await supabase
-    .from("MatriculaTurma")
-    .select("*", { count: "exact", head: true })
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false)
-    .eq("bloqueado_inadimplencia", true);
+  const count = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND afastado = false AND bloqueado_inadimplencia = true`,
+    [alunoId],
+  );
 
-  return (count ?? 0) > 0;
+  return count > 0;
 }
 
 export async function requireAlunoSemBloqueio(

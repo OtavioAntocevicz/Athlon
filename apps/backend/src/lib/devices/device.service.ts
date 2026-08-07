@@ -1,5 +1,4 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, throwOnError } from "../db.js";
+import { execute, generateId, now, query, queryMaybeOne } from "../db.js";
 import type { RegistrarDispositivoInput } from "@athlon/shared-types";
 
 export type DispositivoRow = {
@@ -23,51 +22,54 @@ export async function registrarDispositivo(
 ): Promise<{ ok: true }> {
   const ts = now();
 
-  const existing = await supabase
-    .from("Dispositivo")
-    .select("id")
-    .eq("usuario_id", usuarioId)
-    .eq("push_token", input.pushToken)
-    .maybeSingle();
+  const existing = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Dispositivo" WHERE usuario_id = $1 AND push_token = $2`,
+    [usuarioId, input.pushToken],
+  );
 
-  if (existing.data) {
-    throwOnError(
-      await supabase
-        .from("Dispositivo")
-        .update({
-          platform: input.platform,
-          push_provider: input.pushProvider,
-          app_version: input.appVersion ?? null,
-          os_version: input.osVersion ?? null,
-          device_model: input.deviceModel ?? null,
-          language: input.language ?? null,
-          timezone: input.timezone ?? null,
-          notification_permission: input.notificationPermission ?? "default",
-          last_seen: ts,
-          atualizado_em: ts,
-        })
-        .eq("id", existing.data.id),
+  if (existing) {
+    await execute(
+      `UPDATE "Dispositivo"
+       SET platform = $1, push_provider = $2, app_version = $3, os_version = $4,
+           device_model = $5, language = $6, timezone = $7,
+           notification_permission = $8, last_seen = $9, atualizado_em = $9
+       WHERE id = $10`,
+      [
+        input.platform,
+        input.pushProvider,
+        input.appVersion ?? null,
+        input.osVersion ?? null,
+        input.deviceModel ?? null,
+        input.language ?? null,
+        input.timezone ?? null,
+        input.notificationPermission ?? "default",
+        ts,
+        existing.id,
+      ],
     );
     return { ok: true };
   }
 
-  throwOnError(
-    await supabase.from("Dispositivo").insert({
-      id: generateId(),
-      usuario_id: usuarioId,
-      platform: input.platform,
-      push_provider: input.pushProvider,
-      push_token: input.pushToken,
-      app_version: input.appVersion ?? null,
-      os_version: input.osVersion ?? null,
-      device_model: input.deviceModel ?? null,
-      language: input.language ?? null,
-      timezone: input.timezone ?? null,
-      notification_permission: input.notificationPermission ?? "default",
-      last_seen: ts,
-      criado_em: ts,
-      atualizado_em: ts,
-    }),
+  await execute(
+    `INSERT INTO "Dispositivo" (
+       id, usuario_id, platform, push_provider, push_token,
+       app_version, os_version, device_model, language, timezone,
+       notification_permission, last_seen, criado_em, atualizado_em
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12)`,
+    [
+      generateId(),
+      usuarioId,
+      input.platform,
+      input.pushProvider,
+      input.pushToken,
+      input.appVersion ?? null,
+      input.osVersion ?? null,
+      input.deviceModel ?? null,
+      input.language ?? null,
+      input.timezone ?? null,
+      input.notificationPermission ?? "default",
+      ts,
+    ],
   );
 
   return { ok: true };
@@ -76,15 +78,12 @@ export async function registrarDispositivo(
 export async function listarDispositivosDoUsuario(
   usuarioId: string,
 ): Promise<DispositivoRow[]> {
-  const { data, error } = await supabase
-    .from("Dispositivo")
-    .select("*")
-    .eq("usuario_id", usuarioId);
-
-  if (error) throw error;
-  return (data ?? []) as DispositivoRow[];
+  return query<DispositivoRow>(
+    `SELECT * FROM "Dispositivo" WHERE usuario_id = $1`,
+    [usuarioId],
+  );
 }
 
 export async function invalidarDispositivo(id: string): Promise<void> {
-  await supabase.from("Dispositivo").delete().eq("id", id);
+  await execute(`DELETE FROM "Dispositivo" WHERE id = $1`, [id]);
 }

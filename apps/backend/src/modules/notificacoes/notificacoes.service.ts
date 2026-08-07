@@ -1,17 +1,27 @@
-import { supabase } from "../../config/supabase.js";
-import { now, throwOnError } from "../../lib/db.js";
+import { countQuery, execute, query } from "../../lib/db.js";
 import { registrarDispositivo } from "../../lib/devices/device.service.js";
 import { PlatformDispositivo, PushProvider } from "@athlon/shared-types";
 
-export async function listarNotificacoes(usuarioId: string) {
-  const result = await supabase
-    .from("Notificacao")
-    .select("*")
-    .eq("usuario_id", usuarioId)
-    .order("criado_em", { ascending: false })
-    .limit(50);
+type NotificacaoRow = {
+  id: string;
+  titulo: string;
+  corpo: string | null;
+  tipo: string | null;
+  url: string | null;
+  lida: boolean;
+  criado_em: string;
+};
 
-  const items = throwOnError(result);
+export async function listarNotificacoes(usuarioId: string) {
+  const items = await query<NotificacaoRow>(
+    `SELECT id, titulo, corpo, tipo, url, lida, criado_em
+     FROM "Notificacao"
+     WHERE usuario_id = $1
+     ORDER BY criado_em DESC
+     LIMIT 50`,
+    [usuarioId],
+  );
+
   return items.map((n) => ({
     id: n.id,
     titulo: n.titulo,
@@ -24,34 +34,26 @@ export async function listarNotificacoes(usuarioId: string) {
 }
 
 export async function contarNaoLidas(usuarioId: string) {
-  const { count } = await supabase
-    .from("Notificacao")
-    .select("*", { count: "exact", head: true })
-    .eq("usuario_id", usuarioId)
-    .eq("lida", false);
-
-  return count ?? 0;
+  return countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Notificacao"
+     WHERE usuario_id = $1 AND lida = false`,
+    [usuarioId],
+  );
 }
 
 export async function marcarComoLida(id: string, usuarioId: string) {
-  const result = await supabase
-    .from("Notificacao")
-    .update({ lida: true })
-    .eq("id", id)
-    .eq("usuario_id", usuarioId);
-
-  throwOnError(result);
+  await execute(
+    `UPDATE "Notificacao" SET lida = true WHERE id = $1 AND usuario_id = $2`,
+    [id, usuarioId],
+  );
   return { ok: true };
 }
 
 export async function marcarTodasLidas(usuarioId: string) {
-  const result = await supabase
-    .from("Notificacao")
-    .update({ lida: true })
-    .eq("usuario_id", usuarioId)
-    .eq("lida", false);
-
-  throwOnError(result);
+  await execute(
+    `UPDATE "Notificacao" SET lida = true WHERE usuario_id = $1 AND lida = false`,
+    [usuarioId],
+  );
   return { ok: true };
 }
 
