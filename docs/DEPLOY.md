@@ -4,8 +4,8 @@ Este documento resume a arquitetura após a remoção do Supabase.
 
 ## Arquitetura atual
 
-- **Frontend:** Vercel → https://athonsport.app.br
-- **API:** Railway → https://api.athonsport.app.br
+- **Frontend:** Vercel → https://athlonsport.app.br
+- **API:** Railway → https://api.athlonsport.app.br
 - **Banco:** PostgreSQL no Railway (`pg` / node-postgres)
 - **Storage:** Cloudflare R2 (`comprovantes/`, `turmas-fotos/`)
 - **E-mail:** Resend
@@ -20,15 +20,15 @@ Este documento resume a arquitetura após a remoção do Supabase.
 | `DATABASE_URL` | Sim | PostgreSQL (Railway injeta automaticamente) |
 | `JWT_SECRET` | Sim | Secret do access token |
 | `JWT_REFRESH_SECRET` | Sim | Secret do refresh token |
-| `CORS_ORIGIN` | Sim | `https://athonsport.app.br` |
-| `APP_URL` | Sim | `https://athonsport.app.br` |
+| `CORS_ORIGIN` | Sim | `https://athlonsport.app.br` |
+| `APP_URL` | Sim | `https://athlonsport.app.br` |
 | `R2_ACCOUNT_ID` | Sim* | Cloudflare account ID |
 | `R2_ACCESS_KEY_ID` | Sim* | R2 access key |
 | `R2_SECRET_ACCESS_KEY` | Sim* | R2 secret key |
 | `R2_BUCKET` | Não | Default: `athonsport` |
 | `R2_PUBLIC_BASE_URL` | Sim* | URL pública do bucket (fotos de turma) |
 | `RESEND_API_KEY` | Prod | E-mail transacional |
-| `EMAIL_FROM` | Prod | Ex: `ATHLON <noreply@athonsport.app.br>` |
+| `EMAIL_FROM` | Prod | Ex: `ATHLON <noreply@athlonsport.app.br>` |
 | `CRON_SECRET` | Não | Protege endpoints `/api/cron/*` manuais |
 | `CRON_ENABLED` | Não | Default `true` |
 | `VAPID_*` | Opcional | Web Push |
@@ -39,7 +39,7 @@ Este documento resume a arquitetura após a remoção do Supabase.
 
 | Variável | Valor |
 |----------|-------|
-| `VITE_API_URL` | `https://api.athonsport.app.br/api/v1` |
+| `VITE_API_URL` | `https://api.athlonsport.app.br/api/v1` |
 
 **Não** configure variáveis de backend na Vercel.
 
@@ -66,9 +66,9 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 
 ### Registro.br / Cloudflare
 
-- `athonsport.app.br` → Vercel (já configurado)
-- `api.athonsport.app.br` → Railway (CNAME do serviço)
-- Resend: registros SPF, DKIM, DMARC para `athonsport.app.br`
+- `athlonsport.app.br` → Vercel (já configurado)
+- `api.athlonsport.app.br` → Railway (CNAME do serviço)
+- Resend: registros SPF, DKIM, DMARC para `athlonsport.app.br`
 
 ### Cloudflare R2
 
@@ -83,11 +83,11 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 5. Vincular `DATABASE_URL` do Postgres ao serviço da API
 6. Configurar variáveis listadas acima
 7. Deploy e verificar `GET /health`
-8. Configurar domínio customizado `api.athonsport.app.br`
+8. Configurar domínio customizado `api.athlonsport.app.br`
 
 ## Vercel — passos
 
 1. Manter deploy do frontend
-2. Definir `VITE_API_URL=https://api.athonsport.app.br/api/v1`
+2. Definir `VITE_API_URL=https://api.athlonsport.app.br/api/v1`
 3. Remover variáveis `SUPABASE_*` e secrets do backend antigo
 4. Build command: `pnpm run build:frontend` (via `vercel.json`)

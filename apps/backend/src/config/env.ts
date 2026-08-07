@@ -15,7 +15,7 @@ export const env = {
   /** Uma origem ou várias separadas por vírgula. */
   corsOrigins: (
     process.env.CORS_ORIGIN ??
-    "https://athonsport.app.br,https://www.athonsport.app.br,http://localhost:5173"
+    "https://athlonsport.app.br,https://www.athlonsport.app.br,http://localhost:5173"
   )
     .split(",")
     .map((o) => o.trim().replace(/\/$/, ""))
@@ -27,10 +27,10 @@ export const env = {
   r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL ?? null,
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,
-  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:suporte@athonsport.app.br",
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:suporte@athlonsport.app.br",
   cronSecret: process.env.CRON_SECRET ?? null,
   resendApiKey: process.env.RESEND_API_KEY ?? null,
-  emailFrom: process.env.EMAIL_FROM ?? "ATHLON <noreply@athonsport.app.br>",
+  emailFrom: process.env.EMAIL_FROM ?? "ATHLON <noreply@athlonsport.app.br>",
   appUrl: process.env.APP_URL ?? process.env.CORS_ORIGIN ?? "http://localhost:5173",
   /** Temporário: devolve código/link na API e mostra na tela (sem e-mail). Desligar em produção real. */
   recoveryShowCode: process.env.RECOVERY_SHOW_CODE === "true",

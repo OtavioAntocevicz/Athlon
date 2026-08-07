@@ -4,7 +4,7 @@ Plataforma mobile-first de gestão esportiva para treinadores e alunos.
 
 Disponível como **PWA instalável** no celular (Android: prompt nativo; iOS: tutorial manual) e no **navegador**.
 
-**Produção:** https://athonsport.app.br
+**Produção:** https://athlonsport.app.br
 
 ## Stack
 
@@ -20,7 +20,7 @@ Disponível como **PWA instalável** no celular (Android: prompt nativo; iOS: tu
 ## Arquitetura
 
 ```
-Vercel (frontend)  →  api.athonsport.app.br (Railway Express)
+Vercel (frontend)  →  api.athlonsport.app.br (Railway Express)
                               ↓
                     PostgreSQL (Railway)
                               ↓
@@ -87,11 +87,11 @@ pnpm dev
 
 | Serviço | Onde | Observação |
 |---------|------|------------|
-| Frontend | Vercel | `VITE_API_URL=https://api.athonsport.app.br/api/v1` |
+| Frontend | Vercel | `VITE_API_URL=https://api.athlonsport.app.br/api/v1` |
 | API + Cron | Railway | `railway.toml` na raiz; health check em `/health` |
 | PostgreSQL | Railway | `DATABASE_URL` injetado automaticamente |
 | R2 | Cloudflare | Credenciais no Railway |
-| Resend | resend.com | DNS em athonsport.app.br (manual) |
+| Resend | resend.com | DNS em athlonsport.app.br (manual) |
 
 Documentação completa: **[docs/DOCUMENTACAO.md](./docs/DOCUMENTACAO.md)**
 

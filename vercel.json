@@ -4,8 +4,8 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.athonsport.app.br" }],
-      "destination": "https://athonsport.app.br/:path*",
+      "has": [{ "type": "host", "value": "www.athlonsport.app.br" }],
+      "destination": "https://athlonsport.app.br/:path*",
       "permanent": true
     }
   ],
