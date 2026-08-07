@@ -1,5 +1,4 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, relOne, throwOnError } from "../../lib/db.js";
+import { execute, generateId, now, query, queryMaybeOne } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import type {
   AutorChamado,
@@ -35,37 +34,64 @@ function mapDetalhe(
 }
 
 export async function listarMeusChamados(autor: AutorIds) {
-  let query = supabase
-    .from("Chamado")
-    .select("id, assunto, status, criado_em, atualizado_em")
-    .order("criado_em", { ascending: false });
+  if (!autor.alunoId && !autor.professorId) return [];
 
-  if (autor.alunoId) query = query.eq("aluno_id", autor.alunoId);
-  else if (autor.professorId) query = query.eq("professor_id", autor.professorId);
-  else return [];
+  const rows = autor.alunoId
+    ? await query<{
+        id: string;
+        assunto: string;
+        status: string;
+        criado_em: string;
+        atualizado_em: string;
+      }>(
+        `SELECT id, assunto, status, criado_em, atualizado_em
+         FROM "Chamado"
+         WHERE aluno_id = $1
+         ORDER BY criado_em DESC`,
+        [autor.alunoId],
+      )
+    : await query<{
+        id: string;
+        assunto: string;
+        status: string;
+        criado_em: string;
+        atualizado_em: string;
+      }>(
+        `SELECT id, assunto, status, criado_em, atualizado_em
+         FROM "Chamado"
+         WHERE professor_id = $1
+         ORDER BY criado_em DESC`,
+        [autor.professorId!],
+      );
 
-  return throwOnError(await query).map((c) => ({
-    id: c.id as string,
-    assunto: c.assunto as string,
-    status: c.status as string,
-    criadoEm: new Date(c.criado_em as string).toISOString(),
-    atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
+  return rows.map((c) => ({
+    id: c.id,
+    assunto: c.assunto,
+    status: c.status,
+    criadoEm: new Date(c.criado_em).toISOString(),
+    atualizadoEm: new Date(c.atualizado_em).toISOString(),
   }));
 }
 
 export async function obterMeuChamado(chamadoId: string, autor: AutorIds) {
-  let query = supabase.from("Chamado").select("*").eq("id", chamadoId);
+  if (!autor.alunoId && !autor.professorId) {
+    throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  }
 
-  if (autor.alunoId) query = query.eq("aluno_id", autor.alunoId);
-  else if (autor.professorId) query = query.eq("professor_id", autor.professorId);
-  else throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  const c = autor.alunoId
+    ? await queryMaybeOne<Record<string, unknown>>(
+        `SELECT * FROM "Chamado" WHERE id = $1 AND aluno_id = $2`,
+        [chamadoId, autor.alunoId],
+      )
+    : await queryMaybeOne<Record<string, unknown>>(
+        `SELECT * FROM "Chamado" WHERE id = $1 AND professor_id = $2`,
+        [chamadoId, autor.professorId!],
+      );
 
-  const result = await query.maybeSingle();
-  const c = result.data;
   if (!c) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
 
   const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
-  return mapDetalhe(c as Record<string, unknown>, "", autorTipo);
+  return mapDetalhe(c, "", autorTipo);
 }
 
 export async function criarChamado(autor: AutorIds, input: CriarChamadoInput) {
@@ -76,54 +102,86 @@ export async function criarChamado(autor: AutorIds, input: CriarChamadoInput) {
   const id = generateId();
   const ts = now();
 
-  throwOnError(
-    await supabase.from("Chamado").insert({
+  await execute(
+    `INSERT INTO "Chamado"
+       (id, aluno_id, professor_id, assunto, mensagem, status, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, $5, 'ABERTO', $6, $6)`,
+    [
       id,
-      aluno_id: autor.alunoId ?? null,
-      professor_id: autor.professorId ?? null,
-      assunto: input.assunto.trim(),
-      mensagem: input.mensagem.trim(),
-      status: "ABERTO",
-      criado_em: ts,
-      atualizado_em: ts,
-    }),
+      autor.alunoId ?? null,
+      autor.professorId ?? null,
+      input.assunto.trim(),
+      input.mensagem.trim(),
+      ts,
+    ],
   );
 
   return obterMeuChamado(id, autor);
 }
 
 export async function listarChamadosAdmin(status?: string) {
-  let query = supabase
-    .from("Chamado")
-    .select(
-      "id, assunto, status, criado_em, atualizado_em, aluno_id, professor_id, Aluno(nome, sobrenome), Professor(Usuario(nome))",
-    )
-    .order("criado_em", { ascending: false });
-
-  if (status) query = query.eq("status", status);
-
-  const rows = throwOnError(await query);
+  const rows = status
+    ? await query<{
+        id: string;
+        assunto: string;
+        status: string;
+        criado_em: string;
+        atualizado_em: string;
+        aluno_id: string | null;
+        professor_id: string | null;
+        aluno_nome: string | null;
+        aluno_sobrenome: string | null;
+        professor_nome: string | null;
+      }>(
+        `SELECT c.id, c.assunto, c.status, c.criado_em, c.atualizado_em,
+                c.aluno_id, c.professor_id,
+                a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+                u.nome AS professor_nome
+         FROM "Chamado" c
+         LEFT JOIN "Aluno" a ON a.id = c.aluno_id
+         LEFT JOIN "Professor" pr ON pr.id = c.professor_id
+         LEFT JOIN "Usuario" u ON u.id = pr.usuario_id
+         WHERE c.status = $1
+         ORDER BY c.criado_em DESC`,
+        [status],
+      )
+    : await query<{
+        id: string;
+        assunto: string;
+        status: string;
+        criado_em: string;
+        atualizado_em: string;
+        aluno_id: string | null;
+        professor_id: string | null;
+        aluno_nome: string | null;
+        aluno_sobrenome: string | null;
+        professor_nome: string | null;
+      }>(
+        `SELECT c.id, c.assunto, c.status, c.criado_em, c.atualizado_em,
+                c.aluno_id, c.professor_id,
+                a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+                u.nome AS professor_nome
+         FROM "Chamado" c
+         LEFT JOIN "Aluno" a ON a.id = c.aluno_id
+         LEFT JOIN "Professor" pr ON pr.id = c.professor_id
+         LEFT JOIN "Usuario" u ON u.id = pr.usuario_id
+         ORDER BY c.criado_em DESC`,
+      );
 
   return rows.map((c) => {
-    const aluno = relOne(c.Aluno) as { nome: string; sobrenome: string | null } | null;
-    const professor = relOne(c.Professor) as {
-      Usuario: { nome: string } | { nome: string }[] | null;
-    } | null;
-    const profUsuario = professor ? relOne(professor.Usuario) : null;
-
     const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
     const autorNome = c.professor_id
-      ? (profUsuario?.nome ?? "Treinador")
-      : aluno
-        ? [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ")
+      ? (c.professor_nome ?? "Treinador")
+      : c.aluno_nome
+        ? [c.aluno_nome, c.aluno_sobrenome].filter(Boolean).join(" ")
         : "Aluno";
 
     return {
-      id: c.id as string,
-      assunto: c.assunto as string,
-      status: c.status as string,
-      criadoEm: new Date(c.criado_em as string).toISOString(),
-      atualizadoEm: new Date(c.atualizado_em as string).toISOString(),
+      id: c.id,
+      assunto: c.assunto,
+      status: c.status,
+      criadoEm: new Date(c.criado_em).toISOString(),
+      atualizadoEm: new Date(c.atualizado_em).toISOString(),
       autorTipo,
       autorNome,
       alunoNome: autorNome,
@@ -132,61 +190,55 @@ export async function listarChamadosAdmin(status?: string) {
 }
 
 export async function obterChamadoAdmin(chamadoId: string) {
-  const result = await supabase
-    .from("Chamado")
-    .select("*, Aluno(id, nome, sobrenome), Professor(id, Usuario(nome))")
-    .eq("id", chamadoId)
-    .maybeSingle();
+  const c = await queryMaybeOne<
+    Record<string, unknown> & {
+      aluno_nome: string | null;
+      aluno_sobrenome: string | null;
+      professor_nome: string | null;
+    }
+  >(
+    `SELECT c.*,
+            a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+            u.nome AS professor_nome
+     FROM "Chamado" c
+     LEFT JOIN "Aluno" a ON a.id = c.aluno_id
+     LEFT JOIN "Professor" pr ON pr.id = c.professor_id
+     LEFT JOIN "Usuario" u ON u.id = pr.usuario_id
+     WHERE c.id = $1`,
+    [chamadoId],
+  );
 
-  const c = result.data;
   if (!c) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
-
-  const aluno = relOne(c.Aluno) as {
-    id: string;
-    nome: string;
-    sobrenome: string | null;
-  } | null;
-  const professor = relOne(c.Professor) as {
-    id: string;
-    Usuario: { nome: string } | { nome: string }[] | null;
-  } | null;
-  const profUsuario = professor ? relOne(professor.Usuario) : null;
 
   const autorTipo: AutorChamado = c.professor_id ? "PROFESSOR" : "ALUNO";
   const autorNome = c.professor_id
-    ? (profUsuario?.nome ?? "Treinador")
-    : aluno
-      ? [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ")
+    ? (c.professor_nome ?? "Treinador")
+    : c.aluno_nome
+      ? [c.aluno_nome, c.aluno_sobrenome].filter(Boolean).join(" ")
       : "Aluno";
 
-  return mapDetalhe(c as Record<string, unknown>, autorNome, autorTipo);
+  return mapDetalhe(c, autorNome, autorTipo);
 }
 
 export async function responderChamadoAdmin(
   chamadoId: string,
   input: ResponderChamadoInput,
 ) {
-  const existing = await supabase
-    .from("Chamado")
-    .select("id")
-    .eq("id", chamadoId)
-    .maybeSingle();
+  const existing = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Chamado" WHERE id = $1`,
+    [chamadoId],
+  );
 
-  if (!existing.data) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
+  if (!existing) throw new AppError(404, "NOT_FOUND", "Chamado não encontrado");
 
   const ts = now();
   const status = input.status ?? "RESPONDIDO";
 
-  throwOnError(
-    await supabase
-      .from("Chamado")
-      .update({
-        resposta_admin: input.respostaAdmin.trim(),
-        status,
-        respondido_em: ts,
-        atualizado_em: ts,
-      })
-      .eq("id", chamadoId),
+  await execute(
+    `UPDATE "Chamado"
+     SET resposta_admin = $1, status = $2, respondido_em = $3, atualizado_em = $3
+     WHERE id = $4`,
+    [input.respostaAdmin.trim(), status, ts, chamadoId],
   );
 
   return obterChamadoAdmin(chamadoId);

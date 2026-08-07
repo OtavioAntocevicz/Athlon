@@ -1,12 +1,10 @@
-import { supabase } from "../../config/supabase.js";
-import { relOne, turmaIdsDoProfessor } from "../../lib/db.js";
+import { query, turmaIdsDoProfessor } from "../../lib/db.js";
 import {
   contarMensalidadesAtrasadas,
   contarMensalidadesEmAberto,
   selecionarMensalidadeEmFoco,
   statusEfetivo,
 } from "../../lib/mensalidade-focus.js";
-import { AppError } from "../../middleware/error-handler.js";
 import { chaveMesCalendario, chaveMesFromIso, isMesFuturo } from "../../lib/utils.js";
 import { proximoEventoDoAluno } from "../eventos/eventos.service.js";
 
@@ -45,36 +43,44 @@ export async function dashboardProfessor(professorId: string) {
   const hoje = new Date();
   const mesAtualChave = chaveMesCalendario(hoje);
 
-  const [pagamentosRes, comprovantesRes, matriculasRes] = await Promise.all([
-    supabase
-      .from("Pagamento")
-      .select("id, aluno_id, mes_referencia, vencimento, valor_centavos, status")
-      .in("turma_id", turmaIds),
-    supabase
-      .from("Comprovante")
-      .select("id, enviado_em, Pagamento(aluno_id, turma_id, mes_referencia, Aluno(nome), Turma(nome))")
-      .eq("ativo", true)
-      .order("enviado_em", { ascending: false })
-      .limit(20),
-    supabase
-      .from("MatriculaTurma")
-      .select("aluno_id")
-      .in("turma_id", turmaIds)
-      .eq("afastado", false),
+  const [pagamentos, comprovantes, matriculas] = await Promise.all([
+    query<PagamentoRow>(
+      `SELECT id, aluno_id, mes_referencia, vencimento, valor_centavos, status
+       FROM "Pagamento"
+       WHERE turma_id = ANY($1::text[])`,
+      [turmaIds],
+    ),
+    query<{
+      id: string;
+      enviado_em: string;
+      turma_id: string;
+      mes_referencia: string;
+      aluno_nome: string;
+      turma_nome: string;
+    }>(
+      `SELECT c.id, c.enviado_em,
+              p.turma_id, p.mes_referencia,
+              a.nome AS aluno_nome, t.nome AS turma_nome
+       FROM "Comprovante" c
+       JOIN "Pagamento" p ON p.id = c.pagamento_id
+       JOIN "Aluno" a ON a.id = p.aluno_id
+       JOIN "Turma" t ON t.id = p.turma_id
+       WHERE c.ativo = true
+       ORDER BY c.enviado_em DESC
+       LIMIT 20`,
+    ),
+    query<{ aluno_id: string }>(
+      `SELECT aluno_id FROM "MatriculaTurma"
+       WHERE turma_id = ANY($1::text[]) AND afastado = false`,
+      [turmaIds],
+    ),
   ]);
 
-  if (pagamentosRes.error) {
-    throw new AppError(500, "DB_ERROR", pagamentosRes.error.message);
-  }
-  if (matriculasRes.error) {
-    throw new AppError(500, "DB_ERROR", matriculasRes.error.message);
-  }
+  const totalAlunos = new Set(matriculas.map((m) => m.aluno_id)).size;
 
-  const totalAlunos = new Set((matriculasRes.data ?? []).map((m) => m.aluno_id)).size;
-
-  const pagamentos = (pagamentosRes.data ?? []).filter(
+  const pagamentosFiltrados = pagamentos.filter(
     (p) => !isMesFuturo(p.mes_referencia, hoje),
-  ) as PagamentoRow[];
+  );
 
   let recebidoMesCentavos = 0;
   let pendenteCentavos = 0;
@@ -82,7 +88,7 @@ export async function dashboardProfessor(professorId: string) {
   let mensalidadesEmAberto = 0;
   const alunosInadimplentes = new Set<string>();
 
-  for (const p of pagamentos) {
+  for (const p of pagamentosFiltrados) {
     const mesChave = chaveMesFromIso(p.mes_referencia);
     const efetivo = statusEfetivo(p, hoje);
 
@@ -104,28 +110,20 @@ export async function dashboardProfessor(professorId: string) {
     }
   }
 
-  const comprovantesFiltrados = (comprovantesRes.data ?? []).filter((c) => {
-    const pag = relOne(c.Pagamento) as { turma_id: string } | undefined;
-    return pag && turmaIds.includes(pag.turma_id);
-  }).slice(0, 5);
+  const comprovantesFiltrados = comprovantes
+    .filter((c) => turmaIds.includes(c.turma_id))
+    .slice(0, 5);
 
   const atividadesRecentes = comprovantesFiltrados.map((c) => {
-    const pag = relOne(c.Pagamento) as {
-      mes_referencia: string;
-      Aluno: { nome: string } | { nome: string }[];
-      Turma: { nome: string } | { nome: string }[];
-    };
-    const aluno = relOne(pag.Aluno);
-    const turma = relOne(pag.Turma);
     const mesLabel = new Date(
-      chaveMesFromIso(pag.mes_referencia) + "-01T12:00:00Z",
+      chaveMesFromIso(c.mes_referencia) + "-01T12:00:00Z",
     ).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
 
     return {
       id: c.id,
       tipo: "COMPROVANTE",
-      titulo: `${aluno?.nome ?? "Aluno"} enviou comprovante`,
-      descricao: `${turma?.nome ?? "Turma"} - ${mesLabel}`,
+      titulo: `${c.aluno_nome} enviou comprovante`,
+      descricao: `${c.turma_nome} - ${mesLabel}`,
       criadoEm: new Date(c.enviado_em).toISOString(),
     };
   });
@@ -148,33 +146,59 @@ export async function dashboardAluno(alunoId: string) {
 
   const hoje = new Date();
 
-  const [pagamentosRes, matriculasRes] = await Promise.all([
-    supabase
-      .from("Pagamento")
-      .select("id, mes_referencia, vencimento, valor_centavos, status, Turma(chave_pix, nome)")
-      .eq("aluno_id", alunoId)
-      .order("mes_referencia", { ascending: true }),
-    supabase
-      .from("MatriculaTurma")
-      .select("Turma(id, nome, modalidade, horario_inicio, local)")
-      .eq("aluno_id", alunoId)
-      .eq("afastado", false),
+  const [pagamentos, matriculas] = await Promise.all([
+    query<{
+      id: string;
+      mes_referencia: string;
+      vencimento: string | null;
+      valor_centavos: number;
+      status: string;
+      chave_pix: string | null;
+      turma_nome: string;
+    }>(
+      `SELECT p.id, p.mes_referencia, p.vencimento, p.valor_centavos, p.status,
+              t.chave_pix, t.nome AS turma_nome
+       FROM "Pagamento" p
+       JOIN "Turma" t ON t.id = p.turma_id
+       WHERE p.aluno_id = $1
+       ORDER BY p.mes_referencia ASC`,
+      [alunoId],
+    ),
+    query<{
+      id: string;
+      nome: string;
+      modalidade: string | null;
+      horario_inicio: string | null;
+      local: string | null;
+    }>(
+      `SELECT t.id, t.nome, t.modalidade, t.horario_inicio, t.local
+       FROM "MatriculaTurma" mt
+       JOIN "Turma" t ON t.id = mt.turma_id
+       WHERE mt.aluno_id = $1 AND mt.afastado = false`,
+      [alunoId],
+    ),
   ]);
 
-  if (pagamentosRes.error) {
-    throw new AppError(500, "DB_ERROR", pagamentosRes.error.message);
-  }
-
-  const pagamentos = (pagamentosRes.data ?? []).filter(
+  const pagamentosFiltrados = pagamentos.filter(
     (p) => !isMesFuturo(p.mes_referencia, hoje),
   );
-  const emFoco = selecionarMensalidadeEmFoco(pagamentos, hoje);
+  const emFoco = selecionarMensalidadeEmFoco(
+    pagamentosFiltrados.map((p) => ({
+      id: p.id,
+      mes_referencia: p.mes_referencia,
+      vencimento: p.vencimento,
+      valor_centavos: p.valor_centavos,
+      status: p.status,
+      Turma: { chave_pix: p.chave_pix, nome: p.turma_nome },
+    })),
+    hoje,
+  );
   const turmaFoco = emFoco
-    ? (relOne(emFoco.Turma) as { chave_pix: string | null; nome: string } | undefined)
+    ? (emFoco.Turma as { chave_pix: string | null; nome: string })
     : undefined;
 
-  const totalAtrasadas = contarMensalidadesAtrasadas(pagamentos, hoje);
-  const totalEmAberto = contarMensalidadesEmAberto(pagamentos);
+  const totalAtrasadas = contarMensalidadesAtrasadas(pagamentosFiltrados, hoje);
+  const totalEmAberto = contarMensalidadesEmAberto(pagamentosFiltrados);
   const proximoEvento = await proximoEventoDoAluno(alunoId);
 
   return {
@@ -193,25 +217,13 @@ export async function dashboardAluno(alunoId: string) {
       totalAtrasadas,
       totalEmAberto,
     },
-    turmas: (matriculasRes.data ?? []).flatMap((m) => {
-      const t = relOne(m.Turma) as {
-        id: string;
-        nome: string;
-        modalidade: string | null;
-        horario_inicio: string | null;
-        local: string | null;
-      } | undefined;
-      if (!t) return [];
-      return [
-        {
-          id: t.id,
-          nome: t.nome,
-          modalidade: t.modalidade,
-          horarioInicio: t.horario_inicio,
-          local: t.local,
-        },
-      ];
-    }),
+    turmas: matriculas.map((t) => ({
+      id: t.id,
+      nome: t.nome,
+      modalidade: t.modalidade,
+      horarioInicio: t.horario_inicio,
+      local: t.local,
+    })),
     proximoEvento,
     bloqueiosInadimplencia: await (async () => {
       const { listarBloqueiosAluno } = await import("../../lib/inadimplencia.js");

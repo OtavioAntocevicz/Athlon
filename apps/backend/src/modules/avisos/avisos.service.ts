@@ -1,5 +1,4 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, relOne, throwOnError } from "../../lib/db.js";
+import { execute, generateId, now, query, queryMaybeOne } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { criarNotificacao, usuarioIdDoAluno } from "../../lib/notificacoes.js";
 import type { CriarAvisoInput } from "@athlon/shared-types";
@@ -10,23 +9,22 @@ async function enviarAvisoParaTurma(
   titulo: string,
   descricao: string,
 ) {
-  const profResult = await supabase
-    .from("Professor")
-    .select("Usuario(nome)")
-    .eq("id", professorId)
-    .maybeSingle();
+  const prof = await queryMaybeOne<{ nome: string }>(
+    `SELECT u.nome
+     FROM "Professor" p
+     JOIN "Usuario" u ON u.id = p.usuario_id
+     WHERE p.id = $1`,
+    [professorId],
+  );
+  const nome = prof?.nome ?? "Seu professor";
 
-  const usuario = profResult.data?.Usuario as { nome: string } | { nome: string }[] | null;
-  const professorNome = Array.isArray(usuario) ? usuario[0]?.nome : usuario?.nome;
-  const nome = professorNome ?? "Seu professor";
+  const matriculas = await query<{ aluno_id: string }>(
+    `SELECT aluno_id FROM "MatriculaTurma"
+     WHERE turma_id = $1 AND afastado = false`,
+    [turmaId],
+  );
 
-  const { data: matriculas } = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id")
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
-
-  for (const m of matriculas ?? []) {
+  for (const m of matriculas) {
     const usuarioId = await usuarioIdDoAluno(m.aluno_id);
     if (!usuarioId) continue;
     await criarNotificacao(
@@ -40,14 +38,13 @@ async function enviarAvisoParaTurma(
 }
 
 export async function criarAviso(professorId: string, input: CriarAvisoInput) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id, nome")
-    .eq("id", input.turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turma = await queryMaybeOne<{ id: string; nome: string }>(
+    `SELECT id, nome FROM "Turma"
+     WHERE id = $1 AND professor_id = $2`,
+    [input.turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turma) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
@@ -61,17 +58,20 @@ export async function criarAviso(professorId: string, input: CriarAvisoInput) {
 
   const enviarAgora = !agendadoPara;
 
-  throwOnError(
-    await supabase.from("AvisoProfessor").insert({
+  await execute(
+    `INSERT INTO "AvisoProfessor"
+       (id, professor_id, turma_id, titulo, descricao, agendado_para, enviado_em, criado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
       id,
-      professor_id: professorId,
-      turma_id: input.turmaId,
-      titulo: input.titulo,
-      descricao: input.descricao,
-      agendado_para: agendadoPara?.toISOString() ?? null,
-      enviado_em: enviarAgora ? ts : null,
-      criado_em: ts,
-    }),
+      professorId,
+      input.turmaId,
+      input.titulo,
+      input.descricao,
+      agendadoPara?.toISOString() ?? null,
+      enviarAgora ? ts : null,
+      ts,
+    ],
   );
 
   if (enviarAgora) {
@@ -81,57 +81,73 @@ export async function criarAviso(professorId: string, input: CriarAvisoInput) {
   return {
     id,
     titulo: input.titulo,
-    turmaNome: turmaCheck.data.nome,
+    turmaNome: turma.nome,
     agendadoPara: agendadoPara?.toISOString() ?? null,
     enviadoEm: enviarAgora ? new Date(ts).toISOString() : null,
   };
 }
 
 export async function listarAvisos(professorId: string) {
-  const result = await supabase
-    .from("AvisoProfessor")
-    .select("*, Turma(nome)")
-    .eq("professor_id", professorId)
-    .order("criado_em", { ascending: false })
-    .limit(50);
+  const avisos = await query<{
+    id: string;
+    titulo: string;
+    descricao: string;
+    turma_id: string;
+    turma_nome: string;
+    agendado_para: string | null;
+    enviado_em: string | null;
+    criado_em: string;
+  }>(
+    `SELECT a.id, a.titulo, a.descricao, a.turma_id, a.agendado_para, a.enviado_em, a.criado_em,
+            t.nome AS turma_nome
+     FROM "AvisoProfessor" a
+     JOIN "Turma" t ON t.id = a.turma_id
+     WHERE a.professor_id = $1
+     ORDER BY a.criado_em DESC
+     LIMIT 50`,
+    [professorId],
+  );
 
-  const avisos = throwOnError(result);
-
-  return avisos.map((a) => {
-    const turma = relOne(a.Turma as { nome: string } | { nome: string }[] | null);
-    return {
-      id: a.id,
-      titulo: a.titulo,
-      descricao: a.descricao,
-      turmaId: a.turma_id,
-      turmaNome: turma?.nome ?? "",
-      agendadoPara: a.agendado_para ? new Date(a.agendado_para).toISOString() : null,
-      enviadoEm: a.enviado_em ? new Date(a.enviado_em).toISOString() : null,
-      criadoEm: new Date(a.criado_em).toISOString(),
-      status: a.enviado_em ? "ENVIADO" : "AGENDADO",
-    };
-  });
+  return avisos.map((a) => ({
+    id: a.id,
+    titulo: a.titulo,
+    descricao: a.descricao,
+    turmaId: a.turma_id,
+    turmaNome: a.turma_nome,
+    agendadoPara: a.agendado_para ? new Date(a.agendado_para).toISOString() : null,
+    enviadoEm: a.enviado_em ? new Date(a.enviado_em).toISOString() : null,
+    criadoEm: new Date(a.criado_em).toISOString(),
+    status: a.enviado_em ? "ENVIADO" : "AGENDADO",
+  }));
 }
 
 export async function processarAvisosAgendados() {
   const agora = new Date().toISOString();
-  const { data: pendentes } = await supabase
-    .from("AvisoProfessor")
-    .select("id, turma_id, professor_id, titulo, descricao")
-    .is("enviado_em", null)
-    .not("agendado_para", "is", null)
-    .lte("agendado_para", agora);
+  const pendentes = await query<{
+    id: string;
+    turma_id: string;
+    professor_id: string;
+    titulo: string;
+    descricao: string;
+  }>(
+    `SELECT id, turma_id, professor_id, titulo, descricao
+     FROM "AvisoProfessor"
+     WHERE enviado_em IS NULL
+       AND agendado_para IS NOT NULL
+       AND agendado_para <= $1`,
+    [agora],
+  );
 
-  for (const aviso of pendentes ?? []) {
+  for (const aviso of pendentes) {
     await enviarAvisoParaTurma(
       aviso.turma_id,
       aviso.professor_id,
       aviso.titulo,
       aviso.descricao,
     );
-    await supabase
-      .from("AvisoProfessor")
-      .update({ enviado_em: now() })
-      .eq("id", aviso.id);
+    await execute(
+      `UPDATE "AvisoProfessor" SET enviado_em = $1 WHERE id = $2`,
+      [now(), aviso.id],
+    );
   }
 }

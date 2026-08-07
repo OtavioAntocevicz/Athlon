@@ -1,6 +1,5 @@
 import cron from "node-cron";
-import { supabase } from "../config/supabase.js";
-import { relOne } from "../lib/db.js";
+import { query, queryMaybeOne } from "../lib/db.js";
 import {
   marcarAtrasados,
   gerarMensalidadesParaTurma,
@@ -14,29 +13,28 @@ import {
 import { processarAvisosAgendados } from "../modules/avisos/avisos.service.js";
 
 async function notificarNovasMensalidades() {
-  const { data: turmas } = await supabase
-    .from("Turma")
-    .select("id, nome, dia_vencimento");
+  const turmas = await query<{ id: string; nome: string; dia_vencimento: number | null }>(
+    `SELECT id, nome, dia_vencimento FROM "Turma"`,
+  );
 
-  for (const turma of turmas ?? []) {
-    const { data: matriculas } = await supabase
-      .from("MatriculaTurma")
-      .select("aluno_id")
-      .eq("turma_id", turma.id)
-      .eq("afastado", false);
+  for (const turma of turmas) {
+    const matriculas = await query<{ aluno_id: string }>(
+      `SELECT aluno_id FROM "MatriculaTurma"
+       WHERE turma_id = $1 AND afastado = false`,
+      [turma.id],
+    );
 
-    for (const m of matriculas ?? []) {
+    for (const m of matriculas) {
       const usuarioId = await usuarioIdDoAluno(m.aluno_id);
       if (!usuarioId) continue;
 
-      const { data: pagamento } = await supabase
-        .from("Pagamento")
-        .select("id")
-        .eq("aluno_id", m.aluno_id)
-        .eq("turma_id", turma.id)
-        .order("mes_referencia", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const pagamento = await queryMaybeOne<{ id: string }>(
+        `SELECT id FROM "Pagamento"
+         WHERE aluno_id = $1 AND turma_id = $2
+         ORDER BY mes_referencia DESC
+         LIMIT 1`,
+        [m.aluno_id, turma.id],
+      );
 
       await criarNotificacao(
         usuarioId,
@@ -50,20 +48,25 @@ async function notificarNovasMensalidades() {
 }
 
 async function notificarAtrasos() {
-  const { data: pagamentos } = await supabase
-    .from("Pagamento")
-    .select("id, aluno_id, turma_id, status, mes_referencia, vencimento, Turma(nome)")
-    .eq("status", "ATRASADO");
+  const pagamentos = await query<{
+    id: string;
+    aluno_id: string;
+    turma_id: string;
+    turma_nome: string;
+  }>(
+    `SELECT p.id, p.aluno_id, p.turma_id, t.nome AS turma_nome
+     FROM "Pagamento" p
+     JOIN "Turma" t ON t.id = p.turma_id
+     WHERE p.status = 'ATRASADO'`,
+  );
 
-  for (const p of pagamentos ?? []) {
+  for (const p of pagamentos) {
     const usuarioId = await usuarioIdDoAluno(p.aluno_id);
     if (!usuarioId) continue;
-    const turma = relOne(p.Turma as { nome: string } | { nome: string }[] | null);
-    if (!turma) continue;
     await criarNotificacaoSemanal(
       usuarioId,
       "Mensalidade em atraso",
-      `Sua mensalidade da turma ${turma.nome} está em atraso. Regularize o quanto antes.`,
+      `Sua mensalidade da turma ${p.turma_nome} está em atraso. Regularize o quanto antes.`,
       `MENSALIDADE_ATRASADA:${p.turma_id}`,
       `/mensalidades/${p.id}`,
     );
@@ -84,12 +87,11 @@ export async function runDiarioJob() {
 
 export async function runMensalJob() {
   console.log("[cron] Gerando mensalidades do mês...");
-  const { data: turmas } = await supabase
-    .from("Turma")
-    .select("id")
-    .not("mensalidade_centavos", "is", null);
+  const turmas = await query<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE mensalidade_centavos IS NOT NULL`,
+  );
 
-  for (const turma of turmas ?? []) {
+  for (const turma of turmas) {
     await gerarMensalidadesParaTurma(turma.id, 1);
   }
   await notificarNovasMensalidades();
