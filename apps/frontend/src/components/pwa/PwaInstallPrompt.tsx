@@ -71,8 +71,8 @@ export function PwaInstallPrompt() {
                 <>
                   <p className="text-sm font-semibold text-primary">Use o Safari para instalar</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    No iPhone não existe APK. A instalação só funciona no Safari — abra o site por
-                    lá e adicione à Tela de Início.
+                    No iPhone a instalação só funciona no Safari — abra o site por lá e adicione à
+                    Tela de Início.
                   </p>
                 </>
               ) : (
@@ -81,7 +81,7 @@ export function PwaInstallPrompt() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {mostrarConviteAndroid
                       ? "Acesso rápido na tela inicial e melhor experiência offline."
-                      : "No iPhone: Safari → Compartilhar → Adicionar à Tela de Início (sem APK)."}
+                      : "No iPhone: Safari → Compartilhar → Adicionar à Tela de Início."}
                   </p>
                 </>
               )}

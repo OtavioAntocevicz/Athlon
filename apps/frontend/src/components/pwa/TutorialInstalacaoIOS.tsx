@@ -7,7 +7,7 @@ const PASSOS = [
   {
     titulo: "Use o Safari",
     descricao:
-      "No iPhone não existe baixar APK. Abra o ATHLON no Safari (não no Chrome nem em outro navegador).",
+      "Abra o ATHLON no Safari (não no Chrome nem em outro navegador).",
     Icon: Compass,
   },
   {
@@ -55,8 +55,7 @@ export function TutorialInstalacaoIOS({ open, onClose, onDismiss }: TutorialInst
     <Modal open={open} onClose={handleClose} title="Instalar o ATHLON">
       <div className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          No iPhone o ATHLON é instalado pela tela inicial do Safari — não há arquivo APK como no
-          Android.
+          No iPhone o ATHLON é instalado pela tela inicial do Safari.
         </p>
 
         <div className="flex flex-col items-center rounded-xl border bg-muted/30 px-4 py-8 text-center">
