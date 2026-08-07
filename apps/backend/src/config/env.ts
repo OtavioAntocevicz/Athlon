@@ -12,7 +12,11 @@ export const env = {
   databaseSsl: process.env.DATABASE_SSL === "true",
   jwtSecret: required("JWT_SECRET"),
   jwtRefreshSecret: required("JWT_REFRESH_SECRET"),
-  corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+  /** Uma origem ou várias separadas por vírgula. Ex: https://athonsport.app.br,http://localhost:5173 */
+  corsOrigins: (process.env.CORS_ORIGIN ?? "http://localhost:5173")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
   r2AccountId: process.env.R2_ACCOUNT_ID ?? null,
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? null,
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? null,
