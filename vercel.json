@@ -1,14 +1,6 @@
 {
   "buildCommand": "pnpm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.athlonsport.app.br" }],
-      "destination": "https://athlonsport.app.br/:path*",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]
