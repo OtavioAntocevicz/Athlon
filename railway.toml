@@ -3,7 +3,7 @@ builder = "NIXPACKS"
 buildCommand = "pnpm install && pnpm --filter @athlon/backend build"
 
 [deploy]
-startCommand = "pnpm --filter @athlon/backend start"
+startCommand = "pnpm --filter @athlon/backend db:migrate && pnpm --filter @athlon/backend seed:admin && pnpm --filter @athlon/backend start"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
