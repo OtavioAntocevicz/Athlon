@@ -1,5 +1,12 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, relOne, throwOnError, turmaIdsDoProfessor } from "../../lib/db.js";
+import {
+  execute,
+  generateId,
+  now,
+  query,
+  queryMaybeOne,
+  queryOne,
+  turmaIdsDoProfessor,
+} from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { criarNotificacao, usuarioIdDoAluno } from "../../lib/notificacoes.js";
 import { TipoEvento, type AtualizarEventoInput, type CriarEventoInput } from "@athlon/shared-types";
@@ -15,7 +22,7 @@ type EventoRow = {
   inicio: string;
   fim: string | null;
   ativo: boolean;
-  Turma?: { nome: string } | { nome: string }[] | null;
+  turma_nome?: string;
 };
 
 function labelTipoEvento(tipo: string): string {
@@ -44,7 +51,7 @@ function formatarDataHora(iso: string): string {
 }
 
 function mapEvento(e: EventoRow, turmaNome?: string) {
-  const turma = turmaNome ?? relOne(e.Turma as { nome: string } | { nome: string }[] | null)?.nome ?? "";
+  const turma = turmaNome ?? e.turma_nome ?? "";
   return {
     id: e.id,
     turmaId: e.turma_id,
@@ -72,30 +79,25 @@ function filtrarEventosFuturos<T extends { inicio: string }>(eventos: T[]): T[] 
 }
 
 async function assertTurmaDoProfessor(turmaId: string, professorId: string) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id, nome")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turma = await queryMaybeOne<{ id: string; nome: string }>(
+    `SELECT id, nome FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turma) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  return turmaCheck.data as { id: string; nome: string };
+  return turma;
 }
 
 async function assertEventoDoProfessor(eventoId: string, turmaId: string, professorId: string) {
-  const eventoCheck = await supabase
-    .from("Evento")
-    .select("id")
-    .eq("id", eventoId)
-    .eq("turma_id", turmaId)
-    .eq("ativo", true)
-    .maybeSingle();
+  const evento = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Evento" WHERE id = $1 AND turma_id = $2 AND ativo = true`,
+    [eventoId, turmaId],
+  );
 
-  if (!eventoCheck.data) {
+  if (!evento) {
     throw new AppError(404, "NOT_FOUND", "Evento não encontrado");
   }
 
@@ -111,13 +113,12 @@ async function notificarEventoParaTurma(
   const dataLabel = formatarDataHora(evento.inicio);
   const localLabel = evento.local ? ` · ${evento.local}` : "";
 
-  const { data: matriculas } = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id")
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
+  const matriculas = await query<{ aluno_id: string }>(
+    `SELECT aluno_id FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+    [turmaId],
+  );
 
-  for (const m of matriculas ?? []) {
+  for (const m of matriculas) {
     const usuarioId = await usuarioIdDoAluno(m.aluno_id);
     if (!usuarioId) continue;
     await criarNotificacao(
@@ -146,22 +147,26 @@ export async function criarEvento(
   const ts = now();
   const titulo = gerarTituloEvento(input.tipo, input.adversario, input.titulo);
 
-  throwOnError(
-    await supabase.from("Evento").insert({
+  await execute(
+    `INSERT INTO "Evento" (
+       id, turma_id, tipo, titulo, descricao, adversario, local,
+       inicio, fim, permite_confirmacao_aluno, ativo, criado_em, atualizado_em
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [
       id,
-      turma_id: turmaId,
-      tipo: input.tipo,
+      turmaId,
+      input.tipo,
       titulo,
-      descricao: input.descricao?.trim() || null,
-      adversario: input.adversario?.trim() || null,
-      local: input.local?.trim() || null,
-      inicio: inicio.toISOString(),
-      fim: null,
-      permite_confirmacao_aluno: false,
-      ativo: true,
-      criado_em: ts,
-      atualizado_em: ts,
-    }),
+      input.descricao?.trim() || null,
+      input.adversario?.trim() || null,
+      input.local?.trim() || null,
+      inicio.toISOString(),
+      null,
+      false,
+      true,
+      ts,
+      ts,
+    ],
   );
 
   await notificarEventoParaTurma(turmaId, turma.nome, {
@@ -189,14 +194,15 @@ export async function criarEvento(
 export async function listarEventosDaTurma(turmaId: string, professorId: string) {
   await assertTurmaDoProfessor(turmaId, professorId);
 
-  const result = await supabase
-    .from("Evento")
-    .select("*, Turma(nome)")
-    .eq("turma_id", turmaId)
-    .eq("ativo", true)
-    .order("inicio", { ascending: true });
+  const eventos = await query<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.turma_id = $1 AND e.ativo = true
+     ORDER BY e.inicio ASC`,
+    [turmaId],
+  );
 
-  const eventos = throwOnError(result) as EventoRow[];
   return eventos.map((e) => mapEvento(e));
 }
 
@@ -204,14 +210,15 @@ export async function listarEventosDoProfessor(professorId: string) {
   const turmaIds = await turmaIdsDoProfessor(professorId);
   if (turmaIds.length === 0) return [];
 
-  const result = await supabase
-    .from("Evento")
-    .select("*, Turma(nome)")
-    .in("turma_id", turmaIds)
-    .eq("ativo", true)
-    .order("inicio", { ascending: true });
+  const eventos = await query<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.turma_id = ANY($1::text[]) AND e.ativo = true
+     ORDER BY e.inicio ASC`,
+    [turmaIds],
+  );
 
-  const eventos = throwOnError(result) as EventoRow[];
   return eventos.map((e) => mapEvento(e));
 }
 
@@ -219,15 +226,17 @@ export async function listarEventosDoAluno(alunoId: string) {
   const turmaIds = await turmaIdsDoAluno(alunoId);
   if (turmaIds.length === 0) return [];
 
-  const result = await supabase
-    .from("Evento")
-    .select("*, Turma(nome)")
-    .in("turma_id", turmaIds)
-    .eq("ativo", true)
-    .in("tipo", [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO])
-    .order("inicio", { ascending: true });
+  const eventos = await query<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.turma_id = ANY($1::text[])
+       AND e.ativo = true
+       AND e.tipo = ANY($2::"TipoEvento"[])
+     ORDER BY e.inicio ASC`,
+    [turmaIds, [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO]],
+  );
 
-  const eventos = throwOnError(result) as EventoRow[];
   return eventos.map((e) => mapEvento(e));
 }
 
@@ -240,20 +249,19 @@ export async function atualizarEvento(
   await assertTurmaDoProfessor(turmaId, professorId);
   await assertEventoDoProfessor(eventoId, turmaId, professorId);
 
-  const atualResult = await supabase
-    .from("Evento")
-    .select("tipo, titulo, adversario, descricao, local, inicio")
-    .eq("id", eventoId)
-    .maybeSingle();
-
-  const atual = throwOnError(atualResult, { message: "Evento não encontrado" }) as {
+  const atual = await queryOne<{
     tipo: string;
     titulo: string;
     adversario: string | null;
     descricao: string | null;
     local: string | null;
     inicio: string;
-  };
+  }>(
+    `SELECT tipo, titulo, adversario, descricao, local, inicio
+     FROM "Evento" WHERE id = $1`,
+    [eventoId],
+    { message: "Evento não encontrado" },
+  );
 
   const tipo = input.tipo ?? atual.tipo;
   const adversario = input.adversario !== undefined ? input.adversario : atual.adversario;
@@ -262,35 +270,45 @@ export async function atualizarEvento(
       ? input.titulo.trim()
       : gerarTituloEvento(tipo, adversario, atual.titulo);
 
-  const patch: Record<string, unknown> = {
-    atualizado_em: now(),
-    tipo,
-    titulo,
-    adversario: adversario?.trim() || null,
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  const addField = (column: string, value: unknown) => {
+    fields.push(`"${column}" = $${idx++}`);
+    values.push(value);
   };
 
-  if (input.descricao !== undefined) patch.descricao = input.descricao?.trim() || null;
-  if (input.local !== undefined) patch.local = input.local?.trim() || null;
+  addField("atualizado_em", now());
+  addField("tipo", tipo);
+  addField("titulo", titulo);
+  addField("adversario", adversario?.trim() || null);
+
+  if (input.descricao !== undefined) addField("descricao", input.descricao?.trim() || null);
+  if (input.local !== undefined) addField("local", input.local?.trim() || null);
   if (input.inicio !== undefined) {
     const inicio = new Date(input.inicio);
     if (Number.isNaN(inicio.getTime())) {
       throw new AppError(400, "DATA_INVALIDA", "Data/hora inválida");
     }
-    patch.inicio = inicio.toISOString();
+    addField("inicio", inicio.toISOString());
   }
 
-  throwOnError(
-    await supabase.from("Evento").update(patch).eq("id", eventoId),
+  values.push(eventoId);
+
+  await execute(
+    `UPDATE "Evento" SET ${fields.join(", ")} WHERE id = $${idx}`,
+    values,
   );
 
-  const atualizado = throwOnError(
-    await supabase
-      .from("Evento")
-      .select("*, Turma(nome)")
-      .eq("id", eventoId)
-      .maybeSingle(),
+  const atualizado = await queryOne<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.id = $1`,
+    [eventoId],
     { message: "Evento não encontrado" },
-  ) as EventoRow;
+  );
 
   return mapEvento(atualizado);
 }
@@ -303,37 +321,30 @@ export async function excluirEvento(
   await assertTurmaDoProfessor(turmaId, professorId);
   await assertEventoDoProfessor(eventoId, turmaId, professorId);
 
-  throwOnError(
-    await supabase
-      .from("Evento")
-      .update({ ativo: false, atualizado_em: now() })
-      .eq("id", eventoId),
+  await execute(
+    `UPDATE "Evento" SET ativo = false, atualizado_em = $1 WHERE id = $2`,
+    [now(), eventoId],
   );
 
   return { ok: true };
 }
 
 async function turmaIdsDoAluno(alunoId: string): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("MatriculaTurma")
-    .select("turma_id")
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false);
-
-  if (error) throw new AppError(500, "DB_ERROR", error.message);
-  return (data ?? []).map((m) => m.turma_id);
+  const rows = await query<{ turma_id: string }>(
+    `SELECT turma_id FROM "MatriculaTurma" WHERE aluno_id = $1 AND afastado = false`,
+    [alunoId],
+  );
+  return rows.map((m) => m.turma_id);
 }
 
 async function assertAlunoNaTurma(alunoId: string, turmaId: string) {
-  const matricula = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matricula.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 }
@@ -342,14 +353,16 @@ export async function proximosEventosDoAluno(alunoId: string) {
   const turmaIds = await turmaIdsDoAluno(alunoId);
   if (turmaIds.length === 0) return [];
 
-  const result = await supabase
-    .from("Evento")
-    .select("*, Turma(nome)")
-    .in("turma_id", turmaIds)
-    .eq("ativo", true)
-    .in("tipo", [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO]);
+  const eventos = await query<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.turma_id = ANY($1::text[])
+       AND e.ativo = true
+       AND e.tipo = ANY($2::"TipoEvento"[])`,
+    [turmaIds, [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO]],
+  );
 
-  const eventos = throwOnError(result) as EventoRow[];
   const mapeados = eventos.map((e) => mapEvento(e));
   return ordenarEventosPorInicioAsc(filtrarEventosFuturos(mapeados));
 }
@@ -362,14 +375,16 @@ export async function proximoEventoDoAluno(alunoId: string) {
 export async function proximosEventosDaTurmaAluno(alunoId: string, turmaId: string) {
   await assertAlunoNaTurma(alunoId, turmaId);
 
-  const result = await supabase
-    .from("Evento")
-    .select("*, Turma(nome)")
-    .eq("turma_id", turmaId)
-    .eq("ativo", true)
-    .in("tipo", [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO]);
+  const eventos = await query<EventoRow>(
+    `SELECT e.*, t.nome AS turma_nome
+     FROM "Evento" e
+     JOIN "Turma" t ON t.id = e.turma_id
+     WHERE e.turma_id = $1
+       AND e.ativo = true
+       AND e.tipo = ANY($2::"TipoEvento"[])`,
+    [turmaId, [TipoEvento.AMISTOSO, TipoEvento.CAMPEONATO]],
+  );
 
-  const eventos = throwOnError(result) as EventoRow[];
   const mapeados = eventos.map((e) => mapEvento(e));
   return ordenarEventosPorInicioAsc(filtrarEventosFuturos(mapeados));
 }

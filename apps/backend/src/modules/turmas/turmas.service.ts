@@ -1,5 +1,17 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, relOne, throwOnError } from "../../lib/db.js";
+import {
+  countQuery,
+  execute,
+  generateId,
+  now,
+  query,
+  queryMaybeOne,
+  queryOne,
+} from "../../lib/db.js";
+import {
+  criarUploadUrlFotoTurma,
+  removerArquivoStorage,
+  removerFotoTurmaStorage,
+} from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { gerarCodigoConvite } from "../../lib/utils.js";
 import type { CreateTurmaInput, UpdateTurmaInput } from "@athlon/shared-types";
@@ -8,22 +20,20 @@ import { isMesFuturo } from "../../lib/utils.js";
 import { gerarMensalidadesParaTurma } from "../mensalidades/mensalidades.service.js";
 import type { UpdateTurmaBasicoInput } from "@athlon/shared-types";
 
-export async function listarTurmas(professorId: string) {
-  const { data: turmas, error } = await supabase
-    .from("Turma")
-    .select("*")
-    .eq("professor_id", professorId)
-    .order("criado_em", { ascending: false });
+type TurmaRow = Record<string, unknown>;
 
-  if (error) throw new AppError(500, "DB_ERROR", error.message);
+export async function listarTurmas(professorId: string) {
+  const turmas = await query<TurmaRow>(
+    `SELECT * FROM "Turma" WHERE professor_id = $1 ORDER BY criado_em DESC`,
+    [professorId],
+  );
 
   const result = [];
-  for (const t of turmas ?? []) {
-    const { count } = await supabase
-      .from("MatriculaTurma")
-      .select("*", { count: "exact", head: true })
-      .eq("turma_id", t.id)
-      .eq("afastado", false);
+  for (const t of turmas) {
+    const totalAlunos = await countQuery(
+      `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+      [t.id],
+    );
 
     result.push({
       id: t.id,
@@ -38,9 +48,9 @@ export async function listarTurmas(professorId: string) {
       horarioInicio: t.horario_inicio,
       horarioFim: t.horario_fim,
       diasTreino: t.dias_treino,
-      totalAlunos: count ?? 0,
+      totalAlunos,
       fotoUrl: (t.foto_url as string | null) ?? null,
-      criadoEm: new Date(t.criado_em).toISOString(),
+      criadoEm: new Date(t.criado_em as string).toISOString(),
     });
   }
 
@@ -53,58 +63,60 @@ export async function criarTurma(professorId: string, input: CreateTurmaInput) {
 
   let chavePix = input.chavePix?.trim() ?? "";
   if (!chavePix) {
-    const prof = await supabase
-      .from("Professor")
-      .select("chave_pix")
-      .eq("id", professorId)
-      .maybeSingle();
-    chavePix = prof.data?.chave_pix?.trim() ?? "";
+    const prof = await queryMaybeOne<{ chave_pix: string | null }>(
+      `SELECT chave_pix FROM "Professor" WHERE id = $1`,
+      [professorId],
+    );
+    chavePix = prof?.chave_pix?.trim() ?? "";
   }
   if (!chavePix) {
     throw new AppError(400, "PIX_REQUIRED", "Chave PIX é obrigatória");
   }
 
-  const result = await supabase.from("Turma").insert({
-    id,
-    professor_id: professorId,
-    nome: input.nome,
-    modalidade: input.modalidade,
-    nivel: input.nivel,
-    mensalidade_centavos: input.mensalidadeCentavos,
-    dia_vencimento: input.diaVencimento,
-    chave_pix: chavePix,
-    local: input.local,
-    horario_inicio: input.horarioInicio,
-    horario_fim: input.horarioFim,
-    dias_treino: input.diasTreino ?? null,
-    codigo_convite: gerarCodigoConvite(),
-    criado_em: ts,
-    atualizado_em: ts,
-  }).select().single();
+  const turma = await queryOne<TurmaRow>(
+    `INSERT INTO "Turma" (
+       id, professor_id, nome, modalidade, nivel, mensalidade_centavos,
+       dia_vencimento, chave_pix, local, horario_inicio, horario_fim,
+       dias_treino, codigo_convite, criado_em, atualizado_em
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     RETURNING *`,
+    [
+      id,
+      professorId,
+      input.nome,
+      input.modalidade,
+      input.nivel,
+      input.mensalidadeCentavos,
+      input.diaVencimento,
+      chavePix,
+      input.local,
+      input.horarioInicio,
+      input.horarioFim,
+      input.diasTreino ?? null,
+      gerarCodigoConvite(),
+      ts,
+      ts,
+    ],
+  );
 
-  const turma = throwOnError(result);
-  await gerarMensalidadesParaTurma(turma.id);
+  await gerarMensalidadesParaTurma(turma.id as string);
   return turma;
 }
 
 export async function getTurma(id: string, professorId: string) {
-  const turmaResult = await supabase
-    .from("Turma")
-    .select("*")
-    .eq("id", id)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turma = await queryMaybeOne<TurmaRow>(
+    `SELECT * FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [id, professorId],
+  );
 
-  const turma = turmaResult.data;
   if (!turma) throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("*, Aluno(*)")
-    .eq("turma_id", id)
-    .eq("afastado", false);
+  const totalAlunos = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+    [id],
+  );
 
-  return mapTurmaDetalhe(turma, throwOnError(matriculasResult).length);
+  return mapTurmaDetalhe(turma, totalAlunos);
 }
 
 export async function atualizarTurmaBasico(
@@ -112,44 +124,50 @@ export async function atualizarTurmaBasico(
   professorId: string,
   input: UpdateTurmaBasicoInput,
 ) {
-  const existing = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", id)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const existing = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [id, professorId],
+  );
 
-  if (!existing.data) {
+  if (!existing) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const result = await supabase
-    .from("Turma")
-    .update({
-      nome: input.nome,
-      modalidade: input.modalidade,
-      nivel: input.nivel,
-      mensalidade_centavos: input.mensalidadeCentavos,
-      dia_vencimento: input.diaVencimento,
-      chave_pix: input.chavePix,
-      local: input.local ?? null,
-      horario_inicio: input.horarioInicio ?? null,
-      horario_fim: input.horarioFim ?? null,
-      atualizado_em: now(),
-    })
-    .eq("id", id)
-    .select()
-    .single();
+  const turma = await queryOne<TurmaRow>(
+    `UPDATE "Turma" SET
+       nome = $1,
+       modalidade = $2,
+       nivel = $3,
+       mensalidade_centavos = $4,
+       dia_vencimento = $5,
+       chave_pix = $6,
+       local = $7,
+       horario_inicio = $8,
+       horario_fim = $9,
+       atualizado_em = $10
+     WHERE id = $11
+     RETURNING *`,
+    [
+      input.nome,
+      input.modalidade,
+      input.nivel,
+      input.mensalidadeCentavos,
+      input.diaVencimento,
+      input.chavePix,
+      input.local ?? null,
+      input.horarioInicio ?? null,
+      input.horarioFim ?? null,
+      now(),
+      id,
+    ],
+  );
 
-  const turma = throwOnError(result);
+  const totalAlunos = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+    [id],
+  );
 
-  const { count } = await supabase
-    .from("MatriculaTurma")
-    .select("*", { count: "exact", head: true })
-    .eq("turma_id", id)
-    .eq("afastado", false);
-
-  return mapTurmaDetalhe(turma, count ?? 0);
+  return mapTurmaDetalhe(turma, totalAlunos);
 }
 
 function mapTurmaDetalhe(turma: Record<string, unknown>, totalAlunos: number) {
@@ -175,94 +193,97 @@ export async function atualizarTurma(
   professorId: string,
   input: UpdateTurmaInput,
 ) {
-  const existing = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", id)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const existing = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [id, professorId],
+  );
 
-  if (!existing.data) {
+  if (!existing) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const patch: Record<string, unknown> = { atualizado_em: now() };
-  if (input.nome !== undefined) patch.nome = input.nome;
-  if (input.modalidade !== undefined) patch.modalidade = input.modalidade;
-  if (input.nivel !== undefined) patch.nivel = input.nivel;
-  if (input.mensalidadeCentavos !== undefined) patch.mensalidade_centavos = input.mensalidadeCentavos;
-  if (input.diaVencimento !== undefined) patch.dia_vencimento = input.diaVencimento;
-  if (input.chavePix !== undefined) patch.chave_pix = input.chavePix;
-  if (input.local !== undefined) patch.local = input.local;
-  if (input.horarioInicio !== undefined) patch.horario_inicio = input.horarioInicio;
-  if (input.horarioFim !== undefined) patch.horario_fim = input.horarioFim;
-  if (input.diasTreino !== undefined) patch.dias_treino = input.diasTreino;
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
 
-  const result = await supabase
-    .from("Turma")
-    .update(patch)
-    .eq("id", id)
-    .select()
-    .single();
+  const addField = (column: string, value: unknown) => {
+    fields.push(`"${column}" = $${idx++}`);
+    values.push(value);
+  };
 
-  return throwOnError(result);
+  addField("atualizado_em", now());
+  if (input.nome !== undefined) addField("nome", input.nome);
+  if (input.modalidade !== undefined) addField("modalidade", input.modalidade);
+  if (input.nivel !== undefined) addField("nivel", input.nivel);
+  if (input.mensalidadeCentavos !== undefined) addField("mensalidade_centavos", input.mensalidadeCentavos);
+  if (input.diaVencimento !== undefined) addField("dia_vencimento", input.diaVencimento);
+  if (input.chavePix !== undefined) addField("chave_pix", input.chavePix);
+  if (input.local !== undefined) addField("local", input.local);
+  if (input.horarioInicio !== undefined) addField("horario_inicio", input.horarioInicio);
+  if (input.horarioFim !== undefined) addField("horario_fim", input.horarioFim);
+  if (input.diasTreino !== undefined) addField("dias_treino", input.diasTreino);
+
+  values.push(id);
+
+  return queryOne<TurmaRow>(
+    `UPDATE "Turma" SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+    values,
+  );
 }
 
 export async function listarAlunosTurma(turmaId: string, professorId: string) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turmaCheck = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turmaCheck) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("matriculado_em, posicao, numero_camisa, Aluno(*)")
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
+  const matriculas = await query<{
+    matriculado_em: string;
+    posicao: string | null;
+    numero_camisa: number | null;
+    aluno_id: string;
+    nome: string;
+    sobrenome: string | null;
+    rg: string | null;
+    telefone: string | null;
+    email: string | null;
+  }>(
+    `SELECT m.matriculado_em, m.posicao, m.numero_camisa,
+            a.id AS aluno_id, a.nome, a.sobrenome, a.rg, a.telefone, a.email
+     FROM "MatriculaTurma" m
+     JOIN "Aluno" a ON a.id = m.aluno_id
+     WHERE m.turma_id = $1 AND m.afastado = false`,
+    [turmaId],
+  );
 
-  const matriculas = throwOnError(matriculasResult);
   const hoje = new Date();
-
   const result = [];
+
   for (const m of matriculas) {
-    const aluno = relOne(m.Aluno) as {
-      id: string;
-      nome: string;
-      sobrenome: string | null;
-      rg: string | null;
-      telefone: string | null;
-      email: string | null;
-    };
-    if (!aluno) continue;
+    const pagamentos = (
+      await query<{ status: string; mes_referencia: string; vencimento: string | null }>(
+        `SELECT status, mes_referencia, vencimento
+         FROM "Pagamento"
+         WHERE aluno_id = $1 AND turma_id = $2
+         ORDER BY mes_referencia DESC`,
+        [m.aluno_id, turmaId],
+      )
+    ).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
 
-    const pagResult = await supabase
-      .from("Pagamento")
-      .select("status, mes_referencia, vencimento")
-      .eq("aluno_id", aluno.id)
-      .eq("turma_id", turmaId)
-      .order("mes_referencia", { ascending: false });
-
-    const pagamentos = (pagResult.data ?? []).filter(
-      (p) => !isMesFuturo(p.mes_referencia, hoje),
-    );
     const ultimo = pagamentos[0];
-    const statusFinanceiro = ultimo
-      ? statusEfetivo(ultimo, hoje)
-      : "PENDENTE";
+    const statusFinanceiro = ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE";
 
     result.push({
-      id: aluno.id,
-      nome: aluno.nome,
-      sobrenome: aluno.sobrenome ?? "",
-      rg: aluno.rg,
-      telefone: aluno.telefone,
-      email: aluno.email,
+      id: m.aluno_id,
+      nome: m.nome,
+      sobrenome: m.sobrenome ?? "",
+      rg: m.rg,
+      telefone: m.telefone,
+      email: m.email,
       numeroCamisa: m.numero_camisa,
       posicao: m.posicao,
       statusFinanceiro,
@@ -274,41 +295,44 @@ export async function listarAlunosTurma(turmaId: string, professorId: string) {
 }
 
 export async function excluirTurma(id: string, professorId: string) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id, nome, foto_url")
-    .eq("id", id)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turmaCheck = await queryMaybeOne<{ id: string; nome: string; foto_url: string | null }>(
+    `SELECT id, nome, foto_url FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [id, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turmaCheck) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const { removerArquivoStorage, removerFotoTurmaStorage } = await import("../../lib/storage/index.js");
-
   try {
-    await removerFotoTurmaStorage(turmaCheck.data.foto_url);
+    await removerFotoTurmaStorage(turmaCheck.foto_url);
   } catch {
     /* ignora falha de storage */
   }
 
-  const eventosResult = await supabase.from("Evento").select("id").eq("turma_id", id);
-  const eventoIds = (eventosResult.data ?? []).map((e) => e.id);
+  const eventos = await query<{ id: string }>(
+    `SELECT id FROM "Evento" WHERE turma_id = $1`,
+    [id],
+  );
+  const eventoIds = eventos.map((e) => e.id);
+
   if (eventoIds.length > 0) {
-    throwOnError(await supabase.from("Presenca").delete().in("evento_id", eventoIds));
+    await execute(`DELETE FROM "Presenca" WHERE evento_id = ANY($1::text[])`, [eventoIds]);
   }
 
-  const pagamentosResult = await supabase.from("Pagamento").select("id").eq("turma_id", id);
-  const pagamentoIds = (pagamentosResult.data ?? []).map((p) => p.id);
+  const pagamentos = await query<{ id: string }>(
+    `SELECT id FROM "Pagamento" WHERE turma_id = $1`,
+    [id],
+  );
+  const pagamentoIds = pagamentos.map((p) => p.id);
 
   if (pagamentoIds.length > 0) {
-    const compsResult = await supabase
-      .from("Comprovante")
-      .select("arquivo_url")
-      .in("pagamento_id", pagamentoIds);
+    const comprovantes = await query<{ arquivo_url: string | null }>(
+      `SELECT arquivo_url FROM "Comprovante" WHERE pagamento_id = ANY($1::text[])`,
+      [pagamentoIds],
+    );
 
-    for (const c of compsResult.data ?? []) {
+    for (const c of comprovantes) {
       try {
         await removerArquivoStorage(c.arquivo_url);
       } catch {
@@ -316,15 +340,15 @@ export async function excluirTurma(id: string, professorId: string) {
       }
     }
 
-    throwOnError(await supabase.from("Comprovante").delete().in("pagamento_id", pagamentoIds));
-    throwOnError(await supabase.from("Pagamento").delete().in("id", pagamentoIds));
+    await execute(`DELETE FROM "Comprovante" WHERE pagamento_id = ANY($1::text[])`, [pagamentoIds]);
+    await execute(`DELETE FROM "Pagamento" WHERE id = ANY($1::text[])`, [pagamentoIds]);
   }
 
-  throwOnError(await supabase.from("Evento").delete().eq("turma_id", id));
-  throwOnError(await supabase.from("MatriculaTurma").delete().eq("turma_id", id));
-  throwOnError(await supabase.from("Turma").delete().eq("id", id));
+  await execute(`DELETE FROM "Evento" WHERE turma_id = $1`, [id]);
+  await execute(`DELETE FROM "MatriculaTurma" WHERE turma_id = $1`, [id]);
+  await execute(`DELETE FROM "Turma" WHERE id = $1`, [id]);
 
-  return { ok: true, nome: turmaCheck.data.nome };
+  return { ok: true, nome: turmaCheck.nome };
 }
 
 export async function criarUploadUrlFoto(
@@ -332,18 +356,15 @@ export async function criarUploadUrlFoto(
   professorId: string,
   contentType: string,
 ) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turmaCheck = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turmaCheck) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const { criarUploadUrlFotoTurma } = await import("../../lib/storage/index.js");
   return criarUploadUrlFotoTurma(turmaId, contentType);
 }
 
@@ -352,32 +373,23 @@ export async function atualizarFotoTurma(
   professorId: string,
   fotoUrl: string,
 ) {
-  const existing = await supabase
-    .from("Turma")
-    .select("id, foto_url")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const existing = await queryMaybeOne<{ id: string; foto_url: string | null }>(
+    `SELECT id, foto_url FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!existing.data) {
+  if (!existing) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const antiga = existing.data.foto_url as string | null;
+  const antiga = existing.foto_url;
 
-  // Grava a nova primeiro; só remove a antiga depois do sucesso no banco.
-  // Se o upload ou este PATCH falhar, a foto antiga permanece intacta.
-  const result = await supabase
-    .from("Turma")
-    .update({ foto_url: fotoUrl, atualizado_em: now() })
-    .eq("id", turmaId)
-    .select()
-    .single();
-
-  const turma = throwOnError(result);
+  const turma = await queryOne<TurmaRow>(
+    `UPDATE "Turma" SET foto_url = $1, atualizado_em = $2 WHERE id = $3 RETURNING *`,
+    [fotoUrl, now(), turmaId],
+  );
 
   if (antiga && antiga !== fotoUrl) {
-    const { removerFotoTurmaStorage } = await import("../../lib/storage/index.js");
     try {
       await removerFotoTurmaStorage(antiga);
     } catch {
@@ -385,11 +397,10 @@ export async function atualizarFotoTurma(
     }
   }
 
-  const { count } = await supabase
-    .from("MatriculaTurma")
-    .select("*", { count: "exact", head: true })
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
+  const totalAlunos = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+    [turmaId],
+  );
 
-  return mapTurmaDetalhe(turma, count ?? 0);
+  return mapTurmaDetalhe(turma, totalAlunos);
 }
