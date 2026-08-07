@@ -3,7 +3,7 @@ import {
   sendNotificationSemanal,
 } from "./notifications/notification.service.js";
 import type { NotificationPayload } from "./notifications/types.js";
-import { supabase } from "../config/supabase.js";
+import { queryMaybeOne } from "./db.js";
 
 export async function criarNotificacao(
   usuarioId: string,
@@ -28,10 +28,9 @@ export async function criarNotificacaoSemanal(
 }
 
 export async function usuarioIdDoAluno(alunoId: string): Promise<string | null> {
-  const result = await supabase
-    .from("Aluno")
-    .select("usuario_id")
-    .eq("id", alunoId)
-    .maybeSingle();
-  return result.data?.usuario_id ?? null;
+  const row = await queryMaybeOne<{ usuario_id: string }>(
+    `SELECT usuario_id FROM "Aluno" WHERE id = $1`,
+    [alunoId],
+  );
+  return row?.usuario_id ?? null;
 }

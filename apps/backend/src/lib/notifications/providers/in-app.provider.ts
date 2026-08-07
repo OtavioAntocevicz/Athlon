@@ -1,22 +1,22 @@
-import { supabase } from "../../../config/supabase.js";
-import { generateId, now, throwOnError } from "../../db.js";
+import { execute, generateId, now } from "../../db.js";
 import type { NotificationPayload, NotificationProvider } from "../types.js";
 
 export const inAppProvider: NotificationProvider = {
   name: "in-app",
 
   async send(usuarioId: string, payload: NotificationPayload) {
-    throwOnError(
-      await supabase.from("Notificacao").insert({
-        id: generateId(),
-        usuario_id: usuarioId,
-        titulo: payload.titulo,
-        corpo: payload.corpo,
-        tipo: payload.tipo,
-        url: payload.url ?? null,
-        lida: false,
-        criado_em: now(),
-      }),
+    await execute(
+      `INSERT INTO "Notificacao" (id, usuario_id, titulo, corpo, tipo, url, lida, criado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, false, $7)`,
+      [
+        generateId(),
+        usuarioId,
+        payload.titulo,
+        payload.corpo,
+        payload.tipo,
+        payload.url ?? null,
+        now(),
+      ],
     );
   },
 };

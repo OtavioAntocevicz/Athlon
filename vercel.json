@@ -1,19 +1,7 @@
 {
-  "buildCommand": "pnpm run build:vercel",
+  "buildCommand": "pnpm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "{apps/backend/dist/**,packages/shared-types/dist/**}",
-      "maxDuration": 60
-    }
-  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/health", "destination": "/api" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
-  "crons": [
-    { "path": "/api/cron/diario", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/mensal", "schedule": "0 7 1 * *" }
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]
 }

@@ -1,5 +1,11 @@
-import { supabase } from "../../config/supabase.js";
-import { generateId, now, throwOnError, turmaIdsDoProfessor } from "../../lib/db.js";
+import {
+  execute,
+  generateId,
+  now,
+  query,
+  queryOne,
+  turmaIdsDoProfessor,
+} from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import {
   addMeses,
@@ -18,6 +24,10 @@ type TurmaRow = {
 
 type MatriculaRow = { aluno_id: string };
 
+function toIso(value: string | Date): string {
+  return value instanceof Date ? value.toISOString() : value;
+}
+
 async function upsertPagamento(
   alunoId: string,
   turmaId: string,
@@ -26,43 +36,35 @@ async function upsertPagamento(
   valorCentavos: number,
 ) {
   const ts = now();
-  const { error } = await supabase.from("Pagamento").upsert(
-    {
-      id: generateId(),
-      aluno_id: alunoId,
-      turma_id: turmaId,
-      mes_referencia: toMesReferenciaDate(mesRef),
-      vencimento: toMesReferenciaDate(vencimento),
-      valor_centavos: valorCentavos,
-      status: "PENDENTE",
-      criado_em: ts,
-      atualizado_em: ts,
-    },
-    { onConflict: "aluno_id,turma_id,mes_referencia", ignoreDuplicates: true },
+  await execute(
+    `INSERT INTO "Pagamento" (id, aluno_id, turma_id, mes_referencia, vencimento, valor_centavos, status, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, 'PENDENTE', $7, $7)
+     ON CONFLICT (aluno_id, turma_id, mes_referencia) DO NOTHING`,
+    [
+      generateId(),
+      alunoId,
+      turmaId,
+      toMesReferenciaDate(mesRef),
+      toMesReferenciaDate(vencimento),
+      valorCentavos,
+      ts,
+    ],
   );
-  if (error) throw new AppError(500, "DB_ERROR", error.message);
 }
 
 export async function gerarMensalidadesParaTurma(turmaId: string, meses = 1) {
-  const turmaResult = await supabase
-    .from("Turma")
-    .select("id, mensalidade_centavos, dia_vencimento")
-    .eq("id", turmaId)
-    .single();
-
-  const turma = throwOnError(turmaResult, {
-    message: "Turma não encontrada",
-  }) as TurmaRow;
+  const turma = await queryOne<TurmaRow>(
+    `SELECT id, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
+    [turmaId],
+    { message: "Turma não encontrada" },
+  );
 
   if (!turma.mensalidade_centavos || !turma.dia_vencimento) return;
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id")
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
-
-  const matriculas = throwOnError(matriculasResult) as MatriculaRow[];
+  const matriculas = await query<MatriculaRow>(
+    `SELECT aluno_id FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
+    [turmaId],
+  );
 
   const inicio = inicioDoMes();
   for (let i = 0; i < meses; i++) {
@@ -82,15 +84,11 @@ export async function gerarMensalidadesParaTurma(turmaId: string, meses = 1) {
 }
 
 export async function gerarMensalidadesParaAluno(alunoId: string, turmaId: string) {
-  const turmaResult = await supabase
-    .from("Turma")
-    .select("id, mensalidade_centavos, dia_vencimento")
-    .eq("id", turmaId)
-    .single();
-
-  const turma = throwOnError(turmaResult, {
-    message: "Turma não encontrada",
-  }) as TurmaRow;
+  const turma = await queryOne<TurmaRow>(
+    `SELECT id, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
+    [turmaId],
+    { message: "Turma não encontrada" },
+  );
 
   if (!turma.mensalidade_centavos || !turma.dia_vencimento) return;
 
@@ -109,13 +107,11 @@ export async function marcarAtrasados() {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const { error } = await supabase
-    .from("Pagamento")
-    .update({ status: "ATRASADO" })
-    .lt("vencimento", hoje.toISOString())
-    .in("status", ["PENDENTE", "RECUSADO"]);
-
-  if (error) throw new AppError(500, "DB_ERROR", error.message);
+  await execute(
+    `UPDATE "Pagamento" SET status = 'ATRASADO'
+     WHERE vencimento < $1 AND status IN ('PENDENTE', 'RECUSADO')`,
+    [hoje.toISOString()],
+  );
 }
 
 export async function listarMensalidades(filters: {
@@ -124,45 +120,70 @@ export async function listarMensalidades(filters: {
   turmaId?: string;
   status?: StatusMensalidade;
 }) {
-  let query = supabase
-    .from("Pagamento")
-    .select("*, Aluno(nome), Turma(nome), Comprovante(arquivo_url, ativo)")
-    .order("mes_referencia", { ascending: false });
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
 
-  if (filters.alunoId) query = query.eq("aluno_id", filters.alunoId);
-  if (filters.turmaId) query = query.eq("turma_id", filters.turmaId);
-  if (filters.status) query = query.eq("status", filters.status);
-
+  if (filters.alunoId) {
+    conditions.push(`p.aluno_id = $${paramIdx++}`);
+    params.push(filters.alunoId);
+  }
+  if (filters.turmaId) {
+    conditions.push(`p.turma_id = $${paramIdx++}`);
+    params.push(filters.turmaId);
+  }
+  if (filters.status) {
+    conditions.push(`p.status = $${paramIdx++}`);
+    params.push(filters.status);
+  }
   if (filters.professorId) {
     const ids = await turmaIdsDoProfessor(filters.professorId);
     if (ids.length === 0) return [];
-    query = query.in("turma_id", ids);
+    conditions.push(`p.turma_id = ANY($${paramIdx++})`);
+    params.push(ids);
   }
 
-  const { data, error } = await query;
-  if (error) throw new AppError(500, "DB_ERROR", error.message);
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  const visiveis = (data ?? []).filter((p) => !isMesFuturo(p.mes_referencia));
+  const rows = await query<{
+    id: string;
+    aluno_id: string;
+    turma_id: string;
+    mes_referencia: string | Date;
+    vencimento: string | Date | null;
+    valor_centavos: number;
+    status: string;
+    aluno_nome: string;
+    turma_nome: string;
+    comprovante_arquivo_url: string | null;
+  }>(
+    `SELECT p.id, p.aluno_id, p.turma_id, p.mes_referencia, p.vencimento, p.valor_centavos, p.status,
+            a.nome AS aluno_nome, t.nome AS turma_nome, c.arquivo_url AS comprovante_arquivo_url
+     FROM "Pagamento" p
+     JOIN "Aluno" a ON a.id = p.aluno_id
+     JOIN "Turma" t ON t.id = p.turma_id
+     LEFT JOIN "Comprovante" c ON c.pagamento_id = p.id AND c.ativo = true
+     ${whereClause}
+     ORDER BY p.mes_referencia DESC`,
+    params,
+  );
+
+  const visiveis = rows.filter((p) => !isMesFuturo(toIso(p.mes_referencia)));
 
   return visiveis.map((p) => {
-    const comprovantes = (p.Comprovante ?? []) as {
-      arquivo_url: string;
-      ativo: boolean;
-    }[];
-    const ativo = comprovantes.find((c) => c.ativo);
     const emAnalise = p.status === "EM_ANALISE";
 
     return {
       id: p.id,
       alunoId: p.aluno_id,
-      alunoNome: (p.Aluno as { nome: string })?.nome ?? "",
+      alunoNome: p.aluno_nome ?? "",
       turmaId: p.turma_id,
-      turmaNome: (p.Turma as { nome: string })?.nome ?? "",
-      mesReferencia: new Date(p.mes_referencia).toISOString(),
-      vencimento: p.vencimento ? new Date(p.vencimento).toISOString() : null,
+      turmaNome: p.turma_nome ?? "",
+      mesReferencia: new Date(toIso(p.mes_referencia)).toISOString(),
+      vencimento: p.vencimento ? new Date(toIso(p.vencimento)).toISOString() : null,
       valorCentavos: p.valor_centavos,
       status: p.status,
-      comprovanteUrl: ativo?.arquivo_url ?? null,
+      comprovanteUrl: p.comprovante_arquivo_url ?? null,
       comprovanteEmAnalise: emAnalise,
       // Preview só no detalhe (evita signed URL em massa na listagem)
       comprovantePreviewUrl: null,
@@ -174,74 +195,84 @@ export async function getMensalidade(
   id: string,
   user: { perfil: string; professorId?: string; alunoId?: string },
 ) {
-  const result = await supabase
-    .from("Pagamento")
-    .select("*, Aluno(nome), Turma(nome, professor_id, chave_pix), Comprovante(id, arquivo_url, ativo)")
-    .eq("id", id)
-    .single();
-
-  const p = throwOnError(result, { message: "Mensalidade não encontrada" });
-  const turma = p.Turma as {
-    nome: string;
+  const p = await queryOne<{
+    id: string;
+    aluno_id: string;
+    turma_id: string;
+    mes_referencia: string | Date;
+    vencimento: string | Date | null;
+    valor_centavos: number;
+    status: string;
+    aluno_nome: string;
+    turma_nome: string;
     professor_id: string;
     chave_pix: string | null;
-  };
+    comprovante_id: string | null;
+    comprovante_arquivo_url: string | null;
+  }>(
+    `SELECT p.id, p.aluno_id, p.turma_id, p.mes_referencia, p.vencimento, p.valor_centavos, p.status,
+            a.nome AS aluno_nome, t.nome AS turma_nome, t.professor_id, t.chave_pix,
+            c.id AS comprovante_id, c.arquivo_url AS comprovante_arquivo_url
+     FROM "Pagamento" p
+     JOIN "Aluno" a ON a.id = p.aluno_id
+     JOIN "Turma" t ON t.id = p.turma_id
+     LEFT JOIN "Comprovante" c ON c.pagamento_id = p.id AND c.ativo = true
+     WHERE p.id = $1`,
+    [id],
+    { message: "Mensalidade não encontrada" },
+  );
 
   if (user.perfil === "ALUNO" && p.aluno_id !== user.alunoId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
-  if (user.perfil === "PROFESSOR" && turma.professor_id !== user.professorId) {
+  if (user.perfil === "PROFESSOR" && p.professor_id !== user.professorId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
 
-  const comprovantes = (p.Comprovante ?? []) as {
-    id: string;
-    arquivo_url: string;
-    ativo: boolean;
-  }[];
-  const ativo = comprovantes.find((c) => c.ativo);
-
-  let inadimplencia: { bloqueado: boolean; desbloquearaAoPagar: boolean } | null =
-    null;
+  let inadimplencia: { bloqueado: boolean; desbloquearaAoPagar: boolean } | null = null;
   if (user.perfil === "PROFESSOR" && p.status !== "PAGO") {
     const { preverDesbloqueioInadimplencia } = await import("../../lib/inadimplencia.js");
-    inadimplencia = await preverDesbloqueioInadimplencia(
-      p.aluno_id,
-      p.turma_id,
-      p.id,
-    );
+    inadimplencia = await preverDesbloqueioInadimplencia(p.aluno_id, p.turma_id, p.id);
   }
 
   return {
     id: p.id,
     alunoId: p.aluno_id,
-    alunoNome: (p.Aluno as { nome: string })?.nome ?? "",
+    alunoNome: p.aluno_nome ?? "",
     turmaId: p.turma_id,
-    turmaNome: turma.nome,
-    chavePix: turma.chave_pix,
-    mesReferencia: new Date(p.mes_referencia).toISOString(),
-    vencimento: p.vencimento ? new Date(p.vencimento).toISOString() : null,
+    turmaNome: p.turma_nome,
+    chavePix: p.chave_pix,
+    mesReferencia: new Date(toIso(p.mes_referencia)).toISOString(),
+    vencimento: p.vencimento ? new Date(toIso(p.vencimento)).toISOString() : null,
     valorCentavos: p.valor_centavos,
     status: p.status,
-    comprovanteUrl: ativo?.arquivo_url ?? null,
-    comprovanteId: ativo?.id ?? null,
+    comprovanteUrl: p.comprovante_arquivo_url ?? null,
+    comprovanteId: p.comprovante_id ?? null,
     inadimplencia,
   };
 }
 
-export async function marcarPagoManual(
-  id: string,
-  professorId: string,
-) {
-  const result = await supabase
-    .from("Pagamento")
-    .select("*, Turma(professor_id), Aluno(usuario_id, nome)")
-    .eq("id", id)
-    .single();
+export async function marcarPagoManual(id: string, professorId: string) {
+  const p = await queryOne<{
+    id: string;
+    aluno_id: string;
+    mes_referencia: string | Date;
+    status: string;
+    professor_id: string;
+    usuario_id: string | null;
+    aluno_nome: string;
+  }>(
+    `SELECT p.id, p.aluno_id, p.mes_referencia, p.status,
+            t.professor_id, a.usuario_id, a.nome AS aluno_nome
+     FROM "Pagamento" p
+     JOIN "Turma" t ON t.id = p.turma_id
+     JOIN "Aluno" a ON a.id = p.aluno_id
+     WHERE p.id = $1`,
+    [id],
+    { message: "Mensalidade não encontrada" },
+  );
 
-  const p = throwOnError(result, { message: "Mensalidade não encontrada" });
-  const turma = p.Turma as { professor_id: string };
-  if (turma.professor_id !== professorId) {
+  if (p.professor_id !== professorId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
 
@@ -250,31 +281,23 @@ export async function marcarPagoManual(
   }
 
   const ts = now();
-  await supabase
-    .from("Comprovante")
-    .update({ ativo: false })
-    .eq("pagamento_id", id);
 
-  await supabase
-    .from("Pagamento")
-    .update({
-      status: "PAGO",
-      validado_por_id: professorId,
-      validado_em: ts,
-      atualizado_em: ts,
-    })
-    .eq("id", id);
+  await execute(`UPDATE "Comprovante" SET ativo = false WHERE pagamento_id = $1`, [id]);
 
-  const aluno = p.Aluno as { usuario_id: string | null; nome: string };
-  if (aluno.usuario_id) {
+  await execute(
+    `UPDATE "Pagamento" SET status = 'PAGO', validado_por_id = $2, validado_em = $3, atualizado_em = $3 WHERE id = $1`,
+    [id, professorId, ts],
+  );
+
+  if (p.usuario_id) {
     const { criarNotificacao } = await import("../../lib/notificacoes.js");
-    const mes = new Date(p.mes_referencia).toLocaleDateString("pt-BR", {
+    const mes = new Date(toIso(p.mes_referencia)).toLocaleDateString("pt-BR", {
       month: "long",
       year: "numeric",
       timeZone: "UTC",
     });
     await criarNotificacao(
-      aluno.usuario_id,
+      p.usuario_id,
       "Pagamento confirmado",
       `Sua mensalidade de ${mes} foi confirmada pelo professor.`,
       "PAGAMENTO_CONFIRMADO",

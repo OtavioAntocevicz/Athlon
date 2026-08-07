@@ -3,7 +3,7 @@ import { recusarComprovanteSchema, confirmarComprovanteSchema } from "@athlon/sh
 import { authenticate, requireProfessor, requireAluno } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import * as comprovantesService from "./comprovantes.service.js";
-import { criarUploadUrl } from "./storage.service.js";
+import { criarUploadUrl } from "../../lib/storage/index.js";
 import rateLimit from "express-rate-limit";
 
 const uploadLimiter = rateLimit({

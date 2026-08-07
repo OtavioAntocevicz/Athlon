@@ -1,11 +1,11 @@
 import bcrypt from "bcryptjs";
-import { supabase } from "../../config/supabase.js";
 import {
+  execute,
   generateId,
   matricularAlunoTurma,
   now,
-  relOne,
-  throwOnError,
+  queryMaybeOne,
+  queryOne,
 } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { signAccessToken, signRefreshToken } from "../../lib/jwt.js";
@@ -44,83 +44,92 @@ function perfilMatchesLogin(usuarioPerfil: string, inputPerfil: string): boolean
 }
 
 async function findUsuarioPorEmailPerfil(email: string, perfil: string) {
-  const result = await supabase
-    .from("Usuario")
-    .select("id, email, nome, perfil")
-    .eq("email", email)
-    .maybeSingle();
+  const usuario = await queryMaybeOne<{
+    id: string;
+    email: string;
+    nome: string;
+    perfil: string;
+  }>(`SELECT id, email, nome, perfil FROM "Usuario" WHERE email = $1`, [email]);
 
-  const usuario = result.data;
   if (!usuario || !perfilMatchesLogin(usuario.perfil, perfil)) return null;
   return usuario;
 }
 
 async function invalidateRecuperacoesPendentes(usuarioId: string) {
   const ts = now();
-  await supabase
-    .from("RecuperacaoSenha")
-    .update({ usado_em: ts })
-    .eq("usuario_id", usuarioId)
-    .is("usado_em", null)
-    .gt("expira_em", ts);
+  await execute(
+    `UPDATE "RecuperacaoSenha" SET usado_em = $1
+     WHERE usuario_id = $2 AND usado_em IS NULL AND expira_em > $1`,
+    [ts, usuarioId],
+  );
 }
+
+type RecuperacaoRow = {
+  id: string;
+  usuario_id: string;
+  codigo_hash: string;
+  token_hash: string;
+  expira_em: string;
+  usado_em: string | null;
+};
 
 async function findRecuperacaoAtiva(input: {
   usuarioId?: string;
   codigo?: string;
   token?: string;
-}) {
-  let query = supabase
-    .from("RecuperacaoSenha")
-    .select("id, usuario_id, codigo_hash, token_hash, expira_em, usado_em")
-    .is("usado_em", null)
-    .gt("expira_em", now());
+}): Promise<RecuperacaoRow | null> {
+  const ts = now();
 
   if (input.token) {
-    query = query.eq("token_hash", hashValue(input.token));
-  } else if (input.usuarioId && input.codigo) {
-    query = query
-      .eq("usuario_id", input.usuarioId)
-      .eq("codigo_hash", hashValue(input.codigo));
-  } else {
-    return null;
+    return queryMaybeOne<RecuperacaoRow>(
+      `SELECT id, usuario_id, codigo_hash, token_hash, expira_em, usado_em
+       FROM "RecuperacaoSenha"
+       WHERE usado_em IS NULL AND expira_em > $1 AND token_hash = $2`,
+      [ts, hashValue(input.token)],
+    );
   }
 
-  const result = await query.maybeSingle();
-  return result.data;
+  if (input.usuarioId && input.codigo) {
+    return queryMaybeOne<RecuperacaoRow>(
+      `SELECT id, usuario_id, codigo_hash, token_hash, expira_em, usado_em
+       FROM "RecuperacaoSenha"
+       WHERE usado_em IS NULL AND expira_em > $1 AND usuario_id = $2 AND codigo_hash = $3`,
+      [ts, input.usuarioId, hashValue(input.codigo)],
+    );
+  }
+
+  return null;
 }
 
-type UsuarioRow = {
+type AuthUsuarioRow = {
   id: string;
   email: string;
   nome: string;
-  senha_hash: string;
   perfil: string;
-  Professor: { id: string; chave_pix?: string | null }[] | { id: string; chave_pix?: string | null } | null;
-  Aluno: { id: string }[] | { id: string } | null;
+  professor_id: string | null;
+  aluno_id: string | null;
 };
 
 async function buildAuthResponse(usuarioId: string) {
-  const result = await supabase
-    .from("Usuario")
-    .select("id, email, nome, perfil, Professor(id), Aluno(id)")
-    .eq("id", usuarioId)
-    .single();
-
-  const usuario = throwOnError(result, {
-    message: "Usuário não encontrado",
-  }) as UsuarioRow;
-
-  const professor = relOne(usuario.Professor);
-  const aluno = relOne(usuario.Aluno);
+  const usuario = await queryOne<AuthUsuarioRow>(
+    `SELECT u.id, u.email, u.nome, u.perfil,
+            p.id AS professor_id,
+            a.id AS aluno_id
+     FROM "Usuario" u
+     LEFT JOIN "Professor" p ON p.usuario_id = u.id
+     LEFT JOIN "Aluno" a ON a.usuario_id = u.id
+     WHERE u.id = $1`,
+    [usuarioId],
+    { message: "Usuário não encontrado" },
+  );
 
   const payload: JwtPayload = {
     sub: usuario.id,
     email: usuario.email,
     nome: usuario.nome,
     perfil: usuario.perfil as JwtPayload["perfil"],
-    professorId: professor?.id,
-    alunoId: aluno?.id,
+    professorId: usuario.professor_id ?? undefined,
+    alunoId: usuario.aluno_id ?? undefined,
   };
 
   return {
@@ -131,20 +140,19 @@ async function buildAuthResponse(usuarioId: string) {
       email: usuario.email,
       nome: usuario.nome,
       perfil: usuario.perfil,
-      professorId: professor?.id,
-      alunoId: aluno?.id,
+      professorId: usuario.professor_id ?? undefined,
+      alunoId: usuario.aluno_id ?? undefined,
     },
   };
 }
 
 export async function registerAluno(input: RegisterAlunoInput) {
-  const exists = await supabase
-    .from("Usuario")
-    .select("id")
-    .eq("email", input.email)
-    .maybeSingle();
+  const exists = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Usuario" WHERE email = $1`,
+    [input.email],
+  );
 
-  if (exists.data) {
+  if (exists) {
     throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
   }
 
@@ -155,43 +163,41 @@ export async function registerAluno(input: RegisterAlunoInput) {
 
   const nomeCompleto = `${input.nome.trim()} ${input.sobrenome.trim()}`;
 
-  const usuarioResult = await supabase.from("Usuario").insert({
-    id: usuarioId,
-    email: input.email,
-    nome: nomeCompleto,
-    senha_hash,
-    perfil: "ALUNO",
-    criado_em: ts,
-    atualizado_em: ts,
-  });
-
-  if (usuarioResult.error?.code === "23505") {
-    throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+  try {
+    await execute(
+      `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, criado_em, atualizado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+      [usuarioId, input.email, nomeCompleto, senha_hash, "ALUNO", ts],
+    );
+  } catch (err) {
+    if (err instanceof AppError && err.code === "CONFLICT") {
+      throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+    }
+    throw err;
   }
-  throwOnError(usuarioResult);
 
-  const alunoResult = await supabase.from("Aluno").insert({
-    id: alunoId,
-    usuario_id: usuarioId,
-    nome: input.nome.trim(),
-    sobrenome: input.sobrenome.trim(),
-    email: input.email,
-    telefone: input.whatsapp.replace(/\D/g, ""),
-    data_nascimento: `${input.anoNascimento}-01-01`,
-    rg: input.rg.trim(),
-    cpf: input.cpf ?? null,
-    criado_em: ts,
-    atualizado_em: ts,
-  });
-  throwOnError(alunoResult);
+  await execute(
+    `INSERT INTO "Aluno" (id, usuario_id, nome, sobrenome, email, telefone, data_nascimento, rg, cpf, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+    [
+      alunoId,
+      usuarioId,
+      input.nome.trim(),
+      input.sobrenome.trim(),
+      input.email,
+      input.whatsapp.replace(/\D/g, ""),
+      `${input.anoNascimento}-01-01`,
+      input.rg.trim(),
+      input.cpf ?? null,
+      ts,
+    ],
+  );
 
-  const turmaResult = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("codigo_convite", input.codigoConvite.trim())
-    .maybeSingle();
+  const turma = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE codigo_convite = $1`,
+    [input.codigoConvite.trim()],
+  );
 
-  const turma = turmaResult.data;
   if (!turma) {
     throw new AppError(404, "CONVITE_INVALIDO", "Código da turma inválido");
   }
@@ -207,13 +213,18 @@ export async function registerAluno(input: RegisterAlunoInput) {
 }
 
 export async function login(input: LoginInput) {
-  const result = await supabase
-    .from("Usuario")
-    .select("id, email, nome, senha_hash, perfil, ativo, Professor(id), Aluno(id)")
-    .eq("email", input.email)
-    .maybeSingle();
-
-  const usuario = result.data as (UsuarioRow & { ativo: boolean }) | null;
+  const usuario = await queryMaybeOne<
+    AuthUsuarioRow & { senha_hash: string; ativo: boolean }
+  >(
+    `SELECT u.id, u.email, u.nome, u.senha_hash, u.perfil, u.ativo,
+            p.id AS professor_id,
+            a.id AS aluno_id
+     FROM "Usuario" u
+     LEFT JOIN "Professor" p ON p.usuario_id = u.id
+     LEFT JOIN "Aluno" a ON a.usuario_id = u.id
+     WHERE u.email = $1`,
+    [input.email],
+  );
 
   if (!usuario || !perfilMatchesLogin(usuario.perfil, input.perfil)) {
     throw new AppError(401, "INVALID_CREDENTIALS", "E-mail ou senha incorretos");
@@ -231,46 +242,50 @@ export async function login(input: LoginInput) {
   return buildAuthResponse(usuario.id);
 }
 
-type AlunoMeRow = {
+type MeUsuarioRow = {
   id: string;
+  email: string;
   nome: string;
-  sobrenome: string | null;
-  telefone: string | null;
-  rg: string | null;
-  cpf: string | null;
+  perfil: string;
+  professor_id: string | null;
+  chave_pix: string | null;
+  aluno_id: string | null;
+  aluno_nome: string | null;
+  aluno_sobrenome: string | null;
+  aluno_telefone: string | null;
+  aluno_rg: string | null;
+  aluno_cpf: string | null;
 };
 
 export async function getMe(userId: string) {
-  const result = await supabase
-    .from("Usuario")
-    .select(
-      "id, email, nome, perfil, Professor(id, chave_pix), Aluno(id, nome, sobrenome, telefone, rg, cpf)",
-    )
-    .eq("id", userId)
-    .single();
-
-  const usuario = throwOnError(result, {
-    message: "Usuário não encontrado",
-  }) as UsuarioRow & { Aluno: AlunoMeRow[] | AlunoMeRow | null };
-
-  const professor = relOne(usuario.Professor);
-  const aluno = relOne(usuario.Aluno) as AlunoMeRow | undefined;
+  const usuario = await queryOne<MeUsuarioRow>(
+    `SELECT u.id, u.email, u.nome, u.perfil,
+            p.id AS professor_id, p.chave_pix,
+            a.id AS aluno_id, a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+            a.telefone AS aluno_telefone, a.rg AS aluno_rg, a.cpf AS aluno_cpf
+     FROM "Usuario" u
+     LEFT JOIN "Professor" p ON p.usuario_id = u.id
+     LEFT JOIN "Aluno" a ON a.usuario_id = u.id
+     WHERE u.id = $1`,
+    [userId],
+    { message: "Usuário não encontrado" },
+  );
 
   return {
     id: usuario.id,
     email: usuario.email,
     nome: usuario.nome,
     perfil: usuario.perfil,
-    professorId: professor?.id,
-    alunoId: aluno?.id,
-    chavePix: professor?.chave_pix ?? null,
-    aluno: aluno
+    professorId: usuario.professor_id ?? undefined,
+    alunoId: usuario.aluno_id ?? undefined,
+    chavePix: usuario.chave_pix ?? null,
+    aluno: usuario.aluno_id
       ? {
-          nome: aluno.nome,
-          sobrenome: aluno.sobrenome ?? "",
-          telefone: aluno.telefone,
-          rg: aluno.rg,
-          cpf: aluno.cpf,
+          nome: usuario.aluno_nome!,
+          sobrenome: usuario.aluno_sobrenome ?? "",
+          telefone: usuario.aluno_telefone,
+          rg: usuario.aluno_rg,
+          cpf: usuario.aluno_cpf,
         }
       : null,
   };
@@ -288,18 +303,15 @@ export async function updateProfessorPerfil(
   input: UpdateProfessorPerfilInput,
 ) {
   const ts = now();
-  throwOnError(
-    await supabase
-      .from("Usuario")
-      .update({ nome: input.nome, atualizado_em: ts })
-      .eq("id", userId),
+
+  await execute(
+    `UPDATE "Usuario" SET nome = $1, atualizado_em = $2 WHERE id = $3`,
+    [input.nome, ts, userId],
   );
 
-  throwOnError(
-    await supabase
-      .from("Professor")
-      .update({ chave_pix: input.chavePix, atualizado_em: ts })
-      .eq("id", professorId),
+  await execute(
+    `UPDATE "Professor" SET chave_pix = $1, atualizado_em = $2 WHERE id = $3`,
+    [input.chavePix, ts, professorId],
   );
 
   return getMe(userId);
@@ -313,39 +325,36 @@ export async function updateAlunoPerfil(
   const ts = now();
   const nomeCompleto = `${input.nome.trim()} ${input.sobrenome.trim()}`;
 
-  throwOnError(
-    await supabase
-      .from("Usuario")
-      .update({ nome: nomeCompleto, email: input.email, atualizado_em: ts })
-      .eq("id", userId),
+  await execute(
+    `UPDATE "Usuario" SET nome = $1, email = $2, atualizado_em = $3 WHERE id = $4`,
+    [nomeCompleto, input.email, ts, userId],
   );
 
-  throwOnError(
-    await supabase
-      .from("Aluno")
-      .update({
-        nome: input.nome.trim(),
-        sobrenome: input.sobrenome.trim(),
-        email: input.email,
-        telefone: input.whatsapp.replace(/\D/g, ""),
-        rg: input.rg.trim(),
-        cpf: input.cpf?.replace(/\D/g, "") || null,
-        atualizado_em: ts,
-      })
-      .eq("id", alunoId),
+  await execute(
+    `UPDATE "Aluno"
+     SET nome = $1, sobrenome = $2, email = $3, telefone = $4, rg = $5, cpf = $6, atualizado_em = $7
+     WHERE id = $8`,
+    [
+      input.nome.trim(),
+      input.sobrenome.trim(),
+      input.email,
+      input.whatsapp.replace(/\D/g, ""),
+      input.rg.trim(),
+      input.cpf?.replace(/\D/g, "") || null,
+      ts,
+      alunoId,
+    ],
   );
 
   return getMe(userId);
 }
 
 export async function alterarSenha(userId: string, input: ChangePasswordInput) {
-  const result = await supabase
-    .from("Usuario")
-    .select("senha_hash")
-    .eq("id", userId)
-    .single();
-
-  const usuario = throwOnError(result, { message: "Usuário não encontrado" });
+  const usuario = await queryOne<{ senha_hash: string }>(
+    `SELECT senha_hash FROM "Usuario" WHERE id = $1`,
+    [userId],
+    { message: "Usuário não encontrado" },
+  );
 
   const valida = await bcrypt.compare(input.senhaAtual, usuario.senha_hash);
   if (!valida) {
@@ -353,11 +362,9 @@ export async function alterarSenha(userId: string, input: ChangePasswordInput) {
   }
 
   const senha_hash = await bcrypt.hash(input.senhaNova, BCRYPT_ROUNDS);
-  throwOnError(
-    await supabase
-      .from("Usuario")
-      .update({ senha_hash, atualizado_em: now() })
-      .eq("id", userId),
+  await execute(
+    `UPDATE "Usuario" SET senha_hash = $1, atualizado_em = $2 WHERE id = $3`,
+    [senha_hash, now(), userId],
   );
 
   return { ok: true };
@@ -377,15 +384,17 @@ export async function solicitarRecuperacaoSenha(input: RequestPasswordResetInput
 
     await invalidateRecuperacoesPendentes(usuario.id);
 
-    throwOnError(
-      await supabase.from("RecuperacaoSenha").insert({
-        id: generateId(),
-        usuario_id: usuario.id,
-        codigo_hash: hashValue(codigo),
-        token_hash: hashValue(token),
-        expira_em: expiraEm,
-        criado_em: ts,
-      }),
+    await execute(
+      `INSERT INTO "RecuperacaoSenha" (id, usuario_id, codigo_hash, token_hash, expira_em, criado_em)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        generateId(),
+        usuario.id,
+        hashValue(codigo),
+        hashValue(token),
+        expiraEm,
+        ts,
+      ],
     );
 
     const link = `${env.appUrl.replace(/\/$/, "")}/login/${perfilLoginPath(input.perfil)}/redefinir-senha/${token}`;
@@ -460,18 +469,14 @@ export async function confirmarRecuperacaoSenha(input: ConfirmPasswordResetInput
   const senha_hash = await bcrypt.hash(input.senhaNova, BCRYPT_ROUNDS);
   const ts = now();
 
-  throwOnError(
-    await supabase
-      .from("Usuario")
-      .update({ senha_hash, atualizado_em: ts })
-      .eq("id", usuarioId!),
+  await execute(
+    `UPDATE "Usuario" SET senha_hash = $1, atualizado_em = $2 WHERE id = $3`,
+    [senha_hash, ts, usuarioId!],
   );
 
-  throwOnError(
-    await supabase
-      .from("RecuperacaoSenha")
-      .update({ usado_em: ts })
-      .eq("id", recuperacaoId!),
+  await execute(
+    `UPDATE "RecuperacaoSenha" SET usado_em = $1 WHERE id = $2`,
+    [ts, recuperacaoId!],
   );
 
   await invalidateRecuperacoesPendentes(usuarioId!);

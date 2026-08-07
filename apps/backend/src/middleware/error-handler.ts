@@ -38,14 +38,16 @@ export function errorHandler(
     message.includes("fetch failed") ||
     message.includes("ENOTFOUND") ||
     message.includes("ECONNREFUSED") ||
-    message.includes("Missing env: SUPABASE")
+    message.includes("Missing env: DATABASE_URL") ||
+    message.includes("connect ECONNREFUSED") ||
+    message.includes("password authentication failed")
   ) {
     console.error(err);
     return res.status(503).json({
       error: {
         code: "DATABASE_UNAVAILABLE",
         message:
-          "Não foi possível conectar ao Supabase. Verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.",
+          "Não foi possível conectar ao banco de dados. Verifique DATABASE_URL no ambiente.",
       },
     });
   }

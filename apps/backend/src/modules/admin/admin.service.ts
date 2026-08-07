@@ -1,6 +1,13 @@
 import bcrypt from "bcryptjs";
-import { supabase } from "../../config/supabase.js";
-import { generateId, matricularAlunoTurma, now, relOne, throwOnError } from "../../lib/db.js";
+import {
+  countQuery,
+  execute,
+  generateId,
+  matricularAlunoTurma,
+  now,
+  query,
+  queryMaybeOne,
+} from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
 import type {
   CreateProfessorAdminInput,
@@ -18,124 +25,115 @@ type ProfessorRow = {
   usuario_id: string;
   chave_pix: string | null;
   criado_em: string;
-  Usuario: {
-    id: string;
-    nome: string;
-    email: string;
-    ativo: boolean;
-    criado_em: string;
-  } | {
-    id: string;
-    nome: string;
-    email: string;
-    ativo: boolean;
-    criado_em: string;
-  }[] | null;
+  usuario_nome: string;
+  usuario_email: string;
+  usuario_ativo: boolean;
+  usuario_criado_em: string;
 };
 
 async function countAlunosAtivosPorProfessor(professorId: string): Promise<number> {
-  const { data: turmas } = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("professor_id", professorId);
+  const turmaIds = (
+    await query<{ id: string }>(
+      `SELECT id FROM "Turma" WHERE professor_id = $1`,
+      [professorId],
+    )
+  ).map((t) => t.id);
 
-  const turmaIds = (turmas ?? []).map((t) => t.id);
   if (turmaIds.length === 0) return 0;
 
-  const { data: matriculas } = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id")
-    .in("turma_id", turmaIds)
-    .eq("afastado", false);
+  const matriculas = await query<{ aluno_id: string }>(
+    `SELECT aluno_id FROM "MatriculaTurma"
+     WHERE turma_id = ANY($1::text[]) AND afastado = false`,
+    [turmaIds],
+  );
 
-  const unique = new Set((matriculas ?? []).map((m) => m.aluno_id));
-  return unique.size;
+  return new Set(matriculas.map((m) => m.aluno_id)).size;
 }
 
 async function buildProfessorResumo(prof: ProfessorRow) {
-  const usuario = relOne(prof.Usuario);
-  if (!usuario) return null;
-
-  const { count: turmasCount } = await supabase
-    .from("Turma")
-    .select("*", { count: "exact", head: true })
-    .eq("professor_id", prof.id);
+  const turmasCount = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Turma" WHERE professor_id = $1`,
+    [prof.id],
+  );
 
   const totalAlunos = await countAlunosAtivosPorProfessor(prof.id);
 
   return {
     id: prof.id,
-    usuarioId: usuario.id,
-    nome: usuario.nome,
-    email: usuario.email,
-    ativo: usuario.ativo,
-    totalTurmas: turmasCount ?? 0,
+    usuarioId: prof.usuario_id,
+    nome: prof.usuario_nome,
+    email: prof.usuario_email,
+    ativo: prof.usuario_ativo,
+    totalTurmas: turmasCount,
     totalAlunos,
-    criadoEm: new Date(usuario.criado_em).toISOString(),
+    criadoEm: new Date(prof.usuario_criado_em).toISOString(),
   };
 }
 
 export async function getDashboard() {
-  const { count: professoresAtivos } = await supabase
-    .from("Usuario")
-    .select("*", { count: "exact", head: true })
-    .eq("perfil", "PROFESSOR")
-    .eq("ativo", true);
+  const professoresAtivos = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Usuario"
+     WHERE perfil = 'PROFESSOR' AND ativo = true`,
+  );
 
-  const { data: professoresAtivosRows } = await supabase
-    .from("Professor")
-    .select("id, Usuario!inner(ativo)")
-    .eq("Usuario.ativo", true);
-
-  const professorIds = (professoresAtivosRows ?? []).map((p) => p.id);
+  const professorIds = (
+    await query<{ id: string }>(
+      `SELECT p.id
+       FROM "Professor" p
+       JOIN "Usuario" u ON u.id = p.usuario_id
+       WHERE u.ativo = true`,
+    )
+  ).map((p) => p.id);
 
   let totalTurmas = 0;
   if (professorIds.length > 0) {
-    const { count } = await supabase
-      .from("Turma")
-      .select("*", { count: "exact", head: true })
-      .in("professor_id", professorIds);
-    totalTurmas = count ?? 0;
+    totalTurmas = await countQuery(
+      `SELECT COUNT(*)::text AS count FROM "Turma"
+       WHERE professor_id = ANY($1::text[])`,
+      [professorIds],
+    );
   }
 
   let totalAlunos = 0;
   if (professorIds.length > 0) {
-    const { data: turmas } = await supabase
-      .from("Turma")
-      .select("id")
-      .in("professor_id", professorIds);
-    const turmaIds = (turmas ?? []).map((t) => t.id);
+    const turmaIds = (
+      await query<{ id: string }>(
+        `SELECT id FROM "Turma" WHERE professor_id = ANY($1::text[])`,
+        [professorIds],
+      )
+    ).map((t) => t.id);
+
     if (turmaIds.length > 0) {
-      const { data: matriculas } = await supabase
-        .from("MatriculaTurma")
-        .select("aluno_id")
-        .in("turma_id", turmaIds)
-        .eq("afastado", false);
-      totalAlunos = new Set((matriculas ?? []).map((m) => m.aluno_id)).size;
+      const matriculas = await query<{ aluno_id: string }>(
+        `SELECT aluno_id FROM "MatriculaTurma"
+         WHERE turma_id = ANY($1::text[]) AND afastado = false`,
+        [turmaIds],
+      );
+      totalAlunos = new Set(matriculas.map((m) => m.aluno_id)).size;
     }
   }
 
-  const { data: alunosComConta } = await supabase
-    .from("Aluno")
-    .select("id")
-    .not("usuario_id", "is", null);
+  const alunoIdsComConta = (
+    await query<{ id: string }>(
+      `SELECT id FROM "Aluno" WHERE usuario_id IS NOT NULL`,
+    )
+  ).map((a) => a.id);
 
-  const alunoIdsComConta = (alunosComConta ?? []).map((a) => a.id);
   let alunosSemTurma = 0;
   if (alunoIdsComConta.length > 0) {
-    const { data: matriculasAtivas } = await supabase
-      .from("MatriculaTurma")
-      .select("aluno_id")
-      .in("aluno_id", alunoIdsComConta)
-      .eq("afastado", false);
-    const comTurma = new Set((matriculasAtivas ?? []).map((m) => m.aluno_id));
+    const matriculasAtivas = await query<{ aluno_id: string }>(
+      `SELECT aluno_id FROM "MatriculaTurma"
+       WHERE aluno_id = ANY($1::text[]) AND afastado = false`,
+      [alunoIdsComConta],
+    );
+    const comTurma = new Set(matriculasAtivas.map((m) => m.aluno_id));
     alunosSemTurma = alunoIdsComConta.filter((id) => !comTurma.has(id)).length;
   }
 
   const professores = await listarProfessores();
 
   return {
-    professoresAtivos: professoresAtivos ?? 0,
+    professoresAtivos,
     totalTurmas,
     totalAlunos,
     alunosSemTurma,
@@ -144,22 +142,28 @@ export async function getDashboard() {
 }
 
 export async function listarProfessores(filtros?: { busca?: string; ativo?: boolean }) {
-  let query = supabase
-    .from("Professor")
-    .select("id, usuario_id, chave_pix, criado_em, Usuario(id, nome, email, ativo, criado_em)")
-    .order("criado_em", { ascending: false });
+  const params: unknown[] = [];
+  let whereClause = "";
 
   if (filtros?.ativo !== undefined) {
-    query = query.eq("Usuario.ativo", filtros.ativo);
+    params.push(filtros.ativo);
+    whereClause = `WHERE u.ativo = $${params.length}`;
   }
 
-  const result = await query;
-  if (result.error) throw new AppError(500, "DB_ERROR", result.error.message);
+  const rows = await query<ProfessorRow>(
+    `SELECT p.id, p.usuario_id, p.chave_pix, p.criado_em,
+            u.nome AS usuario_nome, u.email AS usuario_email,
+            u.ativo AS usuario_ativo, u.criado_em AS usuario_criado_em
+     FROM "Professor" p
+     JOIN "Usuario" u ON u.id = p.usuario_id
+     ${whereClause}
+     ORDER BY p.criado_em DESC`,
+    params,
+  );
 
   const items = [];
-  for (const row of (result.data ?? []) as ProfessorRow[]) {
+  for (const row of rows) {
     const resumo = await buildProfessorResumo(row);
-    if (!resumo) continue;
 
     if (filtros?.busca) {
       const termo = filtros.busca.toLowerCase();
@@ -176,13 +180,12 @@ export async function listarProfessores(filtros?: { busca?: string; ativo?: bool
 }
 
 export async function criarProfessor(input: CreateProfessorAdminInput) {
-  const exists = await supabase
-    .from("Usuario")
-    .select("id")
-    .eq("email", input.email)
-    .maybeSingle();
+  const exists = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Usuario" WHERE email = $1`,
+    [input.email],
+  );
 
-  if (exists.data) {
+  if (exists) {
     throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
   }
 
@@ -191,30 +194,19 @@ export async function criarProfessor(input: CreateProfessorAdminInput) {
   const professorId = generateId();
   const ts = now();
 
-  const usuarioResult = await supabase.from("Usuario").insert({
-    id: usuarioId,
-    email: input.email,
-    nome: input.nome,
-    senha_hash,
-    perfil: "PROFESSOR",
-    ativo: true,
-    criado_em: ts,
-    atualizado_em: ts,
-  });
+  await execute(
+    `INSERT INTO "Usuario"
+       (id, email, nome, senha_hash, perfil, ativo, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, 'PROFESSOR', true, $5, $5)`,
+    [usuarioId, input.email, input.nome, senha_hash, ts],
+  );
 
-  if (usuarioResult.error?.code === "23505") {
-    throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
-  }
-  throwOnError(usuarioResult);
-
-  const professorResult = await supabase.from("Professor").insert({
-    id: professorId,
-    usuario_id: usuarioId,
-    chave_pix: input.chavePix,
-    criado_em: ts,
-    atualizado_em: ts,
-  });
-  throwOnError(professorResult);
+  await execute(
+    `INSERT INTO "Professor"
+       (id, usuario_id, chave_pix, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, $4)`,
+    [professorId, usuarioId, input.chavePix, ts],
+  );
 
   return {
     id: professorId,
@@ -225,41 +217,47 @@ export async function criarProfessor(input: CreateProfessorAdminInput) {
 }
 
 export async function obterProfessor(professorId: string) {
-  const result = await supabase
-    .from("Professor")
-    .select("id, usuario_id, chave_pix, criado_em, Usuario(id, nome, email, ativo, criado_em)")
-    .eq("id", professorId)
-    .maybeSingle();
+  const prof = await queryMaybeOne<ProfessorRow>(
+    `SELECT p.id, p.usuario_id, p.chave_pix, p.criado_em,
+            u.nome AS usuario_nome, u.email AS usuario_email,
+            u.ativo AS usuario_ativo, u.criado_em AS usuario_criado_em
+     FROM "Professor" p
+     JOIN "Usuario" u ON u.id = p.usuario_id
+     WHERE p.id = $1`,
+    [professorId],
+  );
 
-  const prof = result.data as ProfessorRow | null;
   if (!prof) {
     throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
   }
 
-  const usuario = relOne(prof.Usuario);
-  if (!usuario) {
-    throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
-  }
-
-  const { data: turmas } = await supabase
-    .from("Turma")
-    .select("id, nome, modalidade, codigo_convite, criado_em")
-    .eq("professor_id", professorId)
-    .order("criado_em", { ascending: false });
+  const turmas = await query<{
+    id: string;
+    nome: string;
+    modalidade: string;
+    codigo_convite: string;
+    criado_em: string;
+  }>(
+    `SELECT id, nome, modalidade, codigo_convite, criado_em
+     FROM "Turma"
+     WHERE professor_id = $1
+     ORDER BY criado_em DESC`,
+    [professorId],
+  );
 
   const turmasResumo = [];
-  for (const t of turmas ?? []) {
-    const { count } = await supabase
-      .from("MatriculaTurma")
-      .select("*", { count: "exact", head: true })
-      .eq("turma_id", t.id)
-      .eq("afastado", false);
+  for (const t of turmas) {
+    const totalAlunos = await countQuery(
+      `SELECT COUNT(*)::text AS count FROM "MatriculaTurma"
+       WHERE turma_id = $1 AND afastado = false`,
+      [t.id],
+    );
 
     turmasResumo.push({
       id: t.id,
       nome: t.nome,
       modalidade: t.modalidade,
-      totalAlunos: count ?? 0,
+      totalAlunos,
       codigoConvite: t.codigo_convite,
       criadoEm: new Date(t.criado_em).toISOString(),
     });
@@ -269,12 +267,12 @@ export async function obterProfessor(professorId: string) {
 
   return {
     id: prof.id,
-    usuarioId: usuario.id,
-    nome: usuario.nome,
-    email: usuario.email,
+    usuarioId: prof.usuario_id,
+    nome: prof.usuario_nome,
+    email: prof.usuario_email,
     chavePix: prof.chave_pix,
-    ativo: usuario.ativo,
-    criadoEm: new Date(usuario.criado_em).toISOString(),
+    ativo: prof.usuario_ativo,
+    criadoEm: new Date(prof.usuario_criado_em).toISOString(),
     totalTurmas: turmasResumo.length,
     totalAlunos: alunos.length,
     turmas: turmasResumo,
@@ -293,21 +291,18 @@ export async function atualizarStatusProfessor(
   professorId: string,
   input: UpdateProfessorStatusInput,
 ) {
-  const result = await supabase
-    .from("Professor")
-    .select("usuario_id")
-    .eq("id", professorId)
-    .maybeSingle();
+  const prof = await queryMaybeOne<{ usuario_id: string }>(
+    `SELECT usuario_id FROM "Professor" WHERE id = $1`,
+    [professorId],
+  );
 
-  if (!result.data) {
+  if (!prof) {
     throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
   }
 
-  throwOnError(
-    await supabase
-      .from("Usuario")
-      .update({ ativo: input.ativo, atualizado_em: now() })
-      .eq("id", result.data.usuario_id),
+  await execute(
+    `UPDATE "Usuario" SET ativo = $1, atualizado_em = $2 WHERE id = $3`,
+    [input.ativo, now(), prof.usuario_id],
   );
 
   return { ok: true, ativo: input.ativo };
@@ -315,15 +310,20 @@ export async function atualizarStatusProfessor(
 
 async function statusFinanceiroAluno(alunoId: string): Promise<string> {
   const hoje = new Date();
-  const pagResult = await supabase
-    .from("Pagamento")
-    .select("status, mes_referencia, vencimento")
-    .eq("aluno_id", alunoId)
-    .order("mes_referencia", { ascending: false });
+  const pagamentos = (
+    await query<{
+      status: string;
+      mes_referencia: string;
+      vencimento: string | null;
+    }>(
+      `SELECT status, mes_referencia, vencimento
+       FROM "Pagamento"
+       WHERE aluno_id = $1
+       ORDER BY mes_referencia DESC`,
+      [alunoId],
+    )
+  ).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
 
-  const pagamentos = (pagResult.data ?? []).filter(
-    (p) => !isMesFuturo(p.mes_referencia, hoje),
-  );
   const ultimo = pagamentos[0];
   return ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE";
 }
@@ -332,27 +332,37 @@ export async function listarAlunosAdmin(filtros?: {
   busca?: string;
   semTurma?: boolean;
 }) {
-  const alunosResult = await supabase
-    .from("Aluno")
-    .select("id, nome, sobrenome, email, telefone, cpf, rg")
-    .order("nome", { ascending: true });
+  const alunos = await query<{
+    id: string;
+    nome: string;
+    sobrenome: string | null;
+    email: string | null;
+    telefone: string | null;
+    cpf: string | null;
+    rg: string | null;
+  }>(
+    `SELECT id, nome, sobrenome, email, telefone, cpf, rg
+     FROM "Aluno"
+     ORDER BY nome ASC`,
+  );
 
-  const alunos = throwOnError(alunosResult);
+  const matriculas = await query<{
+    aluno_id: string;
+    turma_id: string;
+    turma_nome: string;
+  }>(
+    `SELECT mt.aluno_id, t.id AS turma_id, t.nome AS turma_nome
+     FROM "MatriculaTurma" mt
+     JOIN "Turma" t ON t.id = mt.turma_id
+     WHERE mt.afastado = false`,
+  );
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id, Turma(id, nome)")
-    .eq("afastado", false);
-
-  const matriculas = throwOnError(matriculasResult);
   const turmasPorAluno = new Map<string, { id: string; nome: string }[]>();
 
   for (const m of matriculas) {
-    const turma = relOne(m.Turma) as { id: string; nome: string } | null;
-    if (!turma) continue;
     const list = turmasPorAluno.get(m.aluno_id) ?? [];
-    if (!list.some((t) => t.id === turma.id)) {
-      list.push({ id: turma.id, nome: turma.nome });
+    if (!list.some((t) => t.id === m.turma_id)) {
+      list.push({ id: m.turma_id, nome: m.turma_nome });
     }
     turmasPorAluno.set(m.aluno_id, list);
   }
@@ -397,26 +407,39 @@ export async function listarAlunosAdmin(filtros?: {
 }
 
 export async function obterTurmaAdmin(turmaId: string) {
-  const turmaResult = await supabase
-    .from("Turma")
-    .select(
-      "id, nome, modalidade, nivel, codigo_convite, local, horario_inicio, horario_fim, mensalidade_centavos, dia_vencimento, foto_url, criado_em, professor_id, Professor(id, Usuario(nome))",
-    )
-    .eq("id", turmaId)
-    .maybeSingle();
+  const turma = await queryMaybeOne<{
+    id: string;
+    nome: string;
+    modalidade: string;
+    nivel: string;
+    codigo_convite: string;
+    local: string | null;
+    horario_inicio: string | null;
+    horario_fim: string | null;
+    mensalidade_centavos: number | null;
+    dia_vencimento: number | null;
+    foto_url: string | null;
+    criado_em: string;
+    professor_id: string;
+    professor_row_id: string;
+    professor_nome: string;
+  }>(
+    `SELECT t.id, t.nome, t.modalidade, t.nivel, t.codigo_convite, t.local,
+            t.horario_inicio, t.horario_fim, t.mensalidade_centavos, t.dia_vencimento,
+            t.foto_url, t.criado_em, t.professor_id,
+            pr.id AS professor_row_id, u.nome AS professor_nome
+     FROM "Turma" t
+     JOIN "Professor" pr ON pr.id = t.professor_id
+     JOIN "Usuario" u ON u.id = pr.usuario_id
+     WHERE t.id = $1`,
+    [turmaId],
+  );
 
-  const turma = turmaResult.data;
   if (!turma) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const professorRow = relOne(turma.Professor) as {
-    id: string;
-    Usuario: { nome: string } | { nome: string }[] | null;
-  } | null;
-  const usuario = professorRow ? relOne(professorRow.Usuario) : null;
-
-  const alunosDoProfessor = await listarAlunos(turma.professor_id as string);
+  const alunosDoProfessor = await listarAlunos(turma.professor_id);
   const alunos = alunosDoProfessor
     .filter((a) => a.turmas.some((t) => t.id === turmaId))
     .map((a) => ({
@@ -439,11 +462,11 @@ export async function obterTurmaAdmin(turmaId: string) {
     horarioFim: turma.horario_fim,
     mensalidadeCentavos: turma.mensalidade_centavos,
     diaVencimento: turma.dia_vencimento,
-    fotoUrl: (turma.foto_url as string | null) ?? null,
+    fotoUrl: turma.foto_url ?? null,
     criadoEm: new Date(turma.criado_em).toISOString(),
     professor: {
-      id: (professorRow?.id ?? turma.professor_id) as string,
-      nome: usuario?.nome ?? "Professor",
+      id: turma.professor_row_id,
+      nome: turma.professor_nome,
     },
     totalAlunos: alunos.length,
     alunos,
@@ -451,77 +474,77 @@ export async function obterTurmaAdmin(turmaId: string) {
 }
 
 export async function obterAlunoAdmin(alunoId: string) {
-  const alunoResult = await supabase
-    .from("Aluno")
-    .select("*, Usuario(criado_em)")
-    .eq("id", alunoId)
-    .maybeSingle();
-
-  const aluno = alunoResult.data as
-    | (Record<string, unknown> & {
-        id: string;
-        nome: string;
-        sobrenome: string | null;
-        telefone: string | null;
-        email: string | null;
-        rg: string | null;
-        cpf: string | null;
-        criado_em: string;
-        Usuario: { criado_em: string } | { criado_em: string }[] | null;
-      })
-    | null;
+  const aluno = await queryMaybeOne<{
+    id: string;
+    nome: string;
+    sobrenome: string | null;
+    telefone: string | null;
+    email: string | null;
+    rg: string | null;
+    cpf: string | null;
+    criado_em: string;
+    conta_criada_em: string | null;
+  }>(
+    `SELECT a.id, a.nome, a.sobrenome, a.telefone, a.email, a.rg, a.cpf, a.criado_em,
+            u.criado_em AS conta_criada_em
+     FROM "Aluno" a
+     LEFT JOIN "Usuario" u ON u.id = a.usuario_id
+     WHERE a.id = $1`,
+    [alunoId],
+  );
 
   if (!aluno) {
     throw new AppError(404, "NOT_FOUND", "Aluno não encontrado");
   }
 
-  const usuario = relOne(aluno.Usuario);
+  const matriculas = await query<{
+    posicao: string | null;
+    numero_camisa: number | null;
+    bloqueado_inadimplencia: boolean;
+    matriculado_em: string;
+    turma_id: string;
+    turma_nome: string;
+    professor_id: string;
+    professor_row_id: string;
+    professor_nome: string;
+  }>(
+    `SELECT mt.posicao, mt.numero_camisa, mt.bloqueado_inadimplencia, mt.matriculado_em,
+            t.id AS turma_id, t.nome AS turma_nome, t.professor_id,
+            pr.id AS professor_row_id, u.nome AS professor_nome
+     FROM "MatriculaTurma" mt
+     JOIN "Turma" t ON t.id = mt.turma_id
+     JOIN "Professor" pr ON pr.id = t.professor_id
+     JOIN "Usuario" u ON u.id = pr.usuario_id
+     WHERE mt.aluno_id = $1 AND mt.afastado = false`,
+    [alunoId],
+  );
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select(
-      "posicao, numero_camisa, bloqueado_inadimplencia, matriculado_em, Turma(id, nome, professor_id, Professor(id, Usuario(nome)))",
-    )
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false);
+  const turmas = matriculas.map((m) => ({
+    id: m.turma_id,
+    nome: m.turma_nome,
+    professorId: m.professor_row_id,
+    professorNome: m.professor_nome,
+    numeroCamisa: m.numero_camisa,
+    posicao: m.posicao,
+    bloqueadoInadimplencia: m.bloqueado_inadimplencia ?? false,
+    matriculadoEm: new Date(m.matriculado_em).toISOString(),
+  }));
 
-  const matriculas = throwOnError(matriculasResult);
+  const pagamentos = await query<{
+    id: string;
+    mes_referencia: string;
+    valor_centavos: number;
+    status: string;
+    vencimento: string | null;
+  }>(
+    `SELECT id, mes_referencia, valor_centavos, status, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = $1
+     ORDER BY mes_referencia DESC
+     LIMIT 12`,
+    [alunoId],
+  );
 
-  const turmas = matriculas.flatMap((m) => {
-    const t = relOne(m.Turma) as {
-      id: string;
-      nome: string;
-      professor_id: string;
-      Professor:
-        | { id: string; Usuario: { nome: string } | { nome: string }[] | null }
-        | { id: string; Usuario: { nome: string } | { nome: string }[] | null }[]
-        | null;
-    } | null;
-    if (!t) return [];
-    const prof = relOne(t.Professor);
-    const profUsuario = prof ? relOne(prof.Usuario) : null;
-    return [
-      {
-        id: t.id,
-        nome: t.nome,
-        professorId: (prof?.id ?? t.professor_id) as string,
-        professorNome: profUsuario?.nome ?? "Professor",
-        numeroCamisa: m.numero_camisa as number | null,
-        posicao: m.posicao as string | null,
-        bloqueadoInadimplencia: (m.bloqueado_inadimplencia as boolean) ?? false,
-        matriculadoEm: new Date(m.matriculado_em as string).toISOString(),
-      },
-    ];
-  });
-
-  const pagamentosResult = await supabase
-    .from("Pagamento")
-    .select("*")
-    .eq("aluno_id", alunoId)
-    .order("mes_referencia", { ascending: false })
-    .limit(12);
-
-  const pagamentos = throwOnError(pagamentosResult);
   const hoje = new Date();
 
   const mensalidades = pagamentos
@@ -543,8 +566,8 @@ export async function obterAlunoAdmin(alunoId: string) {
     rg: aluno.rg ?? null,
     cpf: aluno.cpf ?? null,
     criadoEm: new Date(aluno.criado_em).toISOString(),
-    contaCriadaEm: usuario?.criado_em
-      ? new Date(usuario.criado_em).toISOString()
+    contaCriadaEm: aluno.conta_criada_em
+      ? new Date(aluno.conta_criada_em).toISOString()
       : null,
     turmas,
     mensalidades,
@@ -552,48 +575,52 @@ export async function obterAlunoAdmin(alunoId: string) {
 }
 
 export async function listarTurmasAdmin(busca?: string) {
-  const result = await supabase
-    .from("Turma")
-    .select(
-      "id, nome, modalidade, codigo_convite, professor_id, Professor(id, Usuario(nome))",
-    )
-    .order("nome", { ascending: true });
+  const turmas = await query<{
+    id: string;
+    nome: string;
+    modalidade: string;
+    codigo_convite: string;
+    professor_id: string;
+    professor_row_id: string;
+    professor_nome: string;
+  }>(
+    `SELECT t.id, t.nome, t.modalidade, t.codigo_convite, t.professor_id,
+            pr.id AS professor_row_id, u.nome AS professor_nome
+     FROM "Turma" t
+     JOIN "Professor" pr ON pr.id = t.professor_id
+     JOIN "Usuario" u ON u.id = pr.usuario_id
+     ORDER BY t.nome ASC`,
+  );
 
-  const turmas = throwOnError(result);
   const termo = busca?.trim().toLowerCase() ?? "";
   const items = [];
 
   for (const t of turmas) {
-    const prof = relOne(t.Professor) as {
-      id: string;
-      Usuario: { nome: string } | { nome: string }[] | null;
-    } | null;
-    const usuario = prof ? relOne(prof.Usuario) : null;
-    const professorNome = usuario?.nome ?? "Professor";
+    const professorNome = t.professor_nome;
 
     if (
       termo &&
       !t.nome.toLowerCase().includes(termo) &&
       !professorNome.toLowerCase().includes(termo) &&
-      !(t.codigo_convite as string).toLowerCase().includes(termo)
+      !t.codigo_convite.toLowerCase().includes(termo)
     ) {
       continue;
     }
 
-    const { count } = await supabase
-      .from("MatriculaTurma")
-      .select("*", { count: "exact", head: true })
-      .eq("turma_id", t.id)
-      .eq("afastado", false);
+    const totalAlunos = await countQuery(
+      `SELECT COUNT(*)::text AS count FROM "MatriculaTurma"
+       WHERE turma_id = $1 AND afastado = false`,
+      [t.id],
+    );
 
     items.push({
-      id: t.id as string,
-      nome: t.nome as string,
-      modalidade: t.modalidade as string,
-      professorId: (prof?.id ?? t.professor_id) as string,
+      id: t.id,
+      nome: t.nome,
+      modalidade: t.modalidade,
+      professorId: t.professor_row_id,
       professorNome,
-      totalAlunos: count ?? 0,
-      codigoConvite: t.codigo_convite as string,
+      totalAlunos,
+      codigoConvite: t.codigo_convite,
     });
   }
 
@@ -601,61 +628,53 @@ export async function listarTurmasAdmin(busca?: string) {
 }
 
 export async function listarBloqueiosAdmin() {
-  const result = await supabase
-    .from("MatriculaTurma")
-    .select(
-      "aluno_id, turma_id, Aluno(id, nome, sobrenome), Turma(id, nome, Professor(Usuario(nome)))",
-    )
-    .eq("afastado", false)
-    .eq("bloqueado_inadimplencia", true);
+  const rows = await query<{
+    aluno_id: string;
+    aluno_nome: string;
+    aluno_sobrenome: string | null;
+    turma_id: string;
+    turma_nome: string;
+    professor_nome: string;
+  }>(
+    `SELECT a.id AS aluno_id, a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+            t.id AS turma_id, t.nome AS turma_nome, u.nome AS professor_nome
+     FROM "MatriculaTurma" mt
+     JOIN "Aluno" a ON a.id = mt.aluno_id
+     JOIN "Turma" t ON t.id = mt.turma_id
+     JOIN "Professor" pr ON pr.id = t.professor_id
+     JOIN "Usuario" u ON u.id = pr.usuario_id
+     WHERE mt.afastado = false AND mt.bloqueado_inadimplencia = true`,
+  );
 
-  const rows = throwOnError(result);
-
-  return rows.flatMap((m) => {
-    const aluno = relOne(m.Aluno) as {
-      id: string;
-      nome: string;
-      sobrenome: string | null;
-    } | null;
-    const turma = relOne(m.Turma) as {
-      id: string;
-      nome: string;
-      Professor:
-        | { Usuario: { nome: string } | { nome: string }[] | null }
-        | { Usuario: { nome: string } | { nome: string }[] | null }[]
-        | null;
-    } | null;
-    if (!aluno || !turma) return [];
-    const prof = relOne(turma.Professor);
-    const usuario = prof ? relOne(prof.Usuario) : null;
-    return [
-      {
-        alunoId: aluno.id,
-        alunoNome: [aluno.nome, aluno.sobrenome].filter(Boolean).join(" "),
-        turmaId: turma.id,
-        turmaNome: turma.nome,
-        professorNome: usuario?.nome ?? "Professor",
-      },
-    ];
-  });
+  return rows.map((m) => ({
+    alunoId: m.aluno_id,
+    alunoNome: [m.aluno_nome, m.aluno_sobrenome].filter(Boolean).join(" "),
+    turmaId: m.turma_id,
+    turmaNome: m.turma_nome,
+    professorNome: m.professor_nome,
+  }));
 }
 
 export async function matricularAlunoAdmin(alunoId: string, turmaId: string) {
-  const aluno = await supabase.from("Aluno").select("id").eq("id", alunoId).maybeSingle();
-  if (!aluno.data) throw new AppError(404, "NOT_FOUND", "Aluno não encontrado");
+  const aluno = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Aluno" WHERE id = $1`,
+    [alunoId],
+  );
+  if (!aluno) throw new AppError(404, "NOT_FOUND", "Aluno não encontrado");
 
-  const turma = await supabase.from("Turma").select("id").eq("id", turmaId).maybeSingle();
-  if (!turma.data) throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  const turma = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1`,
+    [turmaId],
+  );
+  if (!turma) throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
 
-  const ativa = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const ativa = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (ativa.data) {
+  if (ativa) {
     throw new AppError(409, "JA_MATRICULADO", "Aluno já está nesta turma");
   }
 
@@ -665,23 +684,19 @@ export async function matricularAlunoAdmin(alunoId: string, turmaId: string) {
 }
 
 export async function afastarAlunoAdmin(alunoId: string, turmaId: string) {
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Aluno não está nesta turma");
   }
 
-  throwOnError(
-    await supabase
-      .from("MatriculaTurma")
-      .update({ afastado: true })
-      .eq("id", matriculaResult.data.id),
+  await execute(
+    `UPDATE "MatriculaTurma" SET afastado = true WHERE id = $1`,
+    [matricula.id],
   );
 
   return { ok: true };
@@ -702,27 +717,27 @@ export async function trocarTurmaAdmin(
 }
 
 export async function desbloquearAlunoAdmin(alunoId: string, turmaId: string) {
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("id, bloqueado_inadimplencia")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{
+    id: string;
+    bloqueado_inadimplencia: boolean;
+  }>(
+    `SELECT id, bloqueado_inadimplencia
+     FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Matrícula não encontrada");
   }
 
-  if (!matriculaResult.data.bloqueado_inadimplencia) {
+  if (!matricula.bloqueado_inadimplencia) {
     throw new AppError(400, "NAO_BLOQUEADO", "Aluno não está bloqueado por inadimplência");
   }
 
-  throwOnError(
-    await supabase
-      .from("MatriculaTurma")
-      .update({ bloqueado_inadimplencia: false })
-      .eq("id", matriculaResult.data.id),
+  await execute(
+    `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = false WHERE id = $1`,
+    [matricula.id],
   );
 
   return { ok: true };

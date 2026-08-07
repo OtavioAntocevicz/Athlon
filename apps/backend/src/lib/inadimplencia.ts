@@ -1,5 +1,4 @@
-import { supabase } from "../config/supabase.js";
-import { throwOnError } from "./db.js";
+import { execute, query, queryMaybeOne } from "./db.js";
 import { AppError } from "../middleware/error-handler.js";
 import { statusEfetivo } from "./mensalidade-focus.js";
 import { isMesFuturo } from "./utils.js";
@@ -18,78 +17,91 @@ export function contarAtrasadasPorTurma(
 }
 
 export async function sincronizarBloqueiosInadimplencia() {
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("id, aluno_id, turma_id, bloqueado_inadimplencia")
-    .eq("afastado", false);
-
-  const matriculas = throwOnError(matriculasResult);
+  const matriculas = await query<{
+    id: string;
+    aluno_id: string;
+    turma_id: string;
+    bloqueado_inadimplencia: boolean;
+  }>(
+    `SELECT id, aluno_id, turma_id, bloqueado_inadimplencia
+     FROM "MatriculaTurma"
+     WHERE afastado = false`,
+  );
   const hoje = new Date();
 
   for (const m of matriculas) {
-    const pagResult = await supabase
-      .from("Pagamento")
-      .select("status, mes_referencia, vencimento")
-      .eq("aluno_id", m.aluno_id)
-      .eq("turma_id", m.turma_id);
-
-    const pagamentos = pagResult.data ?? [];
+    const pagamentos = await query<{
+      status: string;
+      mes_referencia: string;
+      vencimento: string | null;
+    }>(
+      `SELECT status, mes_referencia, vencimento
+       FROM "Pagamento"
+       WHERE aluno_id = $1 AND turma_id = $2`,
+      [m.aluno_id, m.turma_id],
+    );
     const atrasadas = contarAtrasadasPorTurma(pagamentos, m.turma_id, hoje);
     const deveBloquear = atrasadas >= MESES_PARA_BLOQUEIO;
 
     if (deveBloquear !== m.bloqueado_inadimplencia) {
-      await supabase
-        .from("MatriculaTurma")
-        .update({ bloqueado_inadimplencia: deveBloquear })
-        .eq("id", m.id);
+      await execute(
+        `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = $1 WHERE id = $2`,
+        [deveBloquear, m.id],
+      );
     }
   }
 }
 
 export async function sincronizarBloqueioAluno(alunoId: string) {
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("id, aluno_id, turma_id, bloqueado_inadimplencia")
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false);
-
-  const matriculas = throwOnError(matriculasResult);
+  const matriculas = await query<{
+    id: string;
+    aluno_id: string;
+    turma_id: string;
+    bloqueado_inadimplencia: boolean;
+  }>(
+    `SELECT id, aluno_id, turma_id, bloqueado_inadimplencia
+     FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND afastado = false`,
+    [alunoId],
+  );
   const hoje = new Date();
 
   for (const m of matriculas) {
-    const pagResult = await supabase
-      .from("Pagamento")
-      .select("status, mes_referencia, vencimento")
-      .eq("aluno_id", m.aluno_id)
-      .eq("turma_id", m.turma_id);
-
-    const atrasadas = contarAtrasadasPorTurma(pagResult.data ?? [], m.turma_id, hoje);
+    const pagamentos = await query<{
+      status: string;
+      mes_referencia: string;
+      vencimento: string | null;
+    }>(
+      `SELECT status, mes_referencia, vencimento
+       FROM "Pagamento"
+       WHERE aluno_id = $1 AND turma_id = $2`,
+      [m.aluno_id, m.turma_id],
+    );
+    const atrasadas = contarAtrasadasPorTurma(pagamentos, m.turma_id, hoje);
     const deveBloquear = atrasadas >= MESES_PARA_BLOQUEIO;
 
     if (deveBloquear !== m.bloqueado_inadimplencia) {
-      await supabase
-        .from("MatriculaTurma")
-        .update({ bloqueado_inadimplencia: deveBloquear })
-        .eq("id", m.id);
+      await execute(
+        `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = $1 WHERE id = $2`,
+        [deveBloquear, m.id],
+      );
     }
   }
 }
 
 export async function listarBloqueiosAluno(alunoId: string) {
-  const result = await supabase
-    .from("MatriculaTurma")
-    .select("bloqueado_inadimplencia, Turma(id, nome)")
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false)
-    .eq("bloqueado_inadimplencia", true);
+  const matriculas = await query<{ turma_id: string; turma_nome: string }>(
+    `SELECT t.id AS turma_id, t.nome AS turma_nome
+     FROM "MatriculaTurma" mt
+     JOIN "Turma" t ON t.id = mt.turma_id
+     WHERE mt.aluno_id = $1 AND mt.afastado = false AND mt.bloqueado_inadimplencia = true`,
+    [alunoId],
+  );
 
-  const matriculas = throwOnError(result);
-  return matriculas.flatMap((m) => {
-    const t = m.Turma as { id: string; nome: string } | { id: string; nome: string }[] | null;
-    const turma = Array.isArray(t) ? t[0] : t;
-    if (!turma) return [];
-    return [{ turmaId: turma.id, turmaNome: turma.nome }];
-  });
+  return matriculas.map((m) => ({
+    turmaId: m.turma_id,
+    turmaNome: m.turma_nome,
+  }));
 }
 
 export async function preverDesbloqueioInadimplencia(
@@ -97,26 +109,31 @@ export async function preverDesbloqueioInadimplencia(
   turmaId: string,
   pagamentoIdAPagar: string,
 ): Promise<{ bloqueado: boolean; desbloquearaAoPagar: boolean }> {
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("bloqueado_inadimplencia")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ bloqueado_inadimplencia: boolean }>(
+    `SELECT bloqueado_inadimplencia
+     FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data?.bloqueado_inadimplencia) {
+  if (!matricula?.bloqueado_inadimplencia) {
     return { bloqueado: false, desbloquearaAoPagar: false };
   }
 
-  const pagResult = await supabase
-    .from("Pagamento")
-    .select("id, status, mes_referencia, vencimento")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId);
+  const pagamentos = await query<{
+    id: string;
+    status: string;
+    mes_referencia: string;
+    vencimento: string | null;
+  }>(
+    `SELECT id, status, mes_referencia, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = $1 AND turma_id = $2`,
+    [alunoId, turmaId],
+  );
 
   const hoje = new Date();
-  const simulados = (pagResult.data ?? []).map((p) =>
+  const simulados = pagamentos.map((p) =>
     p.id === pagamentoIdAPagar ? { ...p, status: "PAGO" } : p,
   );
   const atrasadas = contarAtrasadasPorTurma(simulados, turmaId, hoje);
@@ -132,38 +149,33 @@ export async function desbloquearInadimplencia(
   turmaId: string,
   professorId: string,
 ) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turma = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turma) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("id, bloqueado_inadimplencia")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string; bloqueado_inadimplencia: boolean }>(
+    `SELECT id, bloqueado_inadimplencia
+     FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Matrícula não encontrada");
   }
 
-  if (!matriculaResult.data.bloqueado_inadimplencia) {
+  if (!matricula.bloqueado_inadimplencia) {
     throw new AppError(400, "NAO_BLOQUEADO", "Aluno não está bloqueado por inadimplência");
   }
 
-  throwOnError(
-    await supabase
-      .from("MatriculaTurma")
-      .update({ bloqueado_inadimplencia: false })
-      .eq("id", matriculaResult.data.id),
+  await execute(
+    `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = false WHERE id = $1`,
+    [matricula.id],
   );
 
   return { ok: true };

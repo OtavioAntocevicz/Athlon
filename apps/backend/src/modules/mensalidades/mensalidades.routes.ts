@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { supabase } from "../../config/supabase.js";
+import { query } from "../../lib/db.js";
 import { authenticate, requireProfessor } from "../../middleware/auth.js";
 import * as mensalidadesService from "./mensalidades.service.js";
 import type { StatusMensalidade } from "@athlon/shared-types";
@@ -52,12 +52,12 @@ mensalidadesRouter.post("/gerar", requireProfessor, async (req, res, next) => {
     if (turmaId) {
       await mensalidadesService.gerarMensalidadesParaTurma(turmaId);
     } else {
-      const { data: turmas } = await supabase
-        .from("Turma")
-        .select("id")
-        .eq("professor_id", req.user!.professorId!);
+      const turmas = await query<{ id: string }>(
+        `SELECT id FROM "Turma" WHERE professor_id = $1`,
+        [req.user!.professorId!],
+      );
 
-      for (const t of turmas ?? []) {
+      for (const t of turmas) {
         await mensalidadesService.gerarMensalidadesParaTurma(t.id);
       }
     }

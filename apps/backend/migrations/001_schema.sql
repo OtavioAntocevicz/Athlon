@@ -1,25 +1,14 @@
--- ATHLON - schema completo (banco novo)
--- Aplique no SQL Editor do Supabase ou via Supabase CLI.
--- Bancos já em produção foram migrados incrementalmente; não reaplique em banco com dados.
---
--- Após o deploy na Vercel, configure o cron de avisos horários:
---
--- INSERT INTO "_athlon_cron_config" (vercel_url, cron_secret)
--- VALUES ('https://seu-app.vercel.app', 'mesmo-CRON_SECRET-da-vercel')
--- ON CONFLICT (id) DO UPDATE SET
---   vercel_url = EXCLUDED.vercel_url,
---   cron_secret = EXCLUDED.cron_secret;
+-- ATHLON - schema PostgreSQL (Railway)
+-- Banco novo: execute via `pnpm db:migrate`
 
 CREATE SCHEMA IF NOT EXISTS "public";
-
-CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
-CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
 
 CREATE TYPE "PerfilUsuario" AS ENUM ('PROFESSOR', 'ALUNO', 'ADM');
 CREATE TYPE "StatusMensalidade" AS ENUM ('PENDENTE', 'EM_ANALISE', 'PAGO', 'RECUSADO', 'ATRASADO');
 CREATE TYPE "NivelTurma" AS ENUM ('INICIANTE', 'INTERMEDIARIO', 'AVANCADO');
-CREATE TYPE "TipoEvento" AS ENUM ('TREINO', 'JOGO', 'TORNEIO');
+CREATE TYPE "TipoEvento" AS ENUM ('TREINO', 'JOGO', 'TORNEIO', 'AMISTOSO', 'CAMPEONATO');
 CREATE TYPE "StatusPresenca" AS ENUM ('PENDENTE', 'CONFIRMADA', 'AUSENTE');
+CREATE TYPE "StatusChamado" AS ENUM ('ABERTO', 'RESPONDIDO', 'FECHADO');
 
 CREATE TABLE "Usuario" (
     "id" TEXT NOT NULL,
@@ -56,6 +45,7 @@ CREATE TABLE "Turma" (
     "mensalidade_centavos" INTEGER,
     "dia_vencimento" INTEGER,
     "chave_pix" TEXT,
+    "foto_url" TEXT,
     "criado_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "atualizado_em" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "Turma_pkey" PRIMARY KEY ("id")
@@ -108,7 +98,7 @@ CREATE TABLE "Pagamento" (
 CREATE TABLE "Comprovante" (
     "id" TEXT NOT NULL,
     "pagamento_id" TEXT NOT NULL,
-    "arquivo_url" TEXT NOT NULL,
+    "arquivo_url" TEXT,
     "enviado_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "revisado_em" TIMESTAMP(3),
     "motivo_recusa" TEXT,
@@ -122,10 +112,12 @@ CREATE TABLE "Evento" (
     "tipo" "TipoEvento" NOT NULL,
     "titulo" TEXT NOT NULL,
     "descricao" TEXT,
+    "adversario" TEXT,
     "local" TEXT,
     "inicio" TIMESTAMP(3) NOT NULL,
     "fim" TIMESTAMP(3),
     "permite_confirmacao_aluno" BOOLEAN NOT NULL DEFAULT true,
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
     "criado_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "atualizado_em" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "Evento_pkey" PRIMARY KEY ("id")
@@ -202,10 +194,22 @@ CREATE TABLE "RecuperacaoSenha" (
     CONSTRAINT "RecuperacaoSenha_pkey" PRIMARY KEY ("id")
 );
 
-CREATE TABLE "_athlon_cron_config" (
-    "id" int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    "vercel_url" text,
-    "cron_secret" text
+CREATE TABLE "Chamado" (
+    "id" TEXT NOT NULL,
+    "aluno_id" TEXT,
+    "professor_id" TEXT,
+    "assunto" TEXT NOT NULL,
+    "mensagem" TEXT NOT NULL,
+    "status" "StatusChamado" NOT NULL DEFAULT 'ABERTO',
+    "resposta_admin" TEXT,
+    "respondido_em" TIMESTAMP(3),
+    "criado_em" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "atualizado_em" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "Chamado_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "Chamado_autor_chk" CHECK (
+      ("aluno_id" IS NOT NULL AND "professor_id" IS NULL)
+      OR ("aluno_id" IS NULL AND "professor_id" IS NOT NULL)
+    )
 );
 
 CREATE UNIQUE INDEX "Usuario_email_key" ON "Usuario"("email");
@@ -226,6 +230,16 @@ CREATE UNIQUE INDEX "Dispositivo_usuario_push_token_key"
   ON "Dispositivo"("usuario_id", "push_token");
 CREATE INDEX "Dispositivo_usuario_id_idx"
   ON "Dispositivo"("usuario_id");
+CREATE INDEX "Evento_turma_id_inicio_idx"
+  ON "Evento"("turma_id", "inicio");
+CREATE INDEX "Evento_ativo_inicio_idx"
+  ON "Evento"("ativo", "inicio");
+CREATE INDEX "Chamado_aluno_id_criado_em_idx"
+  ON "Chamado"("aluno_id", "criado_em" DESC);
+CREATE INDEX "Chamado_professor_id_criado_em_idx"
+  ON "Chamado"("professor_id", "criado_em" DESC);
+CREATE INDEX "Chamado_status_criado_em_idx"
+  ON "Chamado"("status", "criado_em" DESC);
 
 ALTER TABLE "Professor"
   ADD CONSTRAINT "Professor_usuario_id_fkey"
@@ -299,78 +313,16 @@ ALTER TABLE "RecuperacaoSenha"
   ADD CONSTRAINT "RecuperacaoSenha_usuario_id_fkey"
   FOREIGN KEY ("usuario_id") REFERENCES "Usuario"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Acesso apenas via service role (backend)
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+ALTER TABLE "Chamado"
+  ADD CONSTRAINT "Chamado_aluno_id_fkey"
+  FOREIGN KEY ("aluno_id") REFERENCES "Aluno"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- RLS em todas as tabelas expostas ao PostgREST (service_role bypassa RLS)
-ALTER TABLE "Usuario" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Professor" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Turma" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Aluno" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "MatriculaTurma" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Pagamento" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Comprovante" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Evento" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Presenca" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Notificacao" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Dispositivo" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "TokenPushFcm" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "AvisoProfessor" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "RecuperacaoSenha" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "_athlon_cron_config" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Chamado"
+  ADD CONSTRAINT "Chamado_professor_id_fkey"
+  FOREIGN KEY ("professor_id") REFERENCES "Professor"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Cron horario de avisos agendados (pg_cron + pg_net)
--- O plano Hobby da Vercel so permite crons no maximo 1x por dia; avisos rodam aqui.
-CREATE OR REPLACE FUNCTION public.trigger_avisos_cron()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  cfg record;
-BEGIN
-  SELECT vercel_url, cron_secret INTO cfg
-  FROM "_athlon_cron_config"
-  WHERE id = 1;
-
-  IF cfg.vercel_url IS NULL OR cfg.cron_secret IS NULL THEN
-    RETURN;
-  END IF;
-
-  PERFORM net.http_get(
-    url := rtrim(cfg.vercel_url, '/') || '/api/cron/avisos',
-    headers := jsonb_build_object(
-      'Authorization', 'Bearer ' || cfg.cron_secret
-    )
-  );
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.trigger_avisos_cron() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.trigger_avisos_cron() TO postgres;
-
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'athlon-avisos-hourly') THEN
-    PERFORM cron.unschedule('athlon-avisos-hourly');
-  END IF;
-END $$;
-
-SELECT cron.schedule(
-  'athlon-avisos-hourly',
-  '0 * * * *',
-  $$SELECT public.trigger_avisos_cron();$$
+CREATE TABLE IF NOT EXISTS "_schema_migrations" (
+  "id" SERIAL PRIMARY KEY,
+  "name" TEXT NOT NULL UNIQUE,
+  "applied_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- Bucket privado para comprovantes (upload via URL assinada no backend)
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-  'comprovantes',
-  'comprovantes',
-  false,
-  10485760,
-  ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[]
-)
-ON CONFLICT (id) DO NOTHING;

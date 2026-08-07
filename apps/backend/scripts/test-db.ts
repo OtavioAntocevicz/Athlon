@@ -1,14 +1,13 @@
-import { supabase } from "../src/config/supabase.js";
+import "dotenv/config";
+import { pool } from "../src/config/database.js";
 
 async function main() {
-  const { data, error } = await supabase.from("Usuario").select("id").limit(1);
-
-  if (error) {
-    console.error("FALHA:", error.message, error.code, error.details);
-    process.exit(1);
-  }
-
-  console.log("OK - Supabase conectado via HTTPS. Registros:", data?.length ?? 0);
+  const result = await pool.query(`SELECT id FROM "Usuario" LIMIT 1`);
+  console.log("OK - PostgreSQL conectado. Registros de teste:", result.rowCount ?? 0);
+  await pool.end();
 }
 
-main();
+main().catch((err) => {
+  console.error("FALHA:", err instanceof Error ? err.message : err);
+  process.exit(1);
+});

@@ -1,11 +1,12 @@
 import bcrypt from "bcryptjs";
-import { supabase } from "../../config/supabase.js";
 import {
+  execute,
   generateId,
   matricularAlunoTurma,
   now,
-  relOne,
-  throwOnError,
+  query,
+  queryMaybeOne,
+  queryOne,
   turmaIdsDoProfessor,
 } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
@@ -18,17 +19,31 @@ import { statusEfetivo } from "../../lib/mensalidade-focus.js";
 import { isMesFuturo } from "../../lib/utils.js";
 import { gerarMensalidadesParaAluno } from "../mensalidades/mensalidades.service.js";
 
+type AlunoRow = Record<string, unknown>;
+type TurmaRow = Record<string, unknown>;
+
 export async function listarAlunos(professorId: string) {
   const turmaIds = await turmaIdsDoProfessor(professorId);
   if (turmaIds.length === 0) return [];
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("aluno_id, Turma(id, nome), Aluno(*)")
-    .in("turma_id", turmaIds)
-    .eq("afastado", false);
+  const matriculas = await query<{
+    aluno_id: string;
+    turma_id: string;
+    turma_nome: string;
+    nome: string;
+    sobrenome: string | null;
+    telefone: string | null;
+    email: string | null;
+  }>(
+    `SELECT m.aluno_id, t.id AS turma_id, t.nome AS turma_nome,
+            a.nome, a.sobrenome, a.telefone, a.email
+     FROM "MatriculaTurma" m
+     JOIN "Aluno" a ON a.id = m.aluno_id
+     JOIN "Turma" t ON t.id = m.turma_id
+     WHERE m.turma_id = ANY($1::text[]) AND m.afastado = false`,
+    [turmaIds],
+  );
 
-  const matriculas = throwOnError(matriculasResult);
   const hoje = new Date();
   const byAluno = new Map<
     string,
@@ -43,43 +58,32 @@ export async function listarAlunos(professorId: string) {
   >();
 
   for (const m of matriculas) {
-    const aluno = relOne(m.Aluno) as {
-      id: string;
-      nome: string;
-      sobrenome: string | null;
-      telefone: string | null;
-      email: string | null;
-    };
-    if (!aluno) continue;
-
-    const turma = relOne(m.Turma) as { id: string; nome: string };
-    if (!turma) continue;
-
-    const entry = byAluno.get(aluno.id) ?? {
-      id: aluno.id,
-      nome: aluno.nome,
-      sobrenome: aluno.sobrenome,
-      telefone: aluno.telefone,
-      email: aluno.email,
+    const entry = byAluno.get(m.aluno_id) ?? {
+      id: m.aluno_id,
+      nome: m.nome,
+      sobrenome: m.sobrenome,
+      telefone: m.telefone,
+      email: m.email,
       turmas: [],
     };
-    if (!entry.turmas.some((t) => t.id === turma.id)) {
-      entry.turmas.push({ id: turma.id, nome: turma.nome });
+    if (!entry.turmas.some((t) => t.id === m.turma_id)) {
+      entry.turmas.push({ id: m.turma_id, nome: m.turma_nome });
     }
-    byAluno.set(aluno.id, entry);
+    byAluno.set(m.aluno_id, entry);
   }
 
   const result = [];
   for (const aluno of byAluno.values()) {
-    const pagResult = await supabase
-      .from("Pagamento")
-      .select("status, mes_referencia, vencimento")
-      .eq("aluno_id", aluno.id)
-      .order("mes_referencia", { ascending: false });
+    const pagamentos = (
+      await query<{ status: string; mes_referencia: string; vencimento: string | null }>(
+        `SELECT status, mes_referencia, vencimento
+         FROM "Pagamento"
+         WHERE aluno_id = $1
+         ORDER BY mes_referencia DESC`,
+        [aluno.id],
+      )
+    ).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
 
-    const pagamentos = (pagResult.data ?? []).filter(
-      (p) => !isMesFuturo(p.mes_referencia, hoje),
-    );
     const ultimo = pagamentos[0];
     const statusFinanceiro = ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE";
     const nomeCompleto = [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ");
@@ -103,42 +107,52 @@ export async function getAluno(
   id: string,
   user: { perfil: string; professorId?: string; alunoId?: string },
 ) {
-  const alunoResult = await supabase
-    .from("Aluno")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  const aluno = throwOnError(alunoResult, { message: "Aluno não encontrado" });
+  const aluno = await queryOne<AlunoRow>(
+    `SELECT * FROM "Aluno" WHERE id = $1`,
+    [id],
+    { message: "Aluno não encontrado" },
+  );
 
   if (user.perfil === "ALUNO" && aluno.id !== user.alunoId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
 
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("posicao, numero_camisa, bloqueado_inadimplencia, Turma(id, nome, professor_id)")
-    .eq("aluno_id", id)
-    .eq("afastado", false);
-
-  const matriculas = throwOnError(matriculasResult);
+  const matriculas = await query<{
+    posicao: string | null;
+    numero_camisa: number | null;
+    bloqueado_inadimplencia: boolean;
+    turma_id: string;
+    turma_nome: string;
+    professor_id: string;
+  }>(
+    `SELECT m.posicao, m.numero_camisa, m.bloqueado_inadimplencia,
+            t.id AS turma_id, t.nome AS turma_nome, t.professor_id
+     FROM "MatriculaTurma" m
+     JOIN "Turma" t ON t.id = m.turma_id
+     WHERE m.aluno_id = $1 AND m.afastado = false`,
+    [id],
+  );
 
   if (user.perfil === "PROFESSOR") {
-    const owns = matriculas.some((m) => {
-      const t = relOne(m.Turma) as { professor_id: string } | undefined;
-      return t?.professor_id === user.professorId;
-    });
+    const owns = matriculas.some((m) => m.professor_id === user.professorId);
     if (!owns) throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
 
-  const pagamentosResult = await supabase
-    .from("Pagamento")
-    .select("*")
-    .eq("aluno_id", id)
-    .order("mes_referencia", { ascending: false })
-    .limit(12);
+  const pagamentos = await query<{
+    id: string;
+    mes_referencia: string;
+    valor_centavos: number;
+    status: string;
+    vencimento: string | null;
+  }>(
+    `SELECT id, mes_referencia, valor_centavos, status, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = $1
+     ORDER BY mes_referencia DESC
+     LIMIT 12`,
+    [id],
+  );
 
-  const pagamentos = throwOnError(pagamentosResult);
   const hoje = new Date();
 
   const mensalidades = pagamentos
@@ -159,19 +173,13 @@ export async function getAluno(
     email: aluno.email,
     rg: aluno.rg ?? null,
     cpf: aluno.cpf ?? null,
-    turmas: matriculas.flatMap((m) => {
-      const t = relOne(m.Turma) as { id: string; nome: string } | undefined;
-      if (!t) return [];
-      return [
-        {
-          id: t.id,
-          nome: t.nome,
-          numeroCamisa: m.numero_camisa,
-          posicao: m.posicao,
-          bloqueadoInadimplencia: m.bloqueado_inadimplencia ?? false,
-        },
-      ];
-    }),
+    turmas: matriculas.map((m) => ({
+      id: m.turma_id,
+      nome: m.turma_nome,
+      numeroCamisa: m.numero_camisa,
+      posicao: m.posicao,
+      bloqueadoInadimplencia: m.bloqueado_inadimplencia ?? false,
+    })),
     mensalidades,
   };
 }
@@ -181,14 +189,12 @@ export async function adicionarAlunoTurma(
   professorId: string,
   input: CreateAlunoInput,
 ) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turmaCheck = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turmaCheck) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
@@ -196,88 +202,62 @@ export async function adicionarAlunoTurma(
   const ts = now();
 
   if (input.email) {
-    const usuarioResult = await supabase
-      .from("Usuario")
-      .select("id, Aluno(id)")
-      .eq("email", input.email)
-      .maybeSingle();
+    const usuario = await queryMaybeOne<{ id: string; aluno_id: string | null }>(
+      `SELECT u.id, a.id AS aluno_id
+       FROM "Usuario" u
+       LEFT JOIN "Aluno" a ON a.usuario_id = u.id
+       WHERE u.email = $1`,
+      [input.email],
+    );
 
-    const usuario = usuarioResult.data as {
-      id: string;
-      Aluno: { id: string }[] | { id: string } | null;
-    } | null;
-
-    const existingAluno = relOne(usuario?.Aluno);
-
-    if (existingAluno) {
-      alunoId = existingAluno.id;
+    if (usuario?.aluno_id) {
+      alunoId = usuario.aluno_id;
     } else {
       const senha = input.senha ?? Math.random().toString(36).slice(2, 10);
       const senha_hash = await bcrypt.hash(senha, 12);
       const usuarioId = generateId();
       alunoId = generateId();
 
-      throwOnError(
-        await supabase.from("Usuario").insert({
-          id: usuarioId,
-          email: input.email,
-          nome: input.nome,
-          senha_hash,
-          perfil: "ALUNO",
-          criado_em: ts,
-          atualizado_em: ts,
-        }),
+      await execute(
+        `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, criado_em, atualizado_em)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [usuarioId, input.email, input.nome, senha_hash, "ALUNO", ts, ts],
       );
 
-      throwOnError(
-        await supabase.from("Aluno").insert({
-          id: alunoId,
-          usuario_id: usuarioId,
-          nome: input.nome,
-          email: input.email,
-          telefone: input.telefone,
-          criado_em: ts,
-          atualizado_em: ts,
-        }),
+      await execute(
+        `INSERT INTO "Aluno" (id, usuario_id, nome, email, telefone, criado_em, atualizado_em)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [alunoId, usuarioId, input.nome, input.email, input.telefone, ts, ts],
       );
     }
   } else {
     alunoId = generateId();
-    throwOnError(
-      await supabase.from("Aluno").insert({
-        id: alunoId,
-        nome: input.nome,
-        telefone: input.telefone,
-        criado_em: ts,
-        atualizado_em: ts,
-      }),
+    await execute(
+      `INSERT INTO "Aluno" (id, nome, telefone, criado_em, atualizado_em)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [alunoId, input.nome, input.telefone, ts, ts],
     );
   }
 
   await matricularAlunoTurma(alunoId, turmaId);
   await gerarMensalidadesParaAluno(alunoId, turmaId);
 
-  const alunoResult = await supabase.from("Aluno").select("*").eq("id", alunoId).single();
-  return throwOnError(alunoResult);
+  return queryOne<AlunoRow>(`SELECT * FROM "Aluno" WHERE id = $1`, [alunoId]);
 }
 
 export async function previewTurmaPorCodigo(alunoId: string, codigoConvite: string) {
-  const turmaResult = await supabase
-    .from("Turma")
-    .select("*")
-    .eq("codigo_convite", codigoConvite.trim())
-    .maybeSingle();
+  const turma = await queryMaybeOne<TurmaRow>(
+    `SELECT * FROM "Turma" WHERE codigo_convite = $1`,
+    [codigoConvite.trim()],
+  );
 
-  const turma = turmaResult.data;
   if (!turma) throw new AppError(404, "CONVITE_INVALIDO", "Código inválido");
 
-  const matricula = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turma.id)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turma.id],
+  );
 
   return {
     id: turma.id,
@@ -290,7 +270,7 @@ export async function previewTurmaPorCodigo(alunoId: string, codigoConvite: stri
     mensalidadeCentavos: turma.mensalidade_centavos,
     diaVencimento: turma.dia_vencimento,
     codigoConvite: turma.codigo_convite,
-    jaMatriculado: !!matricula.data,
+    jaMatriculado: !!matricula,
   };
 }
 
@@ -300,8 +280,8 @@ export async function entrarTurma(alunoId: string, codigoConvite: string) {
     throw new AppError(409, "JA_MATRICULADO", "Você já está nesta turma");
   }
 
-  await matricularAlunoTurma(alunoId, preview.id);
-  await gerarMensalidadesParaAluno(alunoId, preview.id);
+  await matricularAlunoTurma(alunoId, preview.id as string);
+  await gerarMensalidadesParaAluno(alunoId, preview.id as string);
   return preview;
 }
 
@@ -323,93 +303,84 @@ export async function atualizarAluno(
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
 
-  const patch: Record<string, unknown> = { atualizado_em: now() };
-  if (input.nome !== undefined) patch.nome = input.nome;
-  if (input.sobrenome !== undefined) patch.sobrenome = input.sobrenome;
-  if (input.telefone !== undefined) patch.telefone = input.telefone.replace(/\D/g, "");
-  if (input.email !== undefined) patch.email = input.email;
-  if (input.rg !== undefined) patch.rg = input.rg.trim();
-  if (input.cpf !== undefined) patch.cpf = input.cpf?.replace(/\D/g, "") || null;
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
 
-  const result = await supabase.from("Aluno").update(patch).eq("id", id).select().single();
-  const aluno = throwOnError(result);
+  const addField = (column: string, value: unknown) => {
+    fields.push(`"${column}" = $${idx++}`);
+    values.push(value);
+  };
+
+  addField("atualizado_em", now());
+  if (input.nome !== undefined) addField("nome", input.nome);
+  if (input.sobrenome !== undefined) addField("sobrenome", input.sobrenome);
+  if (input.telefone !== undefined) addField("telefone", input.telefone.replace(/\D/g, ""));
+  if (input.email !== undefined) addField("email", input.email);
+  if (input.rg !== undefined) addField("rg", input.rg.trim());
+  if (input.cpf !== undefined) addField("cpf", input.cpf?.replace(/\D/g, "") || null);
+
+  values.push(id);
+
+  const aluno = await queryOne<AlunoRow & { usuario_id: string | null }>(
+    `UPDATE "Aluno" SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
+    values,
+  );
 
   if (user.perfil === "ALUNO" && (input.nome !== undefined || input.sobrenome !== undefined)) {
     const nomeCompleto = [aluno.nome, aluno.sobrenome].filter(Boolean).join(" ");
-    await supabase
-      .from("Usuario")
-      .update({ nome: nomeCompleto, atualizado_em: now() })
-      .eq("id", aluno.usuario_id);
+    await execute(
+      `UPDATE "Usuario" SET nome = $1, atualizado_em = $2 WHERE id = $3`,
+      [nomeCompleto, now(), aluno.usuario_id],
+    );
   }
 
   return aluno;
 }
 
 export async function listarMinhasTurmas(alunoId: string) {
-  const matriculasResult = await supabase
-    .from("MatriculaTurma")
-    .select("numero_camisa, posicao, Turma(*)")
-    .eq("aluno_id", alunoId)
-    .eq("afastado", false);
+  const matriculas = await query<{
+    numero_camisa: number | null;
+    posicao: string | null;
+    id: string;
+    nome: string;
+    modalidade: string;
+    local: string | null;
+    horario_inicio: string | null;
+    horario_fim: string | null;
+    mensalidade_centavos: number;
+    codigo_convite: string;
+    foto_url: string | null;
+  }>(
+    `SELECT m.numero_camisa, m.posicao,
+            t.id, t.nome, t.modalidade, t.local, t.horario_inicio, t.horario_fim,
+            t.mensalidade_centavos, t.codigo_convite, t.foto_url
+     FROM "MatriculaTurma" m
+     JOIN "Turma" t ON t.id = m.turma_id
+     WHERE m.aluno_id = $1 AND m.afastado = false`,
+    [alunoId],
+  );
 
-  const matriculas = throwOnError(matriculasResult);
-
-  return matriculas.flatMap((m) => {
-    const t = relOne(m.Turma) as {
-      id: string;
-      nome: string;
-      modalidade: string;
-      local: string | null;
-      horario_inicio: string | null;
-      horario_fim: string | null;
-      mensalidade_centavos: number;
-      codigo_convite: string;
-      foto_url: string | null;
-    } | null;
-    if (!t) return [];
-    return [
-      {
-        id: t.id,
-        nome: t.nome,
-        modalidade: t.modalidade,
-        local: t.local,
-        horarioInicio: t.horario_inicio,
-        horarioFim: t.horario_fim,
-        mensalidadeCentavos: t.mensalidade_centavos,
-        codigoConvite: t.codigo_convite,
-        fotoUrl: t.foto_url ?? null,
-        numeroCamisa: m.numero_camisa,
-        posicao: m.posicao,
-      },
-    ];
-  });
+  return matriculas.map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    modalidade: t.modalidade,
+    local: t.local,
+    horarioInicio: t.horario_inicio,
+    horarioFim: t.horario_fim,
+    mensalidadeCentavos: t.mensalidade_centavos,
+    codigoConvite: t.codigo_convite,
+    fotoUrl: t.foto_url ?? null,
+    numeroCamisa: t.numero_camisa,
+    posicao: t.posicao,
+  }));
 }
 
 export async function getMinhaTurma(alunoId: string, turmaId: string) {
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("numero_camisa, posicao, bloqueado_inadimplencia, Turma(*)")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
-
-  const matricula = matriculaResult.data;
-  if (!matricula) {
-    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
-  }
-
-  const { sincronizarBloqueioAluno } = await import("../../lib/inadimplencia.js");
-  await sincronizarBloqueioAluno(alunoId);
-
-  const bloqueioResult = await supabase
-    .from("MatriculaTurma")
-    .select("bloqueado_inadimplencia")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .single();
-
-  const turma = relOne(matricula.Turma) as {
+  const matricula = await queryMaybeOne<{
+    numero_camisa: number | null;
+    posicao: string | null;
+    bloqueado_inadimplencia: boolean;
     id: string;
     nome: string;
     modalidade: string;
@@ -421,42 +392,62 @@ export async function getMinhaTurma(alunoId: string, turmaId: string) {
     codigo_convite: string;
     dia_vencimento: number;
     foto_url: string | null;
-  };
+  }>(
+    `SELECT m.numero_camisa, m.posicao, m.bloqueado_inadimplencia,
+            t.id, t.nome, t.modalidade, t.nivel, t.local, t.horario_inicio, t.horario_fim,
+            t.mensalidade_centavos, t.codigo_convite, t.dia_vencimento, t.foto_url
+     FROM "MatriculaTurma" m
+     JOIN "Turma" t ON t.id = m.turma_id
+     WHERE m.aluno_id = $1 AND m.turma_id = $2 AND m.afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  const colegasResult = await supabase
-    .from("MatriculaTurma")
-    .select("numero_camisa, posicao, Aluno(nome, sobrenome)")
-    .eq("turma_id", turmaId)
-    .eq("afastado", false);
+  if (!matricula) {
+    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  }
 
-  const colegas = throwOnError(colegasResult).flatMap((m) => {
-    const a = relOne(m.Aluno) as { nome: string; sobrenome: string | null } | null;
-    if (!a) return [];
-    return [
-      {
-        nome: [a.nome, a.sobrenome].filter(Boolean).join(" "),
-        numeroCamisa: m.numero_camisa,
-        posicao: m.posicao,
-      },
-    ];
-  });
+  const { sincronizarBloqueioAluno } = await import("../../lib/inadimplencia.js");
+  await sincronizarBloqueioAluno(alunoId);
+
+  const bloqueio = await queryOne<{ bloqueado_inadimplencia: boolean }>(
+    `SELECT bloqueado_inadimplencia FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2`,
+    [alunoId, turmaId],
+  );
+
+  const colegas = await query<{
+    numero_camisa: number | null;
+    posicao: string | null;
+    nome: string;
+    sobrenome: string | null;
+  }>(
+    `SELECT m.numero_camisa, m.posicao, a.nome, a.sobrenome
+     FROM "MatriculaTurma" m
+     JOIN "Aluno" a ON a.id = m.aluno_id
+     WHERE m.turma_id = $1 AND m.afastado = false`,
+    [turmaId],
+  );
 
   return {
-    id: turma.id,
-    nome: turma.nome,
-    modalidade: turma.modalidade,
-    nivel: turma.nivel,
-    local: turma.local,
-    horarioInicio: turma.horario_inicio,
-    horarioFim: turma.horario_fim,
-    mensalidadeCentavos: turma.mensalidade_centavos,
-    codigoConvite: turma.codigo_convite,
-    diaVencimento: turma.dia_vencimento,
-    fotoUrl: turma.foto_url ?? null,
+    id: matricula.id,
+    nome: matricula.nome,
+    modalidade: matricula.modalidade,
+    nivel: matricula.nivel,
+    local: matricula.local,
+    horarioInicio: matricula.horario_inicio,
+    horarioFim: matricula.horario_fim,
+    mensalidadeCentavos: matricula.mensalidade_centavos,
+    codigoConvite: matricula.codigo_convite,
+    diaVencimento: matricula.dia_vencimento,
+    fotoUrl: matricula.foto_url ?? null,
     numeroCamisa: matricula.numero_camisa,
     posicao: matricula.posicao,
-    bloqueadoInadimplencia: bloqueioResult.data?.bloqueado_inadimplencia ?? false,
-    alunos: colegas,
+    bloqueadoInadimplencia: bloqueio.bloqueado_inadimplencia ?? false,
+    alunos: colegas.map((a) => ({
+      nome: [a.nome, a.sobrenome].filter(Boolean).join(" "),
+      numeroCamisa: a.numero_camisa,
+      posicao: a.posicao,
+    })),
   };
 }
 
@@ -465,30 +456,37 @@ export async function atualizarMatricula(
   turmaId: string,
   input: UpdateMatriculaInput,
 ) {
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Matrícula não encontrada");
   }
 
-  const patch: Record<string, unknown> = {};
-  if (input.numeroCamisa !== undefined) patch.numero_camisa = input.numeroCamisa;
-  if (input.posicao !== undefined) patch.posicao = input.posicao;
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
 
-  const result = await supabase
-    .from("MatriculaTurma")
-    .update(patch)
-    .eq("id", matriculaResult.data.id)
-    .select("numero_camisa, posicao")
-    .single();
+  if (input.numeroCamisa !== undefined) {
+    fields.push(`numero_camisa = $${idx++}`);
+    values.push(input.numeroCamisa);
+  }
+  if (input.posicao !== undefined) {
+    fields.push(`posicao = $${idx++}`);
+    values.push(input.posicao);
+  }
 
-  const updated = throwOnError(result);
+  values.push(matricula.id);
+
+  const updated = await queryOne<{ numero_camisa: number | null; posicao: string | null }>(
+    `UPDATE "MatriculaTurma" SET ${fields.join(", ")} WHERE id = $${idx}
+     RETURNING numero_camisa, posicao`,
+    values,
+  );
+
   return {
     numeroCamisa: updated.numero_camisa,
     posicao: updated.posicao,
@@ -500,34 +498,28 @@ export async function afastarAlunoTurma(
   turmaId: string,
   professorId: string,
 ) {
-  const turmaCheck = await supabase
-    .from("Turma")
-    .select("id")
-    .eq("id", turmaId)
-    .eq("professor_id", professorId)
-    .maybeSingle();
+  const turmaCheck = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
 
-  if (!turmaCheck.data) {
+  if (!turmaCheck) {
     throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
   }
 
-  const matriculaResult = await supabase
-    .from("MatriculaTurma")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("turma_id", turmaId)
-    .eq("afastado", false)
-    .maybeSingle();
+  const matricula = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "MatriculaTurma"
+     WHERE aluno_id = $1 AND turma_id = $2 AND afastado = false`,
+    [alunoId, turmaId],
+  );
 
-  if (!matriculaResult.data) {
+  if (!matricula) {
     throw new AppError(404, "NOT_FOUND", "Aluno não está nesta turma");
   }
 
-  throwOnError(
-    await supabase
-      .from("MatriculaTurma")
-      .update({ afastado: true })
-      .eq("id", matriculaResult.data.id),
+  await execute(
+    `UPDATE "MatriculaTurma" SET afastado = true WHERE id = $1`,
+    [matricula.id],
   );
 
   return { ok: true };
