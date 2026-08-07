@@ -1,8 +1,10 @@
 # ATHLON - Documentação Completa do Projeto
 
 > Versão do projeto: **1.7.1**  
-> Última atualização deste documento: junho/2026  
+> Última atualização deste documento: agosto/2026  
 > Software proprietário - ver `LICENSE`
+
+> **Infraestrutura atual (pós-migração):** Frontend na Vercel, API + PostgreSQL + crons no Railway, storage no Cloudflare R2, e-mail via Resend. Guia de deploy: [DEPLOY.md](./DEPLOY.md).
 
 Este documento descreve o sistema por completo para facilitar onboarding em outro computador, manutenção e deploy. Use junto com `README.md` (início rápido) e `.env.example` (variáveis).
 
@@ -18,14 +20,14 @@ Este documento descreve o sistema por completo para facilitar onboarding em outr
 6. [Jornadas de usuário](#6-jornadas-de-usuário)
 7. [Frontend - rotas e telas](#7-frontend---rotas-e-telas)
 8. [API REST - endpoints](#8-api-rest---endpoints)
-9. [Banco de dados (Supabase)](#9-banco-de-dados-supabase)
+9. [Banco de dados (PostgreSQL)](#9-banco-de-dados-postgresql)
 10. [Regras de negócio](#10-regras-de-negócio)
 11. [Notificações e cron jobs](#11-notificações-e-cron-jobs)
 12. [Autenticação e segurança](#12-autenticação-e-segurança)
 13. [PWA e Web Push](#13-pwa-e-web-push)
 14. [Variáveis de ambiente](#14-variáveis-de-ambiente)
 15. [Desenvolvimento local](#15-desenvolvimento-local)
-16. [Deploy em produção (Vercel + Supabase)](#16-deploy-em-produção-vercel--supabase)
+16. [Deploy em produção (Vercel + Railway)](#16-deploy-em-produção-vercel--railway)
 17. [Scripts disponíveis](#17-scripts-disponíveis)
 18. [Arquivos-chave](#18-arquivos-chave)
 19. [Decisões arquiteturais](#19-decisões-arquiteturais)
@@ -69,15 +71,16 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 | Camada | Tecnologias |
 |--------|-------------|
 | **Frontend** | React 19, Vite 6, React Router 7, TanStack Query, Tailwind CSS, React Hook Form, Zod, PWA (`vite-plugin-pwa`) |
-| **Backend** | Node.js, Express 4, TypeScript, JWT, bcryptjs, Zod |
-| **Banco** | PostgreSQL via Supabase |
-| **Arquivos** | Supabase Storage (comprovantes) |
+| **Backend** | Node.js, Express 4, TypeScript, JWT, bcryptjs, Zod, `pg` |
+| **Banco** | PostgreSQL (Railway) |
+| **Arquivos** | Cloudflare R2 (`comprovantes/`, `turmas-fotos/`) |
+| **E-mail** | Resend |
 | **Push** | Web Push (VAPID) |
 | **Instalação** | PWA (Android: prompt nativo; iOS: tutorial Safari) |
 | **Testes** | Vitest (shared-types + frontend) |
 | **Monorepo** | pnpm workspaces |
 | **Tipos compartilhados** | `@athlon/shared-types` (Zod schemas + enums) |
-| **Produção** | Vercel (frontend estático + API serverless) + Supabase |
+| **Produção** | Vercel (frontend) + Railway (API + PostgreSQL + crons) |
 
 ---
 
@@ -87,7 +90,8 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 Athlon/
 ├── package.json                 # Scripts raiz (dev, build, build:vercel)
 ├── pnpm-workspace.yaml          # apps/* e packages/*
-├── vercel.json                  # Deploy unificado (SPA + API + crons)
+├── vercel.json                  # Deploy do frontend (SPA)
+├── railway.toml                 # Deploy do backend (Railway)
 ├── api/index.ts                 # Entrypoint serverless da Vercel → Express
 ├── .env.example                 # Template geral de variáveis
 ├── LICENSE

@@ -1,102 +1,113 @@
-# ATHLON
+# ATHLON (AthonSport)
 
 Plataforma mobile-first de gestão esportiva para treinadores e alunos.
 
 Disponível como **PWA instalável** no celular (Android: prompt nativo; iOS: tutorial manual) e no **navegador**.
 
+**Produção:** https://athonsport.app.br
+
 ## Stack
 
-- **Frontend:** React + Vite + PWA + Tailwind + TanStack Query
-- **Backend:** Express + Supabase JS + JWT
-- **Banco:** Supabase PostgreSQL
-- **Storage:** Supabase Storage (comprovantes)
-- **Push:** Web Push (VAPID)
+| Camada | Tecnologia |
+|--------|-----------|
+| Frontend | React 19 + Vite + PWA + Tailwind + TanStack Query (Vercel) |
+| API | Node.js + Express + JWT (Railway) |
+| Banco | PostgreSQL (Railway) |
+| Storage | Cloudflare R2 |
+| E-mail | Resend |
+| Push | Web Push (VAPID) |
 
-## Estrutura
+## Arquitetura
 
 ```
-apps/frontend         - PWA React (fonte de verdade da UI)
-apps/backend          - API REST Express
-apps/backend/supabase/migrations - schema SQL do banco
-packages/shared-types - Zod schemas e tipos compartilhados
+Vercel (frontend)  →  api.athonsport.app.br (Railway Express)
+                              ↓
+                    PostgreSQL (Railway)
+                              ↓
+                    Cloudflare R2 (comprovantes, turmas-fotos)
 ```
 
-## Documentação
+## Estrutura do monorepo
 
-Documentação completa do sistema (jornadas, APIs, banco, deploy, env vars): **[docs/DOCUMENTACAO.md](./docs/DOCUMENTACAO.md)**
+```
+apps/frontend              - PWA React
+apps/backend               - API REST Express
+apps/backend/migrations/   - Schema SQL (PostgreSQL)
+packages/shared-types      - Zod schemas e tipos compartilhados
+```
 
-## Configuração
+## Configuração local
 
-1. Crie um projeto no [Supabase](https://supabase.com) e aplique o schema em `apps/backend/supabase/migrations/20250612000000_schema.sql` (SQL Editor ou `supabase db push`).
-
-2. Em bancos já existentes, aplique também as migrations incrementais em `apps/backend/supabase/migrations/`.
-
-3. Cole em `apps/backend/.env`:
-   - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`
-   - `JWT_SECRET` / `JWT_REFRESH_SECRET`
-   - `VAPID_*` (opcional, para Web Push - rode `pnpm --filter @athlon/backend generate-vapid-keys`)
-
-   Teste a conexão: `pnpm test:db`
-
-4. Instale dependências (**use `pnpm`, não `npm`** - este projeto é monorepo):
+### 1. Dependências
 
 ```bash
 pnpm install
 ```
 
-> `npm install` na raiz quebra com erro `Cannot read properties of null (reading 'matches')`. Isso é esperado.
+> Use `pnpm`, não `npm` — este projeto é monorepo.
+
+### 2. PostgreSQL
+
+Crie um banco local e configure `apps/backend/.env` (copie de `apps/backend/.env.example`):
+
+```bash
+DATABASE_URL=postgresql://user:password@localhost:5432/athonsport
+```
+
+Aplique as migrations:
+
+```bash
+pnpm db:migrate
+pnpm seed:admin   # cria usuário ADM
+pnpm test:db      # testa conexão
+```
+
+### 3. Frontend
+
+Configure `apps/frontend/.env`:
+
+```bash
+VITE_API_URL=http://localhost:3001/api/v1
+```
+
+### 4. Storage (R2) e e-mail (Resend)
+
+Opcional em desenvolvimento. Sem R2, uploads de comprovante/foto retornam erro 503. Sem Resend, recuperação de senha usa `RECOVERY_SHOW_CODE=true` para exibir o código na tela.
 
 ## Desenvolvimento
 
 ```bash
-# Terminal 1 - API
-pnpm dev:backend
-
-# Terminal 2 - Frontend
-pnpm dev:frontend
-
-# Ou ambos:
+pnpm dev:backend   # API em http://localhost:3001
+pnpm dev:frontend    # PWA em http://localhost:5173
+# ou ambos:
 pnpm dev
 ```
 
-- Frontend: http://localhost:5173
-- API: http://localhost:3001
+## Deploy
 
-## Instalação PWA
+| Serviço | Onde | Observação |
+|---------|------|------------|
+| Frontend | Vercel | `VITE_API_URL=https://api.athonsport.app.br/api/v1` |
+| API + Cron | Railway | `railway.toml` na raiz; health check em `/health` |
+| PostgreSQL | Railway | `DATABASE_URL` injetado automaticamente |
+| R2 | Cloudflare | Credenciais no Railway |
+| Resend | resend.com | DNS em athonsport.app.br (manual) |
 
-- **Android / Chrome:** após login, um banner oferece "Instalar app" (prompt nativo do navegador).
-- **iOS / Safari:** banner com tutorial em 3 passos (Compartilhar → Adicionar à Tela de Início).
-
-Detalhes em [docs/DOCUMENTACAO.md §13](./docs/DOCUMENTACAO.md#13-pwa-e-web-push).
-
-## Testes (antes do deploy)
-
-```bash
-pnpm test
-```
-
-Valida lógica do frontend PWA (push, instalação). Detalhes em [docs/DOCUMENTACAO.md §22](./docs/DOCUMENTACAO.md#22-testes-automatizados).
-
-## Fluxo MVP
-
-1. ADM cria professor → professor cria turma com mensalidade e PIX
-2. Aluno cria conta com código de convite → vê mensalidades
-3. Aluno copia PIX, paga e envia comprovante
-4. Treinador aprova/recusa na fila de comprovantes
+Documentação completa: **[docs/DOCUMENTACAO.md](./docs/DOCUMENTACAO.md)**
 
 ## Scripts
 
 | Comando | Descrição |
 |---------|-----------|
 | `pnpm dev` | Frontend + Backend em paralelo |
-| `pnpm test` | Testes automatizados do frontend |
-| `pnpm build` | Build de produção |
-| `pnpm test:db` | Testa conexão com Supabase |
+| `pnpm build` | Build completo |
+| `pnpm build:frontend` | Build só do frontend (Vercel) |
+| `pnpm build:backend` | Build só do backend (Railway) |
+| `pnpm db:migrate` | Aplica migrations SQL |
+| `pnpm test:db` | Testa conexão PostgreSQL |
 | `pnpm seed:admin` | Cria usuário ADM |
-
-Não use `npm install` neste repo - só `pnpm`.
+| `pnpm test` | Testes do frontend |
 
 ## Licença
 
-Software proprietário. Todos os direitos reservados a **Otávio Morais Antocevicz**.  
-Consulte o arquivo [LICENSE](./LICENSE) para os termos completos de uso.
+Software proprietário. Todos os direitos reservados a **Otávio Morais Antocevicz**.

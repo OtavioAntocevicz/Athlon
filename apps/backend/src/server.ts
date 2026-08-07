@@ -2,7 +2,12 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { startCronJobs } from "./jobs/cron.js";
 
-startCronJobs();
+if (env.cronEnabled) {
+  startCronJobs();
+  console.log("[cron] Jobs agendados: avisos (horário), diário (06:00), mensal (dia 1, 07:00)");
+} else {
+  console.log("[cron] Desabilitado (CRON_ENABLED=false)");
+}
 
 const server = app.listen(env.port, () => {
   console.log(`ATHLON API rodando em http://localhost:${env.port}`);
