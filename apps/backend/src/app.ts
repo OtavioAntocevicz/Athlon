@@ -31,7 +31,19 @@ app.use((req, _res, next) => {
   next();
 });
 
-app.use(cors({ origin: env.corsOrigin, credentials: true }));
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Requests sem Origin (health checks, curl) são permitidos.
+      if (!origin) return callback(null, true);
+      const normalized = origin.replace(/\/$/, "");
+      if (env.corsOrigins.includes(normalized)) return callback(null, true);
+      console.warn(`[cors] Origem bloqueada: ${origin}. Permitidas: ${env.corsOrigins.join(", ")}`);
+      return callback(null, false);
+    },
+    credentials: true,
+  }),
+);
 app.use(express.json());
 app.use(cookieParser());
 
