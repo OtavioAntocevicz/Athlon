@@ -36,9 +36,10 @@ app.use(
     origin(origin, callback) {
       // Requests sem Origin (health checks, curl) são permitidos.
       if (!origin) return callback(null, true);
-      if (env.corsOrigins.includes(origin)) return callback(null, true);
+      const normalized = origin.replace(/\/$/, "");
+      if (env.corsOrigins.includes(normalized)) return callback(null, true);
       console.warn(`[cors] Origem bloqueada: ${origin}. Permitidas: ${env.corsOrigins.join(", ")}`);
-      return callback(new Error(`CORS bloqueado para origem: ${origin}`));
+      return callback(null, false);
     },
     credentials: true,
   }),
