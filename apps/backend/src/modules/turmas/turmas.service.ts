@@ -294,10 +294,11 @@ export async function listarAlunosTurma(turmaId: string, professorId: string) {
   return result;
 }
 
-export async function excluirTurma(id: string, professorId: string) {
+/** Remove turma e dados vinculados (presenças, eventos, pagamentos, matrículas, storage). */
+export async function excluirTurmaCascade(id: string) {
   const turmaCheck = await queryMaybeOne<{ id: string; nome: string; foto_url: string | null }>(
-    `SELECT id, nome, foto_url FROM "Turma" WHERE id = $1 AND professor_id = $2`,
-    [id, professorId],
+    `SELECT id, nome, foto_url FROM "Turma" WHERE id = $1`,
+    [id],
   );
 
   if (!turmaCheck) {
@@ -349,6 +350,19 @@ export async function excluirTurma(id: string, professorId: string) {
   await execute(`DELETE FROM "Turma" WHERE id = $1`, [id]);
 
   return { ok: true, nome: turmaCheck.nome };
+}
+
+export async function excluirTurma(id: string, professorId: string) {
+  const owned = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [id, professorId],
+  );
+
+  if (!owned) {
+    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  }
+
+  return excluirTurmaCascade(id);
 }
 
 export async function criarUploadUrlFoto(
