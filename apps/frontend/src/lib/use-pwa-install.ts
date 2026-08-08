@@ -155,7 +155,9 @@ export function usePwaInstall() {
   const mostrarConviteIOS = iosPodeMostrarConvite && ehSafariIOS;
   const mostrarAvisoAbrirSafari = iosPodeMostrarConvite && ehIOSNaoSafari;
 
-  const mostrarConviteAndroid = podeInstalarAndroid && !jaInstalado && !ehIOS;
+  // Android: sem banner customizado. O preventDefault em beforeinstallprompt
+  // também suprime o mini-infobar nativo do Chrome.
+  const mostrarConviteAndroid = false;
 
   const abrirModalSafari = useCallback(() => {
     setSafariModalAberto(true);
