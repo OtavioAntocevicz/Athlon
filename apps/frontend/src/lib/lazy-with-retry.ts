@@ -28,12 +28,17 @@ async function reloadOnceForStaleChunk(): Promise<never> {
     if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
       sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
       window.location.reload();
-      return new Promise(() => undefined);
+      // Se o reload não ocorrer (ex.: PWA bloqueado), não prende o Suspense para sempre.
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      throw new Error("Falha ao carregar módulo da aplicação");
     }
     sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Falha ao carregar")) {
+      throw error;
+    }
     window.location.reload();
-    return new Promise(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 2500));
   }
   throw new Error("Falha ao carregar módulo da aplicação");
 }
@@ -58,7 +63,7 @@ export async function importWithRetry<T>(
     }
   }
 
-  if (isChunkLoadError(lastError) || lastError instanceof TypeError) {
+  if (isChunkLoadError(lastError)) {
     await reloadOnceForStaleChunk();
   }
 

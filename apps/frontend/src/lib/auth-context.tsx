@@ -29,18 +29,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (stored && token) {
       try {
         setUser(JSON.parse(stored));
+        // Libera a UI imediatamente com o usuário em cache; revalida em background.
+        setIsLoading(false);
       } catch {
         clearTokens();
         setIsLoading(false);
         return;
       }
       api<AuthUser>("/auth/me")
-        .then(setUser)
+        .then((me) => {
+          setUser(me);
+          localStorage.setItem("athlon_user", JSON.stringify(me));
+        })
         .catch(() => {
           clearTokens();
           setUser(null);
-        })
-        .finally(() => setIsLoading(false));
+        });
     } else {
       setIsLoading(false);
     }

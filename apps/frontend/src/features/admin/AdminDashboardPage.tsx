@@ -1,19 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, GraduationCap, UserX, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { AdminDashboard } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { MetricCard } from "@/components/domain/MetricCard";
 import { Card } from "@/components/ui/card";
+import { QueryError } from "@/components/ui/query-error";
 import { PageEnter } from "@/components/ui/page-enter";
 
 export function AdminDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: () => api<AdminDashboard>("/admin/dashboard"),
   });
@@ -30,7 +31,18 @@ export function AdminDashboardPage() {
     );
   }
 
-  const dash = data!;
+  if (isError || !data) {
+    return (
+      <AdminShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o painel.")}
+          onRetry={() => void refetch()}
+        />
+      </AdminShell>
+    );
+  }
+
+  const dash = data;
   const totalProfessores = dash.professores.length;
   const inativos = totalProfessores - dash.professoresAtivos;
 

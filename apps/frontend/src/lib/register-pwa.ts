@@ -1,7 +1,6 @@
 /**
  * Com registerType: "autoUpdate", o SW gerado faz skipWaiting + clientsClaim.
- * Sem reload no controllerchange, o app antigo fica em memória pedindo chunks
- * com hash antigo (404) até um refresh manual — parece que a seção “não abre”.
+ * Em atualizações (não na 1ª instalação), recarregamos para alinhar chunks novos.
  */
 export function registerPwa(): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -18,8 +17,15 @@ export function registerPwa(): void {
     window.addEventListener("load", register, { once: true });
   }
 
+  // A primeira tomada de controle (install inicial) não deve recarregar a página.
+  let hadController = Boolean(navigator.serviceWorker.controller);
   let refreshing = false;
+
   navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) {
+      hadController = true;
+      return;
+    }
     if (refreshing) return;
     refreshing = true;
     window.location.reload();
