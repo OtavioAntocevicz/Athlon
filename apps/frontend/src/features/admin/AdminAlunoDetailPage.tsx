@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,12 +8,15 @@ import {
   UserMinus,
   ArrowRightLeft,
   Unlock,
+  Trash2,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { useState } from "react";
+import { api, getErrorMessage } from "@/lib/api";
 import type { AdminAlunoDetalhe } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmExcluirModal } from "@/components/ui/confirm-excluir-modal";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { PageEnter } from "@/components/ui/page-enter";
 import { formatCurrency, formatDate, formatMes, getInitials } from "@/lib/format";
@@ -33,11 +36,24 @@ function DadoAluno({ label, value }: { label: string; value: string | null | und
 export function AdminAlunoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [excluirAberto, setExcluirAberto] = useState(false);
+  const [erroExcluir, setErroExcluir] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "aluno", id],
     queryFn: () => api<AdminAlunoDetalhe>(`/admin/alunos/${id}`),
     enabled: !!id,
+  });
+
+  const excluirMutation = useMutation({
+    mutationFn: () => api(`/admin/alunos/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      setExcluirAberto(false);
+      navigate("/admin/alunos");
+    },
+    onError: (e) => setErroExcluir(getErrorMessage(e, "Erro ao excluir aluno")),
   });
 
   if (isLoading) {
@@ -120,6 +136,16 @@ export function AdminAlunoDetailPage() {
               <Unlock className="h-4 w-4" /> Desbloquear
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => {
+              setErroExcluir("");
+              setExcluirAberto(true);
+            }}
+          >
+            <Trash2 className="h-4 w-4" /> Excluir conta
+          </Button>
         </div>
 
         <Card className="mt-5 space-y-4 p-4">
@@ -206,6 +232,30 @@ export function AdminAlunoDetailPage() {
           </div>
         )}
       </PageEnter>
+
+      <ConfirmExcluirModal
+        open={excluirAberto}
+        onClose={() => {
+          if (excluirMutation.isPending) return;
+          setExcluirAberto(false);
+          setErroExcluir("");
+        }}
+        title="Excluir aluno"
+        description={
+          <>
+            <p>
+              Excluir <strong>{nomeCompleto}</strong> remove permanentemente o
+              cadastro, a conta de login (se existir), matrículas, mensalidades e
+              comprovantes deste aluno.
+            </p>
+            <p className="mt-1">Esta ação não pode ser desfeita.</p>
+          </>
+        }
+        confirmLabel="Excluir aluno permanentemente"
+        isPending={excluirMutation.isPending}
+        error={erroExcluir}
+        onConfirm={() => excluirMutation.mutate()}
+      />
     </AdminShell>
   );
 }

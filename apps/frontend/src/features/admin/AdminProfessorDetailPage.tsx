@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, GraduationCap, Users, Copy, Check, ChevronRight } from "lucide-react";
+import {
+  ArrowLeft,
+  GraduationCap,
+  Users,
+  Copy,
+  Check,
+  ChevronRight,
+  Trash2,
+} from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import { api, getErrorMessage } from "@/lib/api";
 import type { AdminProfessorDetalhe } from "@athlon/shared-types";
@@ -8,6 +16,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { MetricCard } from "@/components/domain/MetricCard";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ConfirmExcluirModal } from "@/components/ui/confirm-excluir-modal";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { PageEnter } from "@/components/ui/page-enter";
 import { formatDate, getInitials } from "@/lib/format";
@@ -19,6 +28,8 @@ export function AdminProfessorDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [excluirAberto, setExcluirAberto] = useState(false);
+  const [erroExcluir, setErroExcluir] = useState("");
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "professor", id],
@@ -35,6 +46,16 @@ export function AdminProfessorDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin"] });
     },
+  });
+
+  const excluirMutation = useMutation({
+    mutationFn: () => api(`/admin/professores/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+      setExcluirAberto(false);
+      navigate("/admin/professores");
+    },
+    onError: (e) => setErroExcluir(getErrorMessage(e, "Erro ao excluir professor")),
   });
 
   const copyCodigo = async (e: MouseEvent, turmaId: string, codigo: string) => {
@@ -117,6 +138,18 @@ export function AdminProfessorDetailPage() {
                 onClick={toggleStatus}
               >
                 {data.ativo ? "Desativar" : "Reativar"}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setErroExcluir("");
+                  setExcluirAberto(true);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir conta
               </Button>
             </div>
           </div>
@@ -228,6 +261,40 @@ export function AdminProfessorDetailPage() {
           )}
         </section>
       </PageEnter>
+
+      <ConfirmExcluirModal
+        open={excluirAberto}
+        onClose={() => {
+          if (excluirMutation.isPending) return;
+          setExcluirAberto(false);
+          setErroExcluir("");
+        }}
+        title="Excluir professor"
+        description={
+          <>
+            <p>
+              Excluir <strong>{data.nome}</strong> remove permanentemente a conta de
+              login e todas as turmas deste professor (matrículas, mensalidades e
+              comprovantes das turmas).
+            </p>
+            <p className="mt-1">
+              Os alunos <strong>não</strong> são excluídos do sistema — apenas saem
+              dessas turmas.
+            </p>
+            {data.totalTurmas > 0 && (
+              <p className="mt-1 font-medium text-destructive">
+                {data.totalTurmas}{" "}
+                {data.totalTurmas === 1 ? "turma será excluída" : "turmas serão excluídas"}
+                .
+              </p>
+            )}
+          </>
+        }
+        confirmLabel="Excluir professor permanentemente"
+        isPending={excluirMutation.isPending}
+        error={erroExcluir}
+        onConfirm={() => excluirMutation.mutate()}
+      />
     </AdminShell>
   );
 }

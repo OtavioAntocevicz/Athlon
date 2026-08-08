@@ -8,6 +8,7 @@ import {
   query,
   queryMaybeOne,
 } from "../../lib/db.js";
+import { removerArquivoStorage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
 import type {
   CreateProfessorAdminInput,
@@ -17,6 +18,7 @@ import { listarAlunos } from "../alunos/alunos.service.js";
 import { statusEfetivo } from "../../lib/mensalidade-focus.js";
 import { isMesFuturo } from "../../lib/utils.js";
 import { gerarMensalidadesParaAluno } from "../mensalidades/mensalidades.service.js";
+import { excluirTurmaCascade } from "../turmas/turmas.service.js";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -306,6 +308,85 @@ export async function atualizarStatusProfessor(
   );
 
   return { ok: true, ativo: input.ativo };
+}
+
+/**
+ * Exclusão definitiva da conta do professor.
+ * Remove turmas e dados vinculados às turmas; alunos do sistema são preservados.
+ */
+export async function excluirProfessorAdmin(professorId: string) {
+  const prof = await queryMaybeOne<{
+    id: string;
+    usuario_id: string;
+    nome: string;
+  }>(
+    `SELECT p.id, p.usuario_id, u.nome
+     FROM "Professor" p
+     INNER JOIN "Usuario" u ON u.id = p.usuario_id
+     WHERE p.id = $1`,
+    [professorId],
+  );
+
+  if (!prof) {
+    throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
+  }
+
+  const turmas = await query<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE professor_id = $1`,
+    [professorId],
+  );
+
+  for (const turma of turmas) {
+    await excluirTurmaCascade(turma.id);
+  }
+
+  await execute(`DELETE FROM "Professor" WHERE id = $1`, [professorId]);
+  await execute(`DELETE FROM "Usuario" WHERE id = $1 AND perfil = 'PROFESSOR'`, [
+    prof.usuario_id,
+  ]);
+
+  return { ok: true as const, nome: prof.nome, turmasExcluidas: turmas.length };
+}
+
+/**
+ * Exclusão definitiva da conta/cadastro do aluno e dados financeiros vinculados.
+ */
+export async function excluirAlunoAdmin(alunoId: string) {
+  const aluno = await queryMaybeOne<{
+    id: string;
+    usuario_id: string | null;
+    nome: string;
+  }>(`SELECT id, usuario_id, nome FROM "Aluno" WHERE id = $1`, [alunoId]);
+
+  if (!aluno) {
+    throw new AppError(404, "NOT_FOUND", "Aluno não encontrado");
+  }
+
+  const comprovantes = await query<{ arquivo_url: string | null }>(
+    `SELECT c.arquivo_url
+     FROM "Comprovante" c
+     INNER JOIN "Pagamento" p ON p.id = c.pagamento_id
+     WHERE p.aluno_id = $1`,
+    [alunoId],
+  );
+
+  for (const c of comprovantes) {
+    try {
+      await removerArquivoStorage(c.arquivo_url);
+    } catch {
+      /* ignora falha de storage */
+    }
+  }
+
+  await execute(`DELETE FROM "Aluno" WHERE id = $1`, [alunoId]);
+
+  if (aluno.usuario_id) {
+    await execute(`DELETE FROM "Usuario" WHERE id = $1 AND perfil = 'ALUNO'`, [
+      aluno.usuario_id,
+    ]);
+  }
+
+  return { ok: true as const, nome: aluno.nome };
 }
 
 async function statusFinanceiroAluno(alunoId: string): Promise<string> {

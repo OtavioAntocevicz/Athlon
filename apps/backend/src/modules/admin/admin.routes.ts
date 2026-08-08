@@ -85,6 +85,16 @@ adminRouter.patch(
   },
 );
 
+adminRouter.delete("/professores/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const data = await adminService.excluirProfessorAdmin(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
 adminRouter.get("/professores/:id/turmas", async (req, res, next) => {
   try {
     const id = String(req.params.id);
@@ -218,3 +228,13 @@ adminRouter.post(
     }
   },
 );
+
+adminRouter.delete("/alunos/:id", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const data = await adminService.excluirAlunoAdmin(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
