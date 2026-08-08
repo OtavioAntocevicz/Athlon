@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Calendar,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
 import { formatCurrency, formatDate, formatDateTime, formatMes } from "@/lib/format";
@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { MetricCard } from "@/components/domain/MetricCard";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/ui/query-error";
 import type { StatusMensalidade } from "@athlon/shared-types";
 import { PageEnter } from "@/components/ui/page-enter";
 import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
@@ -66,7 +67,7 @@ export function DashboardAlunoPage() {
   const navigate = useNavigate();
   const { bloqueado, bloqueios } = useAlunoBloqueado();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", "aluno"],
     queryFn: () => api<DashboardAluno>("/dashboard/aluno"),
   });
@@ -83,13 +84,24 @@ export function DashboardAlunoPage() {
     );
   }
 
-  const fin = data!.situacaoFinanceira;
-  const proximoEvento = data!.proximoEvento;
+  if (isError || !data) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o início.")}
+          onRetry={() => void refetch()}
+        />
+      </AppShell>
+    );
+  }
+
+  const fin = data.situacaoFinanceira;
+  const proximoEvento = data.proximoEvento;
   const precisaPagar = fin.status !== "PAGO" && fin.status !== "EM_ANALISE";
   const turmasBloqueadas =
     bloqueios.length > 0
       ? bloqueios
-      : data!.bloqueiosInadimplencia.map((b) => ({
+      : data.bloqueiosInadimplencia.map((b) => ({
           turmaId: b.turmaId,
           turmaNome: b.turmaNome,
         }));
@@ -147,7 +159,7 @@ export function DashboardAlunoPage() {
           />
           <MetricCard
             title="Turmas"
-            value={String(data!.turmas.length)}
+            value={String(data.turmas.length)}
             icon={GraduationCap}
           />
           <MetricCard
@@ -252,11 +264,11 @@ export function DashboardAlunoPage() {
           );
         })()}
 
-        {!bloqueado && data!.turmas.length > 0 && (
+        {!bloqueado && data.turmas.length > 0 && (
           <>
             <h2 className="mb-3 mt-8 text-lg font-bold text-primary">Minhas Turmas</h2>
             <div className="space-y-3">
-              {data!.turmas.map((t) => (
+              {data.turmas.map((t) => (
                 <Card
                   key={t.id}
                   className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"

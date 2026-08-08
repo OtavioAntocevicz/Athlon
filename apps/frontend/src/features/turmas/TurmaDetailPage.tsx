@@ -12,13 +12,14 @@ import {
   TipoEvento,
   type StatusMensalidade,
 } from "@athlon/shared-types";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatDateTime, getInitials } from "@/lib/format";
 import { maskRg } from "@/lib/masks";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
 import { StatusDot } from "@/components/domain/StatusDot";
 import {
   eventoTipoStyles,
@@ -109,7 +110,13 @@ export function TurmaDetailPage() {
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: turma, isLoading } = useQuery({
+  const {
+    data: turma,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["turma", id],
     queryFn: () => api<TurmaDetail>(`/turmas/${id}`),
     enabled: !!id,
@@ -336,10 +343,21 @@ export function TurmaDetailPage() {
   const eventosFuturos = eventos?.filter((e) => !e.passado) ?? [];
   const eventosPassados = eventos?.filter((e) => e.passado) ?? [];
 
-  if (isLoading || !turma) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="mt-4 h-40 animate-pulse rounded-xl bg-muted" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !turma) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar a turma.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

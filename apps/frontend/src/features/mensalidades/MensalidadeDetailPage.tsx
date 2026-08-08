@@ -2,13 +2,14 @@ import { useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, Upload, FileCheck, Banknote } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatCurrency, formatMes, formatDate } from "@/lib/format";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/ui/query-error";
 import type { InadimplenciaPrevisao, StatusMensalidade } from "@athlon/shared-types";
 
 interface MensalidadeDetail {
@@ -34,7 +35,7 @@ export function MensalidadeDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["mensalidade", id],
     queryFn: () => api<MensalidadeDetail>(`/mensalidades/${id}`),
     enabled: !!id,
@@ -95,10 +96,21 @@ export function MensalidadeDetailPage() {
     if (file) uploadMutation.mutate(file);
   };
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="h-40 animate-pulse rounded-xl bg-muted mt-4" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar a mensalidade.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

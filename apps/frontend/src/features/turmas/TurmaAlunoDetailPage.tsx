@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, Check, Users, MapPin, Clock, CalendarDays } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatDateTime, getInitials } from "@/lib/format";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
 import { PageEnter } from "@/components/ui/page-enter";
 import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
 
@@ -55,7 +56,13 @@ export function TurmaAlunoDetailPage() {
   const [saveError, setSaveError] = useState("");
   const [saveOk, setSaveOk] = useState(false);
 
-  const { data: turma, isLoading } = useQuery({
+  const {
+    data: turma,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["minha-turma", id],
     queryFn: () => api<TurmaAlunoDetail>(`/alunos/minhas-turmas/${id}`),
     enabled: !!id,
@@ -92,10 +99,21 @@ export function TurmaAlunoDetailPage() {
     setPosicao(turma.posicao ?? "");
   }, [turma]);
 
-  if (isLoading || !turma) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="mt-4 h-40 animate-pulse rounded-xl bg-muted" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !turma) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar a turma.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

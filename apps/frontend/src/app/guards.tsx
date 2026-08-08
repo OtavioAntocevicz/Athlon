@@ -22,7 +22,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
 export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return null;
+  if (isLoading) return <LoadingScreen />;
   if (user) {
     if (user.perfil === "ADM") return <Navigate to="/admin" replace />;
     return <Navigate to="/" replace />;
@@ -70,7 +70,9 @@ export function AlunoTurmasRoute({ children }: { children: ReactNode }) {
 function AlunoTurmasGuard({ children }: { children: ReactNode }) {
   const { bloqueado, isLoading } = useAlunoBloqueado();
 
-  if (isLoading) return <LoadingScreen />;
+  // Não bloqueia a árvore inteira: deixa a seção carregar e só redireciona
+  // quando soubermos que está inadimplente.
+  if (isLoading) return <>{children}</>;
   if (bloqueado) return <Navigate to="/mensalidades" replace />;
   return <>{children}</>;
 }

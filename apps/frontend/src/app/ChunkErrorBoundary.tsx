@@ -1,9 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { clearChunkReloadFlag } from "@/lib/lazy-with-retry";
-import { LoadingScreen } from "./guards";
+import { RouteErrorFallback } from "./RouteErrorFallback";
 
-type Props = { children: ReactNode };
-type State = { hasError: boolean };
+type Props = { children: ReactNode; resetKey?: string };
+type State = { hasError: boolean; isChunkError: boolean };
 
 function isRecoverableChunkError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
@@ -18,15 +18,15 @@ function isRecoverableChunkError(error: unknown): boolean {
 }
 
 /**
- * Quando um chunk lazy some após deploy do PWA, o Suspense fica preso.
- * Recarrega a página uma vez para alinhar index.html + assets novos.
+ * Recupera falhas de chunk (PWA/deploy) e erros de render na rota.
+ * Mantém shell/nav via RouteErrorFallback para o usuário não ficar preso.
  */
 export class ChunkErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, isChunkError: false };
   private reloading = false;
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, isChunkError: isRecoverableChunkError(error) };
   }
 
   componentDidCatch(error: Error, _info: ErrorInfo) {
@@ -38,24 +38,30 @@ export class ChunkErrorBoundary extends Component<Props, State> {
         this.reloading = true;
         sessionStorage.setItem(key, "1");
         window.location.reload();
-        return;
+      } else {
+        sessionStorage.removeItem(key);
       }
-      sessionStorage.removeItem(key);
     } catch {
       this.reloading = true;
       window.location.reload();
     }
   }
 
-  componentDidUpdate(_prev: Props, prevState: State) {
-    if (prevState.hasError && !this.state.hasError) {
+  componentDidUpdate(prevProps: Props) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, isChunkError: false });
       clearChunkReloadFlag();
     }
   }
 
+  private handleRetry = () => {
+    clearChunkReloadFlag();
+    this.setState({ hasError: false, isChunkError: false });
+  };
+
   render() {
     if (this.state.hasError) {
-      return <LoadingScreen />;
+      return <RouteErrorFallback onRetry={this.handleRetry} />;
     }
     return this.props.children;
   }

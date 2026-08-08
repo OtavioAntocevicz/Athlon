@@ -12,7 +12,7 @@ import {
   type UpdateAlunoPerfilInput,
   type AuthUser,
 } from "@athlon/shared-types";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getInitials } from "@/lib/format";
 import { maskCpf, maskRg, maskWhatsApp } from "@/lib/masks";
@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
+import { QueryError } from "@/components/ui/query-error";
 
 export function PerfilPage() {
   const { user, logout, refreshUser } = useAuth();
@@ -31,7 +32,7 @@ export function PerfilPage() {
   const [senhaModalOpen, setSenhaModalOpen] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  const { data: me, isLoading } = useQuery({
+  const { data: me, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: () => api<AuthUser>("/auth/me"),
   });
@@ -87,10 +88,21 @@ export function PerfilPage() {
     else alunoForm.reset();
   };
 
-  if (isLoading || !me) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="mt-4 h-40 animate-pulse rounded-xl bg-muted" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !me) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o perfil.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

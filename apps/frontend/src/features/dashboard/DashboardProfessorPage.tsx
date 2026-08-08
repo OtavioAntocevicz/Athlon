@@ -1,20 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Calendar, FileCheck, AlertTriangle, Users, Plus, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { formatRelativeTime } from "@/lib/format";
 import type { DashboardProfessor } from "@athlon/shared-types";
 import { AppShell } from "@/components/layout/AppShell";
 import { MetricCard } from "@/components/domain/MetricCard";
 import { Card } from "@/components/ui/card";
+import { QueryError } from "@/components/ui/query-error";
 import { PageEnter } from "@/components/ui/page-enter";
 
 export function DashboardProfessorPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", "professor"],
     queryFn: () => api<DashboardProfessor>("/dashboard/professor"),
   });
@@ -31,7 +32,18 @@ export function DashboardProfessorPage() {
     );
   }
 
-  const dash = data!;
+  if (isError || !data) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o início.")}
+          onRetry={() => void refetch()}
+        />
+      </AppShell>
+    );
+  }
+
+  const dash = data;
 
   return (
     <AppShell>

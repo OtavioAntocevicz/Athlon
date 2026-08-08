@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, X } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatMes, formatDate } from "@/lib/format";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/domain/StatusBadge";
 import { ComprovantePreview } from "@/components/domain/ComprovantePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QueryError } from "@/components/ui/query-error";
 import type { InadimplenciaPrevisao, StatusMensalidade } from "@athlon/shared-types";
 
 interface ComprovanteDetail {
@@ -32,7 +33,7 @@ export function ComprovanteValidacaoPage() {
   const [motivo, setMotivo] = useState("");
   const [showRecusa, setShowRecusa] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["comprovante", id],
     queryFn: () => api<ComprovanteDetail>(`/comprovantes/${id}`),
     enabled: !!id,
@@ -59,10 +60,21 @@ export function ComprovanteValidacaoPage() {
     },
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="h-60 animate-pulse rounded-xl bg-muted mt-4" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o comprovante.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

@@ -1,12 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, UserMinus, Unlock } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatDate, formatMes } from "@/lib/format";
 import { maskCpf, maskRg, maskWhatsApp } from "@/lib/masks";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/ui/query-error";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
@@ -48,7 +49,7 @@ export function AlunoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["aluno", id],
     queryFn: () => api<AlunoDetail>(`/alunos/${id}`),
     enabled: !!id,
@@ -87,10 +88,21 @@ export function AlunoDetailPage() {
     }
   };
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <AppShell>
         <div className="mt-4 h-40 animate-pulse rounded-xl bg-muted" />
+      </AppShell>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AppShell>
+        <QueryError
+          message={getErrorMessage(error, "Não foi possível carregar o aluno.")}
+          onRetry={() => void refetch()}
+        />
       </AppShell>
     );
   }

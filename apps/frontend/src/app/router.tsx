@@ -1,5 +1,5 @@
 import { Suspense, type ReactNode } from "react";
-import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
 import { lazyNamed } from "@/lib/lazy-with-retry";
 import {
@@ -8,16 +8,17 @@ import {
   ProfessorRoute,
   AlunoTurmasRoute,
   AdminRoute,
-  LoadingScreen,
 } from "./guards";
 import { ChunkErrorBoundary } from "./ChunkErrorBoundary";
+import { SectionLoadingFallback } from "./SectionLoadingFallback";
 import { ProfileSelectPage } from "@/features/auth/ProfileSelectPage";
 import { LoginFormPage } from "@/features/auth/LoginFormPage";
 
 function LazyRoute({ children }: { children: ReactNode }) {
+  const location = useLocation();
   return (
-    <ChunkErrorBoundary>
-      <Suspense fallback={<LoadingScreen />}>{children}</Suspense>
+    <ChunkErrorBoundary resetKey={location.pathname}>
+      <Suspense fallback={<SectionLoadingFallback />}>{children}</Suspense>
     </ChunkErrorBoundary>
   );
 }

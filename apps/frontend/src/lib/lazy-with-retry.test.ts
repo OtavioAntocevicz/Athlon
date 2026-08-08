@@ -4,6 +4,7 @@ import { clearChunkReloadFlag, importWithRetry } from "./lazy-with-retry";
 describe("importWithRetry", () => {
   afterEach(() => {
     clearChunkReloadFlag();
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -24,7 +25,17 @@ describe("importWithRetry", () => {
     expect(factory).toHaveBeenCalledTimes(2);
   });
 
+  it("não trata TypeError genérico como chunk stale", async () => {
+    const error = new TypeError("Network down");
+    await expect(
+      importWithRetry(async () => {
+        throw error;
+      }, 0),
+    ).rejects.toBe(error);
+  });
+
   it("recarrega a página uma vez em falha de chunk", async () => {
+    vi.useFakeTimers();
     const reload = vi.fn();
     vi.stubGlobal("location", { ...window.location, reload });
 
@@ -50,7 +61,8 @@ describe("importWithRetry", () => {
       expect(reload).toHaveBeenCalledTimes(1);
     });
 
-    // promise fica pendente enquanto a página recarrega
-    void pending;
+    const assertion = expect(pending).rejects.toThrow("Falha ao carregar módulo da aplicação");
+    await vi.advanceTimersByTimeAsync(2600);
+    await assertion;
   });
 });
