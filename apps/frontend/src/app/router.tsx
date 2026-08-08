@@ -1,6 +1,7 @@
-import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
+import { lazyNamed } from "@/lib/lazy-with-retry";
 import {
   ProtectedRoute,
   GuestRoute,
@@ -9,21 +10,16 @@ import {
   AdminRoute,
   LoadingScreen,
 } from "./guards";
+import { ChunkErrorBoundary } from "./ChunkErrorBoundary";
 import { ProfileSelectPage } from "@/features/auth/ProfileSelectPage";
 import { LoginFormPage } from "@/features/auth/LoginFormPage";
 
-function lazyNamed(
-  factory: () => Promise<Record<string, ComponentType<any>>>,
-  name: string,
-) {
-  return lazy(async () => {
-    const mod = await factory();
-    return { default: mod[name]! };
-  });
-}
-
 function LazyRoute({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<LoadingScreen />}>{children}</Suspense>;
+  return (
+    <ChunkErrorBoundary>
+      <Suspense fallback={<LoadingScreen />}>{children}</Suspense>
+    </ChunkErrorBoundary>
+  );
 }
 
 const EsqueciSenhaPage = lazyNamed(
