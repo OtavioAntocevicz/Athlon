@@ -8,9 +8,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // Registro via virtual:pwa-register em main.tsx (reload ao ativar SW novo)
+      injectRegister: null,
       includeAssets: ["logo.png", "icon-192.png", "icon-512.png", "push-handler.js"],
       workbox: {
         importScripts: ["push-handler.js"],
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/api/, /\/[^/?]+\.[^/]+$/],
       },
       manifest: {
         name: "ATHLON",
