@@ -13,9 +13,9 @@ Referências extras:
 ### O que você precisa
 
 - Conta em [resend.com](https://resend.com)
-- Domínio próprio (ex.: `athlon.app`) com acesso ao DNS
-- URL do frontend em produção (ex.: `https://app.seudominio.com`)
-- Acesso às variáveis de ambiente do **backend** (Vercel / Railway / etc.)
+- Domínio próprio: `athlonsport.app.br` com acesso ao DNS
+- URL do frontend em produção: `https://athlonsport.app.br`
+- Acesso às variáveis de ambiente do **backend no Railway**
 
 ### Passo 1 - Criar API Key no Resend
 
@@ -29,7 +29,7 @@ Referências extras:
 Enquanto o domínio não estiver verificado, o Resend só envia para o e-mail da sua conta (modo de teste).
 
 1. No Resend: **Domains** → **Add Domain**
-2. Informe o domínio (ex.: `athlon.app`)
+2. Informe o domínio (ex.: `athlonsport.app.br`)
 3. Adicione no DNS os registros que o Resend mostrar (SPF, DKIM, etc.)
 4. Aguarde status **Verified** (pode levar minutos)
 
@@ -38,19 +38,19 @@ Enquanto o domínio não estiver verificado, o Resend só envia para o e-mail da
 Escolha um endereço no domínio verificado, por exemplo:
 
 ```text
-ATHLON <noreply@athlon.app>
+ATHLON <noreply@athlonsport.app.br>
 ```
 
 Não use `gmail.com` / `hotmail.com` como remetente.
 
 ### Passo 4 - Variáveis no backend (produção)
 
-No painel do host do backend, configure:
+No painel do **Railway** (serviço da API), configure:
 
 ```env
 RESEND_API_KEY=re_xxxxxxxx
-EMAIL_FROM=ATHLON <noreply@seudominio.com>
-APP_URL=https://seu-frontend.com
+EMAIL_FROM=ATHLON <noreply@athlonsport.app.br>
+APP_URL=https://athlonsport.app.br
 ```
 
 Notas:
@@ -102,12 +102,12 @@ Salve as env vars e faça redeploy (ou reinicie o processo). Variáveis novas s�
 
 ### Sem domínio próprio (contorno temporário)
 
-Se só tiver `*.vercel.app`, ative na Vercel e no `.env`:
+Se só tiver domínio temporário, ative no Railway:
 
 ```env
 RECOVERY_SHOW_CODE=true
 EMAIL_FROM=ATHLON <onboarding@resend.dev>
-APP_URL=https://athlonsport.vercel.app
+APP_URL=https://athlonsport.app.br
 ```
 
 Com isso, ao pedir recuperação, o **código aparece na própria tela** (não depende do e-mail chegar).  
@@ -140,13 +140,13 @@ Isso grava em `apps/backend/.env`:
 
 ### Passo 2 - Copiar chaves para o backend de produção
 
-No host do backend:
+No host do backend (**Railway**):
 
 ```env
 VAPID_PUBLIC_KEY=sua_chave_publica
 VAPID_PRIVATE_KEY=sua_chave_privada
-VAPID_SUBJECT=mailto:seu-email@dominio.com
-CORS_ORIGIN=https://seu-frontend.com
+VAPID_SUBJECT=mailto:suporte@athlonsport.app.br
+CORS_ORIGIN=https://athlonsport.app.br
 ```
 
 Nunca commite `VAPID_PRIVATE_KEY` no Git.

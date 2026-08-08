@@ -33,7 +33,7 @@ No host de produção (Railway, Render, VPS, etc.):
 VAPID_PUBLIC_KEY=sua_chave_publica
 VAPID_PRIVATE_KEY=sua_chave_privada
 VAPID_SUBJECT=mailto:seu-email@dominio.com
-CORS_ORIGIN=https://seu-dominio.com
+CORS_ORIGIN=https://athlonsport.app.br
 ```
 
 ## 3. Build e deploy do frontend

@@ -88,11 +88,10 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 
 ```
 Athlon/
-├── package.json                 # Scripts raiz (dev, build, build:vercel)
+├── package.json                 # Scripts raiz (dev, build, db:migrate)
 ├── pnpm-workspace.yaml          # apps/* e packages/*
 ├── vercel.json                  # Deploy do frontend (SPA)
 ├── railway.toml                 # Deploy do backend (Railway)
-├── api/index.ts                 # Entrypoint serverless da Vercel → Express
 ├── .env.example                 # Template geral de variáveis
 ├── LICENSE
 ├── README.md
@@ -109,35 +108,37 @@ Athlon/
 │   │
 │   └── backend/                 # API REST (@athlon/backend)
 │       ├── src/
-│       │   ├── app.ts           # Montagem Express (exportável)
-│       │   ├── server.ts        # Dev local (listen + node-cron)
-│       │   ├── config/          # env.ts, supabase.ts
+│       │   ├── app.ts           # Montagem Express
+│       │   ├── server.ts        # Listen + node-cron
+│       │   ├── config/          # env.ts, database.ts
 │       │   ├── middleware/      # auth, validate, error-handler, cron-auth
 │       │   ├── modules/         # Rotas por domínio (auth, admin, turmas, etc.)
-│       │   ├── lib/             # db, jwt, email, inadimplencia, notificacoes, push
+│       │   ├── lib/             # db, jwt, email, storage (R2), notificacoes, push
 │       │   └── jobs/cron.ts     # Lógica dos jobs agendados
-│       ├── supabase/migrations/ # Schema SQL
-│       └── scripts/             # test-db, seed-admin, generate-vapid-keys
+│       ├── migrations/          # Schema SQL (PostgreSQL)
+│       └── scripts/             # migrate, test-db, seed-admin, generate-vapid-keys
 │
 ├── packages/
 │   └── shared-types/            # Contratos Zod + enums compartilhados
 │
 └── docs/
     ├── DOCUMENTACAO.md          # Este arquivo
+    ├── DEPLOY.md                # Guia de deploy (Vercel + Railway)
     ├── Melhoria.md              # Pendências e melhorias
+    ├── config-resend-web-push.md
     └── web-push-producao.md     # Guia de push em produção
 ```
 
 ### Fluxo de requisição em produção
 
 ```
-Navegador (athlonsport.vercel.app)
+Navegador (athlonsport.app.br)
     │
-    ├── /, /login, /turmas...  →  apps/frontend/dist (SPA)
+    ├── /, /login, /turmas...  →  Vercel (apps/frontend/dist — SPA)
     │
-    └── /api/v1/*, /health     →  api/index.ts (serverless)
-                                      └── apps/backend/dist/app.js (Express)
-                                              └── Supabase (Postgres + Storage)
+    └── /api/v1/*, /health     →  api.athlonsport.app.br (Railway Express)
+                                      ├── PostgreSQL (Railway)
+                                      └── Cloudflare R2 (comprovantes, turmas-fotos)
 ```
 
 ---
@@ -275,8 +276,8 @@ Navegador (athlonsport.vercel.app)
    - Lista com filtros por status
    - Detalhe: copiar PIX, enviar comprovante
 5. Upload de comprovante (fluxo em 2 passos)
-   a) POST upload-url → recebe URL assinada do Supabase Storage
-   b) PUT arquivo direto no Storage
+   a) POST upload-url → recebe URL assinada do Cloudflare R2
+   b) PUT arquivo direto no R2
    c) POST confirmar comprovante → status EM_ANALISE
 6. Minhas turmas (/minhas-turmas)
    - Ver colegas, camisa, posição
@@ -328,7 +329,7 @@ Seed: `pnpm seed:admin` (variáveis `ADMIN_EMAIL`, `ADMIN_PASSWORD` em `apps/bac
 ### 6.4 Fluxo de comprovante (detalhado)
 
 ```
-Aluno                          Storage (Supabase)              Professor
+Aluno                          Storage (R2)                    Professor
   │                                   │                            │
   ├─ Solicita upload-url ────────────►│                            │
   │◄─ URL assinada + arquivoUrl ──────┤                            │
@@ -414,8 +415,8 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 ## 8. API REST - endpoints
 
 **Base URL local:** `http://localhost:<PORT>/api/v1` (default porta 3001)  
-**Base URL produção:** `https://<seu-dominio>.vercel.app/api/v1`  
-**Health check:** `GET /health`
+**Base URL produção:** `https://api.athlonsport.app.br/api/v1`  
+**Health check:** `GET /health` (em `https://api.athlonsport.app.br/health`)
 
 Montagem: `apps/backend/src/app.ts`
 
@@ -573,13 +574,11 @@ CRUD por turma continua em `/api/v1/turmas/:id/eventos`.
 
 ---
 
-## 9. Banco de dados (Supabase)
+## 9. Banco de dados (PostgreSQL)
 
-**Migration (banco novo):**
-- `apps/backend/supabase/migrations/20250612000000_schema.sql` - schema completo
-- `apps/backend/supabase/migrations/20250627000000_dispositivos.sql` - tabela `Dispositivo` (bancos existentes)
-- `apps/backend/supabase/migrations/20250705000000_eventos_turma.sql` - eventos de turma
-- `apps/backend/supabase/migrations/20250711000000_turma_foto.sql` - coluna `foto_url` + bucket `turmas-fotos`
+**Migrations:** `apps/backend/migrations/` — aplicadas via `pnpm db:migrate`.
+
+Para banco novo, o schema completo está em `apps/backend/migrations/001_schema.sql` (inclui tabelas, índices, enums e dados iniciais).
 
 ### Diagrama de relacionamentos
 
@@ -595,6 +594,7 @@ Usuario (1) ── (N) RecuperacaoSenha
 Usuario (1) ── (N) Dispositivo
 Usuario (1) ── (N) TokenPushFcm   [legado - migrado para Dispositivo]
 Professor + Turma ── (N) AvisoProfessor
+Usuario (1) ── (N) Chamado
 ```
 
 ### Tabelas principais
@@ -614,14 +614,14 @@ Professor + Turma ── (N) AvisoProfessor
 | `TokenPushFcm` | Subscription Web Push (legado; migrado para `Dispositivo`) |
 | `AvisoProfessor` | Avisos do professor para turma |
 | `Evento` | Amistosos e campeonatos por turma (avisos informativos) |
+| `Chamado` | Suporte aluno/professor → ADM |
 | `Presenca` | Preparado para futuro (chamada/RSVP) |
-| `_athlon_cron_config` | URL Vercel + CRON_SECRET para pg_cron |
 
 ### Segurança do banco
 
-- `REVOKE ALL` para roles `anon` e `authenticated` em todas as tabelas.
-- Acesso **somente via service role** no backend.
-- **Não usa Supabase Auth** - autenticação própria com JWT.
+- Acesso **somente via backend** (conexão `DATABASE_URL` no Railway).
+- **Não usa auth externo** — autenticação própria com JWT.
+- Em produção, o PostgreSQL fica na rede interna do Railway (não exposto publicamente).
 
 ---
 
@@ -646,13 +646,13 @@ Professor + Turma ── (N) AvisoProfessor
 
 ### Comprovantes
 
-- Upload direto ao Supabase Storage (signed URL), bucket `comprovantes` (privado).
+- Upload direto ao **Cloudflare R2** (URL assinada), prefixo `comprovantes/` (privado).
 - Tipos aceitos: JPEG, PNG, WebP, PDF.
 - Status que permitem envio: `PENDENTE`, `RECUSADO`, `ATRASADO`.
 - Envio → `EM_ANALISE`; aprovação → `PAGO`; recusa → `RECUSADO`.
-- O bucket é criado pelo schema SQL ou automaticamente no primeiro upload (`storage.service.ts`).
-- Após **aprovar** ou **recusar**, o arquivo é removido do Storage e `arquivo_url` fica `null` (migration `20250713000000_comprovante_arquivo_nullable.sql`).
-- URL assinada de leitura só no **detalhe** do comprovante (fila/listagens não geram signed URL por item - economia no free tier).
+- Sem R2 configurado, uploads retornam erro 503 (`STORAGE_UNAVAILABLE`).
+- Após **aprovar** ou **recusar**, o arquivo é removido do R2 e `arquivo_url` fica `null`.
+- URL assinada de leitura só no **detalhe** do comprovante (fila/listagens não geram signed URL por item).
 
 ### Turmas
 
@@ -726,11 +726,13 @@ O endpoint legado `POST /notificacoes/push-token` delega ao `DeviceService` (com
 | Local (dev) | Avisos | A cada hora | `node-cron` em `server.ts` |
 | Local (dev) | Diário | 06:00 | `node-cron` |
 | Local (dev) | Mensal | 07:00 dia 1 | `node-cron` |
-| Produção | Diário | 06:00 UTC | Vercel Cron → `/api/cron/diario` |
-| Produção | Mensal | 07:00 dia 1 UTC | Vercel Cron → `/api/cron/mensal` |
-| Produção | Avisos | A cada hora | Supabase `pg_cron` → HTTP na Vercel |
+| Produção | Avisos | A cada hora | `node-cron` no Railway |
+| Produção | Diário | 06:00 | `node-cron` no Railway |
+| Produção | Mensal | 07:00 dia 1 | `node-cron` no Railway |
 
-> Plano Hobby da Vercel limita crons a 1x/dia; por isso avisos horários rodam no Supabase.
+Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diario`, `/mensal`.
+
+> Todos os crons rodam no processo Express do Railway (`CRON_ENABLED=true` por padrão). O `railway.toml` também executa migrations e seed do ADM na subida do serviço.
 
 ---
 
@@ -740,10 +742,9 @@ O endpoint legado `POST /notificacoes/push-token` delega ao `DeviceService` (com
 - Tokens JWT com secrets separados (access e refresh).
 - Refresh automático no frontend (`apps/frontend/src/lib/api.ts`).
 - Rate limit em login/cadastro.
-- `CRON_SECRET` protege endpoints de cron.
+- `CRON_SECRET` protege endpoints de cron manuais.
 - **Nunca** commitar `.env` (está no `.gitignore`).
-- **Nunca** expor `SUPABASE_SERVICE_ROLE_KEY` no frontend.
-- `service_role` só no backend/Vercel Environment Variables.
+- Secrets (`JWT_*`, `DATABASE_URL`, `R2_*`, `VAPID_PRIVATE_KEY`) **somente** no Railway.
 
 ### Recuperação de senha ("Esqueci minha senha")
 
@@ -828,52 +829,58 @@ pnpm --filter @athlon/backend generate-vapid-keys
 
 | Variável | Obrigatória | Descrição |
 |----------|-------------|-----------|
+| `DATABASE_URL` | Sim | PostgreSQL (local ou Railway) |
+| `DATABASE_SSL` | Não | `true` em produção Railway |
 | `JWT_SECRET` | Sim | Secret do access token |
 | `JWT_REFRESH_SECRET` | Sim | Secret do refresh token |
-| `SUPABASE_URL` | Sim | URL do projeto Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | Sim | Chave service role (secreta) |
 | `PORT` | Não | Porta local (default 3001) |
-| `CORS_ORIGIN` | Não | Origem CORS (local: `http://localhost:5173`) |
-| `STORAGE_BUCKET` | Não | Default: `comprovantes` |
-| `CRON_SECRET` | Prod | Proteção dos crons |
+| `CORS_ORIGIN` | Não | Origem(s) CORS (local: `http://localhost:5173`; prod: `https://athlonsport.app.br`) |
+| `APP_URL` | Não | URL do frontend para links mágicos (default: `CORS_ORIGIN`) |
+| `R2_ACCOUNT_ID` | Upload* | Cloudflare account ID |
+| `R2_ACCESS_KEY_ID` | Upload* | R2 access key |
+| `R2_SECRET_ACCESS_KEY` | Upload* | R2 secret key |
+| `R2_BUCKET` | Não | Default: `athonsport` |
+| `R2_PUBLIC_BASE_URL` | Upload* | URL pública do bucket (fotos de turma) |
+| `CRON_SECRET` | Não | Proteção dos endpoints `/api/cron/*` manuais |
+| `CRON_ENABLED` | Não | Default `true`; desabilita `node-cron` |
 | `VAPID_PUBLIC_KEY` | Opcional | Web Push |
 | `VAPID_PRIVATE_KEY` | Opcional | Web Push |
-| `VAPID_SUBJECT` | Opcional | Ex: `mailto:seu@email.com` |
-| `RESEND_API_KEY` | Recuperação de senha | Chave Resend (**pendente configuração - ver §12**) |
-| `EMAIL_FROM` | Recuperação de senha | Remetente dos e-mails (ex.: `ATHLON <noreply@seudominio.com>`) |
-| `APP_URL` | Recuperação de senha | URL do frontend para links mágicos (default: `CORS_ORIGIN`) |
+| `VAPID_SUBJECT` | Opcional | Ex: `mailto:suporte@athlonsport.app.br` |
+| `RESEND_API_KEY` | Recuperação de senha | Chave Resend |
+| `EMAIL_FROM` | Recuperação de senha | Remetente (ex.: `ATHLON <noreply@athlonsport.app.br>`) |
+| `RECOVERY_SHOW_CODE` | Dev | `true` exibe código na tela sem e-mail (desligar em produção) |
 | `ADMIN_EMAIL` | Seed ADM | E-mail do administrador (`pnpm seed:admin`) |
 | `ADMIN_PASSWORD` | Seed ADM | Senha inicial do administrador |
 | `ADMIN_NOME` | Seed ADM | Nome exibido (opcional) |
+
+\* Obrigatório para upload de comprovantes e fotos de turma.
 
 ### Frontend - `apps/frontend/.env`
 
 | Variável | Descrição |
 |----------|-----------|
-| `VITE_API_URL` | URL da API em dev. Ex: `http://localhost:3002/api/v1`. **Não definir na Vercel.** |
+| `VITE_API_URL` | URL da API. Local: `http://localhost:3001/api/v1`. Produção (Vercel): `https://api.athlonsport.app.br/api/v1` |
 
-### Vercel (Environment Variables)
+### Vercel (frontend)
 
-Copiar variáveis do backend + ajustar:
+| Variável | Valor |
+|----------|-------|
+| `VITE_API_URL` | `https://api.athlonsport.app.br/api/v1` |
+
+**Não** configure variáveis de backend na Vercel — apenas no Railway.
+
+### Railway (backend)
+
+Todas as variáveis do backend listadas acima. O `DATABASE_URL` é injetado automaticamente ao vincular o serviço PostgreSQL.
+
+Exemplo de produção:
 
 ```
-CORS_ORIGIN=https://seu-dominio.vercel.app
-APP_URL=https://seu-dominio.vercel.app
+CORS_ORIGIN=https://athlonsport.app.br
+APP_URL=https://athlonsport.app.br
 ```
 
-**Não** definir `VITE_API_URL` na Vercel.
-
-### Supabase (após deploy)
-
-Configurar cron de avisos (após aplicar o schema):
-
-```sql
-INSERT INTO "_athlon_cron_config" (vercel_url, cron_secret)
-VALUES ('https://seu-dominio.vercel.app', 'mesmo-CRON_SECRET-da-vercel')
-ON CONFLICT (id) DO UPDATE SET
-  vercel_url = EXCLUDED.vercel_url,
-  cron_secret = EXCLUDED.cron_secret;
-```
+Guia completo de deploy: [DEPLOY.md](./DEPLOY.md)
 
 ---
 
@@ -883,7 +890,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 - Node.js 18+
 - pnpm 9.x (`packageManager` no `package.json`)
-- Conta Supabase com schema aplicado
+- PostgreSQL local (ou instância remota com `DATABASE_URL`)
 
 ### Passo a passo
 
@@ -895,26 +902,24 @@ cd Athlon
 # 2. Instalar dependências (OBRIGATÓRIO usar pnpm, não npm)
 pnpm install
 
-# 3. Configurar Supabase
-#    - Criar projeto em supabase.com
-#    - SQL Editor: executar apps/backend/supabase/migrations/20250612000000_schema.sql
+# 3. Configurar PostgreSQL
+#    - Criar banco local (ex.: athonsport)
+#    - Copiar apps/backend/.env.example → apps/backend/.env
+#    - Ajustar DATABASE_URL
 
-# 4. Bucket "comprovantes" - incluído no schema (ou criado automaticamente no 1º upload)
+# 4. Aplicar migrations e criar ADM
+pnpm db:migrate
+pnpm seed:admin
 
-# 5. Configurar variáveis
-cp .env.example apps/backend/.env
-# Editar apps/backend/.env com suas chaves
-
-cp apps/frontend/.env.example apps/frontend/.env   # se existir
-# Ou criar apps/frontend/.env:
+# 5. Configurar frontend
+cp apps/frontend/.env.example apps/frontend/.env
 # VITE_API_URL=http://localhost:3001/api/v1
-# (ajustar porta conforme PORT no backend)
 
 # 6. Testar conexão com banco
 pnpm test:db
 
 # 7. Rodar em dois terminais
-pnpm dev:backend    # API em http://localhost:3001 (ou PORT do .env)
+pnpm dev:backend    # API em http://localhost:3001
 pnpm dev:frontend   # PWA em http://localhost:5173
 
 # Ou ambos juntos:
@@ -928,46 +933,48 @@ pnpm test
 
 O Vite (`vite.config.ts`) faz proxy de `/api` para o backend em desenvolvimento quando `VITE_API_URL` não é usado com URL absoluta.
 
+### Storage (R2) em dev
+
+Opcional. Sem as variáveis `R2_*`, uploads de comprovante/foto retornam 503. Para testar uploads localmente, configure um bucket R2 no Cloudflare.
+
 ---
 
-## 16. Deploy em produção (Vercel + Supabase)
+## 16. Deploy em produção (Vercel + Railway)
 
 ### Arquitetura
 
-- **Vercel:** frontend (SPA) + API Express (serverless) no mesmo domínio
-- **Supabase:** PostgreSQL + Storage + pg_cron (avisos horários)
+- **Vercel:** frontend PWA em `https://athlonsport.app.br`
+- **Railway:** API Express em `https://api.athlonsport.app.br` + PostgreSQL + crons (`node-cron`)
+- **Cloudflare R2:** storage de comprovantes e fotos de turma
+- **Resend:** e-mail transacional
 
-### Plano Free do Supabase
+Guia passo a passo: **[DEPLOY.md](./DEPLOY.md)**
 
-- O plano free (`t4g.nano`) é adequado enquanto o produto não tem tráfego de venda.
-- RAM ~40–60% em idle é **normal** (Postgres + PostgREST); não indica necessidade de upgrade.
-- Critérios para upar: Disk ou conexões apertando, crons falhando/lentos, ou muitos usuários ativos + Storage/backup maiores.
-- Detalhes e pendências de otimização: [Melhoria.md - Supabase Free](./Melhoria.md#supabase-free-consumo).
+### Passo a passo resumido
 
-### Passo a passo
+1. **Railway**
+   - Criar projeto com serviço PostgreSQL + serviço da API (GitHub repo)
+   - Configurar variáveis de ambiente (ver §14 e DEPLOY.md)
+   - Vincular `DATABASE_URL` do Postgres ao serviço da API
+   - Deploy automático via `railway.toml` (migrations + seed + start)
+   - Configurar domínio `api.athlonsport.app.br`
 
-1. **Supabase**
-   - Criar projeto
-   - Aplicar `20250612000000_schema.sql` no SQL Editor
-   - Configurar `_athlon_cron_config` (avisos horários)
-   - `pnpm seed:admin` para criar o primeiro ADM
+2. **Vercel**
+   - Importar repositório (frontend)
+   - `VITE_API_URL=https://api.athlonsport.app.br/api/v1`
+   - Build: `pnpm run build:frontend` (via `vercel.json`)
+   - Domínio `athlonsport.app.br`
 
-2. **Git**
-   - Push para GitHub/GitLab
+3. **Cloudflare R2**
+   - Bucket com prefixos `comprovantes/` (privado) e `turmas-fotos/` (público)
+   - Configurar `R2_PUBLIC_BASE_URL` para fotos de turma
 
-3. **Vercel**
-   - Importar repositório
-   - Root Directory: `./` (raiz)
-   - Framework: Other (usa `vercel.json`)
-   - Environment Variables: todas do backend (incl. `APP_URL` e `CORS_ORIGIN` com a URL final)
-   - `CORS_ORIGIN` = URL final do app
-
-4. **Deploy**
-   - `vercel.json` executa `pnpm run build:vercel`
-   - Build compila shared-types → backend → frontend
+4. **Resend**
+   - Verificar domínio `athlonsport.app.br` (SPF, DKIM, DMARC)
+   - Configurar `RESEND_API_KEY` e `EMAIL_FROM` no Railway
 
 5. **Validar**
-   - `https://seu-dominio.vercel.app/health` → `{"status":"ok"}`
+   - `https://api.athlonsport.app.br/health` → `{"status":"ok"}`
    - `pnpm test`
    - Testar login e fluxo de comprovante
    - Chrome DevTools → Application → Manifest (Installability OK)
@@ -992,9 +999,12 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `pnpm dev:frontend` | Só frontend (Vite :5173) |
 | `pnpm dev:backend` | Só backend (Express + crons locais) |
 | `pnpm build` | Build completo (shared-types + backend + frontend) |
-| `pnpm build:vercel` | Build para deploy Vercel |
+| `pnpm build:frontend` | Build só do frontend (Vercel) |
+| `pnpm build:backend` | Build só do backend (Railway) |
+| `pnpm build:vercel` | Alias para `build:frontend` |
+| `pnpm db:migrate` | Aplica migrations SQL |
 | `pnpm test` | Testes automatizados (shared-types + frontend) |
-| `pnpm test:db` | Testa conexão Supabase |
+| `pnpm test:db` | Testa conexão PostgreSQL |
 | `pnpm seed:admin` | Cria usuário ADM inicial no banco |
 | `pnpm --filter @athlon/frontend test:watch` | Testes do PWA em modo watch |
 | `pnpm --filter @athlon/backend generate-vapid-keys` | Gera chaves VAPID |
@@ -1010,14 +1020,15 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `apps/frontend/src/lib/api.ts` | Cliente HTTP, tokens, erros |
 | `apps/frontend/src/lib/auth-context.tsx` | Estado de autenticação |
 | `apps/backend/src/app.ts` | Montagem da API Express |
-| `apps/backend/src/server.ts` | Servidor local + crons |
-| `api/index.ts` | Entrypoint serverless Vercel |
-| `vercel.json` | Config de deploy |
+| `apps/backend/src/server.ts` | Servidor + node-cron |
+| `railway.toml` | Deploy Railway (build, migrations, health check) |
+| `vercel.json` | Deploy frontend (SPA) |
 | `apps/backend/src/middleware/auth.ts` | JWT e roles |
 | `apps/backend/src/modules/admin/` | API administrativa |
-| `apps/backend/src/modules/comprovantes/storage.service.ts` | Upload Storage (bucket + URLs assinadas) |
+| `apps/backend/src/lib/storage/r2-storage.service.ts` | Upload R2 (URLs assinadas) |
 | `apps/backend/src/lib/email.ts` | Envio de e-mail (Resend) |
 | `apps/backend/scripts/seed-admin.ts` | Seed do usuário ADM inicial |
+| `apps/backend/scripts/migrate.ts` | Aplica migrations SQL |
 | `apps/frontend/src/features/admin/` | Telas do painel administrativo |
 | `apps/backend/src/modules/eventos/eventos.service.ts` | Eventos de turma (amistoso/campeonato) |
 | `apps/backend/src/lib/inadimplencia.ts` | Regra de bloqueio |
@@ -1027,20 +1038,21 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `apps/frontend/src/lib/use-pwa-install.ts` | Hook de instalação PWA (Android + iOS) |
 | `apps/frontend/src/components/pwa/PwaInstallPrompt.tsx` | Banner de convite para instalar |
 | `apps/frontend/src/lib/push-notifications.ts` | Registro push VAPID (PWA) |
-| `apps/backend/supabase/migrations/` | Schema do banco |
+| `apps/backend/migrations/` | Schema do banco |
 
 ---
 
 ## 19. Decisões arquiteturais
 
-1. **Auth própria** em vez de Supabase Auth - controle total de JWT e perfis.
-2. **Service role only** - segurança na camada API, não RLS no app.
-3. **Monorepo + shared-types** - validação Zod idêntica no front e back.
-4. **Deploy unificado Vercel** - SPA + API no mesmo domínio, sem CORS complexo.
-5. **Crons híbridos** - Vercel (diário/mensal) + Supabase pg_cron (avisos horários).
-6. **Upload direto ao Storage** - backend não proxya arquivos.
-7. **Bloqueio por turma** - inadimplência granular, não bloqueia o app inteiro.
-8. **Eventos de turma** - amistoso/campeonato informativos, sem presença/RSVP; tabela `Presenca` reservada para expansão futura.
+1. **Auth própria** com JWT — controle total de perfis e tokens.
+2. **Backend como único ponto de acesso ao banco** — sem RLS; segurança na camada API.
+3. **Monorepo + shared-types** — validação Zod idêntica no front e back.
+4. **Frontend e API separados** — Vercel (SPA) + Railway (Express), comunicação via `VITE_API_URL`.
+5. **Crons no Railway** — `node-cron` no processo Express (avisos horários, diário, mensal).
+6. **Upload direto ao R2** — backend gera URL assinada; não proxya arquivos.
+7. **Bloqueio por turma** — inadimplência granular, não bloqueia o app inteiro.
+8. **Eventos de turma** — amistoso/campeonato informativos, sem presença/RSVP; tabela `Presenca` reservada para expansão futura.
+9. **PWA como canal único** — sem TWA/APK; instalação via prompt nativo (Android) ou tutorial Safari (iOS).
 
 ---
 
@@ -1050,25 +1062,20 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 [ ] Instalar Node.js 18+ e pnpm 9.x
 [ ] git clone <repositorio>
 [ ] pnpm install
-[ ] Criar apps/backend/.env (copiar do .env.example ou do PC antigo - NÃO commitar)
+[ ] Criar apps/backend/.env (copiar de .env.example — NÃO commitar)
 [ ] Criar apps/frontend/.env com VITE_API_URL apontando para o backend local
-[ ] Aplicar schema no Supabase (banco novo):
-    - apps/backend/supabase/migrations/20250612000000_schema.sql
-[ ] (Banco existente) Aplicar migration Dispositivo:
-    - apps/backend/supabase/migrations/20250627000000_dispositivos.sql
-[ ] (Banco existente) Aplicar migration Eventos de turma:
-    - apps/backend/supabase/migrations/20250705000000_eventos_turma.sql
-    - apps/backend/supabase/migrations/20250711000000_turma_foto.sql
+[ ] Configurar PostgreSQL local (DATABASE_URL)
+[ ] pnpm db:migrate
 [ ] Configurar ADMIN_EMAIL e ADMIN_PASSWORD em apps/backend/.env
 [ ] pnpm seed:admin
-[ ] (Opcional) Criar bucket comprovantes manualmente - já incluso no schema
+[ ] (Opcional) Configurar R2 para testar uploads
 [ ] pnpm test:db
 [ ] pnpm test
 [ ] pnpm dev
-[ ] (Produção) Configurar variáveis na Vercel (incluir APP_URL e CORS_ORIGIN com a URL final)
-[ ] (Produção) Configurar Resend para recuperação de senha (pendente)
-[ ] (Produção) Configurar _athlon_cron_config no Supabase
-[ ] (Produção) Validar /health e fluxo de upload de comprovante
+[ ] (Produção) Configurar variáveis no Railway (ver DEPLOY.md)
+[ ] (Produção) Configurar VITE_API_URL na Vercel
+[ ] (Produção) Configurar Resend para recuperação de senha
+[ ] (Produção) Validar https://api.athlonsport.app.br/health e fluxo de upload
 ```
 
 ### Subir para o Git (primeira vez)
@@ -1098,7 +1105,7 @@ Documentadas em `docs/Melhoria.md`:
 
 - Presença/chamada com RSVP (tabela `Presenca` - eventos de turma já existem, mas sem confirmação de presença)
 - Histórico de eventos passados visível para o aluno
-- Exclusão do arquivo de comprovante no Storage após aprovação/recusa
+- Exclusão do arquivo de comprovante no R2 após aprovação/recusa (já implementado)
 - Notificação ao professor quando aluno envia comprovante
 - Bloqueio mais rígido de inadimplência (redirecionar direto para mensalidades)
 - Exclusão definitiva de conta de professor (hoje só inativação)
@@ -1150,18 +1157,48 @@ Documentadas em `docs/Melhoria.md`:
 - Rotas com `React.lazy` + `Suspense` em [`apps/frontend/src/app/router.tsx`](../apps/frontend/src/app/router.tsx)
 - **Eager (bundle inicial):** `ProfileSelectPage`, `LoginFormPage`
 - **Lazy (chunk sob demanda):** demas páginas (dashboards, aluno, professor, admin, legal, recuperação de senha)
-- Bundle principal ~438 KB (antes ~550 KB); não altera quantidade de requests à API/Supabase
+- Bundle principal ~438 KB (antes ~550 KB); não altera quantidade de requests à API
 
-### Economia Supabase (free tier)
+### Otimização de requests
 
 - Polling de notificações: 180s; React Query `staleTime` 90s e `refetchOnWindowFocus: false`
 - Signed URL de comprovante só no detalhe (não na fila/listagem)
-- Guia de métricas e quando upar: [Melhoria.md - Supabase Free](./Melhoria.md#supabase-free-consumo)
 
 ### Onboarding iOS (PWA)
 
 - Tutorial Safari → Compartilhar → Adicionar à Tela de Início
 - Em navegadores que não são Safari no iPhone, modal orienta a abrir no Safari
+
+---
+
+## 21.2. Migração de infraestrutura (ago/2026)
+
+Migração completa de Supabase para **Railway + Cloudflare R2**. Detalhes em [DEPLOY.md](./DEPLOY.md).
+
+### O que mudou
+
+| Antes | Depois |
+|-------|--------|
+| Supabase (PostgreSQL + Storage + pg_cron) | PostgreSQL no Railway |
+| Supabase Storage (comprovantes, fotos) | Cloudflare R2 |
+| API serverless na Vercel (`api/index.ts`) | API Express no Railway (`api.athlonsport.app.br`) |
+| Crons híbridos (Vercel + pg_cron) | `node-cron` no processo Railway |
+| TWA/APK Android | Apenas PWA instalável |
+| Domínio `*.vercel.app` | `athlonsport.app.br` |
+
+### Código
+
+- Cliente `pg` (`apps/backend/src/lib/db.ts`) substitui `@supabase/supabase-js`
+- Storage via `apps/backend/src/lib/storage/r2-storage.service.ts`
+- Migrations consolidadas em `apps/backend/migrations/001_schema.sql`
+- `railway.toml`: migrations + seed + start na subida do serviço
+- Removidos: `api/index.ts`, `apps/backend/supabase/`, variáveis `SUPABASE_*`
+
+### Domínio e CORS
+
+- Frontend: `https://athlonsport.app.br` (Vercel)
+- API: `https://api.athlonsport.app.br` (Railway)
+- CORS aceita apex e `www` (configurável via `CORS_ORIGIN`)
 
 ---
 
@@ -1210,5 +1247,6 @@ Software proprietário de **Otávio Morais Antocevicz**. Consulte `LICENSE` para
 
 Para dúvidas técnicas sobre deploy, consulte também:
 - `README.md` - início rápido
+- `docs/DEPLOY.md` - deploy Vercel + Railway
 - `docs/web-push-producao.md` - push em produção
 - `docs/Melhoria.md` - backlog de melhorias
