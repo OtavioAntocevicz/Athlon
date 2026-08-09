@@ -552,7 +552,7 @@ export function TurmaDetailPage() {
                 control={control}
                 render={({ field }) => (
                   <MaskedInput
-                    placeholder="Ex: 123.456.789-00 ou e-mail"
+                    placeholder="Ex: (41) 91234-5678, CPF ou e-mail"
                     inputMode="text"
                     autoComplete="off"
                     mask={maskChavePix}

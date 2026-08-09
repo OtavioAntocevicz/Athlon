@@ -25,16 +25,45 @@ export function parseReaisToCentavos(value: string): number | null {
   return centavos > 0 ? centavos : null;
 }
 
-/** (00) 0000-0000 ou (00) 00000-0000 */
-export function maskWhatsApp(value: string): string {
-  const d = digitsOnly(value).slice(0, 11);
+/**
+ * Telefone BR: (41) 91234-5678 (celular) ou (41) 3123-4567 (fixo).
+ * Aceita dígitos crus, já mascarados ou com +55.
+ */
+export function maskTelefone(value: string): string {
+  let d = digitsOnly(value);
+
+  // Remove DDI 55 quando vier junto (ex: 5541912345678)
+  if (d.startsWith("55") && d.length > 11) {
+    d = d.slice(2);
+  }
+  d = d.slice(0, 11);
+
   if (d.length === 0) return "";
   if (d.length <= 2) return `(${d}`;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) {
-    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+
+  const ddd = d.slice(0, 2);
+  const rest = d.slice(2);
+  const isMobile = rest.startsWith("9") || d.length === 11;
+
+  if (isMobile) {
+    if (rest.length <= 5) return `(${ddd}) ${rest}`;
+    return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
   }
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+
+  if (rest.length <= 4) return `(${ddd}) ${rest}`;
+  return `(${ddd}) ${rest.slice(0, 4)}-${rest.slice(4)}`;
+}
+
+/** Alias usado no cadastro/perfil de aluno. */
+export function maskWhatsApp(value: string): string {
+  return maskTelefone(value);
+}
+
+/** Celular BR: 3º dígito é 9 (DDD + 9 + 8 dígitos). */
+function looksLikePhoneDigits(d: string): boolean {
+  if (d.startsWith("55") && d.length >= 12) return true;
+  if (d.length >= 3 && d[2] === "9") return true;
+  return false;
 }
 
 /** 000.000.000-00 */
@@ -61,7 +90,8 @@ export function maskCnpj(value: string): string {
 /**
  * Formata chave PIX na digitação:
  * - e-mail / chave aleatória (com letras): sem máscara
- * - só números até 11 dígitos: CPF (123.456.789-00)
+ * - telefone (ex: 41912345678 ou +55…): (41) 91234-5678
+ * - só números até 11 dígitos (não telefone): CPF
  * - 12–14 dígitos: CNPJ
  */
 export function maskChavePix(value: string): string {
@@ -72,8 +102,15 @@ export function maskChavePix(value: string): string {
   if (trimmed.includes("@")) return trimmed.trim();
   if (/[a-zA-Z]/.test(trimmed)) return trimmed.trim();
 
+  // Usuário começou a digitar telefone com + ou (
+  if (trimmed.startsWith("+") || trimmed.startsWith("(")) {
+    return maskTelefone(trimmed);
+  }
+
   const d = digitsOnly(trimmed);
   if (!d) return "";
+
+  if (looksLikePhoneDigits(d)) return maskTelefone(d);
   if (d.length <= 11) return maskCpf(d);
   return maskCnpj(d);
 }

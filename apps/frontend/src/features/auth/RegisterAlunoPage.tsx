@@ -112,7 +112,9 @@ export function RegisterAlunoPage() {
             render={({ field }) => (
               <MaskedInput
                 mask={maskWhatsApp}
-                placeholder="(00) 00000-0000"
+                placeholder="(41) 91234-5678"
+                inputMode="tel"
+                autoComplete="tel"
                 value={field.value}
                 onChange={field.onChange}
                 onBlur={field.onBlur}

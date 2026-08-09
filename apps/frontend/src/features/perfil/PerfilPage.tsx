@@ -150,7 +150,7 @@ export function PerfilPage() {
                 name="chavePix"
                 render={({ field }) => (
                   <MaskedInput
-                    placeholder="Ex: 123.456.789-00 ou e-mail"
+                    placeholder="Ex: (41) 91234-5678, CPF ou e-mail"
                     inputMode="text"
                     autoComplete="off"
                     mask={maskChavePix}
@@ -198,7 +198,17 @@ export function PerfilPage() {
                 name="whatsapp"
                 control={alunoForm.control}
                 render={({ field }) => (
-                  <MaskedInput mask={maskWhatsApp} {...field} />
+                  <MaskedInput
+                    mask={maskWhatsApp}
+                    placeholder="(41) 91234-5678"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
                 )}
               />
             </div>
