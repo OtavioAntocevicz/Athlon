@@ -35,6 +35,31 @@ export function toMesReferenciaDate(date: Date): string {
   return `${y}-${m}-01`;
 }
 
+/** Data calendário YYYY-MM-DD a partir de Date local (ex.: resultado de calcularVencimento). */
+export function toDateOnly(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** Extrai YYYY-MM-DD de DATE/ISO sem deslocar o dia civil. */
+export function chaveDiaFromIso(iso: string | Date): string {
+  if (iso instanceof Date) {
+    if (Number.isNaN(iso.getTime())) return "";
+    return iso.toISOString().slice(0, 10);
+  }
+  const s = String(iso ?? "");
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return "";
+}
+
+export function chaveDiaCalendario(date: Date = new Date()): string {
+  return toDateOnly(date);
+}
+
 export function chaveMesCalendario(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");

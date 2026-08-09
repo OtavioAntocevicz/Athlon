@@ -1,5 +1,5 @@
 import type { StatusMensalidade } from "@athlon/shared-types";
-import { chaveMesFromIso } from "./utils.js";
+import { chaveDiaCalendario, chaveDiaFromIso, chaveMesFromIso } from "./utils.js";
 
 export type PagamentoResumo = {
   id: string;
@@ -21,11 +21,9 @@ export function statusEfetivo(
   }
 
   if (pagamento.vencimento && (status === "PENDENTE" || status === "RECUSADO")) {
-    const venc = new Date(pagamento.vencimento);
-    venc.setHours(23, 59, 59, 999);
-    const ref = new Date(hoje);
-    ref.setHours(0, 0, 0, 0);
-    if (ref > venc) return "ATRASADO";
+    const diaVenc = chaveDiaFromIso(pagamento.vencimento);
+    const diaHoje = chaveDiaCalendario(hoje);
+    if (diaVenc && diaHoje > diaVenc) return "ATRASADO";
   }
 
   return status;

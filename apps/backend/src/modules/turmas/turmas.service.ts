@@ -23,7 +23,10 @@ import type {
 } from "@athlon/shared-types";
 import { statusEfetivo } from "../../lib/mensalidade-focus.js";
 import { isMesFuturo } from "../../lib/utils.js";
-import { gerarMensalidadesParaTurma } from "../mensalidades/mensalidades.service.js";
+import {
+  gerarMensalidadesParaTurma,
+  sincronizarVencimentosDaTurma,
+} from "../mensalidades/mensalidades.service.js";
 
 type TurmaRow = Record<string, unknown>;
 
@@ -167,6 +170,8 @@ export async function atualizarTurmaBasico(
     ],
   );
 
+  await sincronizarVencimentosDaTurma(id);
+
   const totalAlunos = await countQuery(
     `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
     [id],
@@ -230,10 +235,16 @@ export async function atualizarTurma(
 
   values.push(id);
 
-  return queryOne<TurmaRow>(
+  const turma = await queryOne<TurmaRow>(
     `UPDATE "Turma" SET ${fields.join(", ")} WHERE id = $${idx} RETURNING *`,
     values,
   );
+
+  if (input.diaVencimento !== undefined) {
+    await sincronizarVencimentosDaTurma(id);
+  }
+
+  return turma;
 }
 
 export async function listarAlunosTurma(turmaId: string, professorId: string) {

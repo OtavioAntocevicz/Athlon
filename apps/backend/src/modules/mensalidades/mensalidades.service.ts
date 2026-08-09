@@ -10,8 +10,10 @@ import { AppError } from "../../middleware/error-handler.js";
 import {
   addMeses,
   calcularVencimento,
+  chaveDiaCalendario,
   inicioDoMes,
   isMesFuturo,
+  toDateOnly,
   toMesReferenciaDate,
 } from "../../lib/utils.js";
 import type { StatusMensalidade } from "@athlon/shared-types";
@@ -45,11 +47,51 @@ async function upsertPagamento(
       alunoId,
       turmaId,
       toMesReferenciaDate(mesRef),
-      toMesReferenciaDate(vencimento),
+      toDateOnly(vencimento),
       valorCentavos,
       ts,
     ],
   );
+}
+
+/**
+ * Recalcula vencimento dos pagamentos em aberto com o dia_vencimento atual da turma.
+ * Corrige registros antigos gravados como dia 1 e aplica mudança feita pelo professor.
+ */
+export async function sincronizarVencimentosDaTurma(turmaId: string) {
+  const turma = await queryOne<TurmaRow>(
+    `SELECT id, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
+    [turmaId],
+    { message: "Turma não encontrada" },
+  );
+
+  if (!turma.dia_vencimento) return;
+
+  const dia = Math.min(turma.dia_vencimento, 28);
+  const ts = now();
+
+  await execute(
+    `UPDATE "Pagamento" AS p
+     SET
+       vencimento = make_date(
+         EXTRACT(YEAR FROM p.mes_referencia)::int,
+         EXTRACT(MONTH FROM p.mes_referencia)::int,
+         $1
+       ),
+       atualizado_em = $2
+     WHERE p.turma_id = $3
+       AND p.status IN ('PENDENTE', 'ATRASADO', 'RECUSADO', 'EM_ANALISE')`,
+    [dia, ts, turmaId],
+  );
+}
+
+export async function sincronizarVencimentosTodasTurmas() {
+  const turmas = await query<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE dia_vencimento IS NOT NULL`,
+  );
+  for (const turma of turmas) {
+    await sincronizarVencimentosDaTurma(turma.id);
+  }
 }
 
 export async function gerarMensalidadesParaTurma(turmaId: string, meses = 1) {
@@ -104,13 +146,10 @@ export async function gerarMensalidadesParaAluno(alunoId: string, turmaId: strin
 }
 
 export async function marcarAtrasados() {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
   await execute(
     `UPDATE "Pagamento" SET status = 'ATRASADO'
-     WHERE vencimento < $1 AND status IN ('PENDENTE', 'RECUSADO')`,
-    [hoje.toISOString()],
+     WHERE vencimento < $1::date AND status IN ('PENDENTE', 'RECUSADO')`,
+    [chaveDiaCalendario()],
   );
 }
 
