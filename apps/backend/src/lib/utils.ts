@@ -41,10 +41,34 @@ export function chaveMesCalendario(date: Date): string {
   return `${y}-${m}`;
 }
 
-export function chaveMesFromIso(iso: string): string {
-  return iso.slice(0, 7);
+/**
+ * Extrai YYYY-MM de string ISO ou Date do pg (TIMESTAMP/DATE).
+ * node-pg devolve Date; chamar .slice em Date quebrava o dashboard do aluno (500).
+ */
+export function chaveMesFromIso(iso: string | Date): string {
+  if (iso instanceof Date) {
+    if (Number.isNaN(iso.getTime())) return "";
+    return iso.toISOString().slice(0, 7);
+  }
+
+  const s = String(iso ?? "");
+  if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 7);
+  return s.slice(0, 7);
 }
 
-export function isMesFuturo(mesReferenciaIso: string, hoje: Date = new Date()): boolean {
+export function isMesFuturo(
+  mesReferenciaIso: string | Date,
+  hoje: Date = new Date(),
+): boolean {
   return chaveMesFromIso(mesReferenciaIso) > chaveMesCalendario(hoje);
+}
+
+export function toIsoSafe(value: string | Date | null | undefined): string | null {
+  if (value == null) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
 }

@@ -156,43 +156,6 @@ export async function registerAluno(input: RegisterAlunoInput) {
     throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
   }
 
-  const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
-  const usuarioId = generateId();
-  const alunoId = generateId();
-  const ts = now();
-
-  const nomeCompleto = `${input.nome.trim()} ${input.sobrenome.trim()}`;
-
-  try {
-    await execute(
-      `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, criado_em, atualizado_em)
-       VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-      [usuarioId, input.email, nomeCompleto, senha_hash, "ALUNO", ts],
-    );
-  } catch (err) {
-    if (err instanceof AppError && err.code === "CONFLICT") {
-      throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
-    }
-    throw err;
-  }
-
-  await execute(
-    `INSERT INTO "Aluno" (id, usuario_id, nome, sobrenome, email, telefone, data_nascimento, rg, cpf, criado_em, atualizado_em)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
-    [
-      alunoId,
-      usuarioId,
-      input.nome.trim(),
-      input.sobrenome.trim(),
-      input.email,
-      input.whatsapp.replace(/\D/g, ""),
-      `${input.anoNascimento}-01-01`,
-      input.rg.trim(),
-      input.cpf ?? null,
-      ts,
-    ],
-  );
-
   const turma = await queryMaybeOne<{ id: string }>(
     `SELECT id FROM "Turma" WHERE codigo_convite = $1`,
     [input.codigoConvite.trim()],
@@ -202,12 +165,55 @@ export async function registerAluno(input: RegisterAlunoInput) {
     throw new AppError(404, "CONVITE_INVALIDO", "Código da turma inválido");
   }
 
-  await matricularAlunoTurma(alunoId, turma.id);
+  const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
+  const usuarioId = generateId();
+  const alunoId = generateId();
+  const ts = now();
+  const nomeCompleto = `${input.nome.trim()} ${input.sobrenome.trim()}`;
+  const cpfDigits = input.cpf ? input.cpf.replace(/\D/g, "") : null;
+  const rgDigits = input.rg.replace(/\D/g, "") || input.rg.trim();
 
-  const { gerarMensalidadesParaAluno } = await import(
-    "../mensalidades/mensalidades.service.js"
-  );
-  await gerarMensalidadesParaAluno(alunoId, turma.id);
+  try {
+    await execute(
+      `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, criado_em, atualizado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+      [usuarioId, input.email, nomeCompleto, senha_hash, "ALUNO", ts],
+    );
+
+    await execute(
+      `INSERT INTO "Aluno" (id, usuario_id, nome, sobrenome, email, telefone, data_nascimento, rg, cpf, criado_em, atualizado_em)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)`,
+      [
+        alunoId,
+        usuarioId,
+        input.nome.trim(),
+        input.sobrenome.trim(),
+        input.email,
+        input.whatsapp.replace(/\D/g, ""),
+        `${input.anoNascimento}-01-01`,
+        rgDigits,
+        cpfDigits && cpfDigits.length === 11 ? cpfDigits : null,
+        ts,
+      ],
+    );
+
+    await matricularAlunoTurma(alunoId, turma.id);
+
+    const { gerarMensalidadesParaAluno } = await import(
+      "../mensalidades/mensalidades.service.js"
+    );
+    await gerarMensalidadesParaAluno(alunoId, turma.id);
+  } catch (err) {
+    try {
+      await execute(`DELETE FROM "Usuario" WHERE id = $1`, [usuarioId]);
+    } catch {
+      /* ignore cleanup */
+    }
+    if (err instanceof AppError && err.code === "CONFLICT") {
+      throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+    }
+    throw err;
+  }
 
   return buildAuthResponse(usuarioId);
 }
