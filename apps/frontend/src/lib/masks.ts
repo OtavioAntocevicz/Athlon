@@ -2,6 +2,29 @@ export function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** Formata centavos como "150,00" (pt-BR, sem símbolo). */
+export function formatCentavosInput(centavos: number): string {
+  return (centavos / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Máscara monetária BRL a partir dos dígitos digitados → "150,00". */
+export function maskCurrencyBRL(value: string): string {
+  const digits = digitsOnly(value).slice(0, 9);
+  if (!digits) return "";
+  return formatCentavosInput(parseInt(digits, 10));
+}
+
+/** Converte "150,00" / "1.150,00" em centavos. */
+export function parseReaisToCentavos(value: string): number | null {
+  const digits = digitsOnly(value);
+  if (!digits) return null;
+  const centavos = parseInt(digits, 10);
+  return centavos > 0 ? centavos : null;
+}
+
 /** (00) 0000-0000 ou (00) 00000-0000 */
 export function maskWhatsApp(value: string): string {
   const d = digitsOnly(value).slice(0, 11);

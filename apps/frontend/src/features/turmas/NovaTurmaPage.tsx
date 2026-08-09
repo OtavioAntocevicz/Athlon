@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createTurmaSchema,
@@ -9,10 +9,19 @@ import {
   Modalidade,
 } from "@athlon/shared-types";
 import { api } from "@/lib/api";
+import {
+  formatCentavosInput,
+  maskCurrencyBRL,
+  parseReaisToCentavos,
+} from "@/lib/masks";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { ArrowLeft } from "lucide-react";
+
+const PLACEHOLDER_INPUT =
+  "placeholder:text-muted-foreground/50 placeholder:font-normal";
 
 export function NovaTurmaPage() {
   const navigate = useNavigate();
@@ -22,14 +31,15 @@ export function NovaTurmaPage() {
     register,
     handleSubmit,
     setValue,
-    formState: { isSubmitting },
+    control,
+    formState: { isSubmitting, errors },
   } = useForm<CreateTurmaInput>({
     resolver: zodResolver(createTurmaSchema),
     defaultValues: {
       modalidade: Modalidade.VOLEI,
-      mensalidadeCentavos: 15000,
-      diaVencimento: 10,
       chavePix: "",
+      local: "",
+      horarioInicio: "",
     },
   });
 
@@ -68,12 +78,19 @@ export function NovaTurmaPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium">Nome da turma</label>
-          <Input placeholder="Ex: Adulto A" {...register("nome")} />
+          <Input
+            className={PLACEHOLDER_INPUT}
+            placeholder="Ex: Adulto A"
+            {...register("nome")}
+          />
+          {errors.nome && (
+            <p className="mt-1 text-xs text-destructive">{errors.nome.message}</p>
+          )}
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Modalidade</label>
           <select
-            className="flex h-12 w-full rounded-lg border border-primary/15 bg-white px-4 text-sm"
+            className="flex h-12 w-full rounded-lg border border-primary/15 bg-white px-4 text-sm text-primary"
             {...register("modalidade")}
           >
             {Object.values(Modalidade).map((m) => (
@@ -85,14 +102,35 @@ export function NovaTurmaPage() {
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Mensalidade (R$)</label>
-          <Input
-            type="number"
-            step="0.01"
-            placeholder="150.00"
-            {...register("mensalidadeCentavos", {
-              setValueAs: (v) => Math.round(parseFloat(v) * 100),
-            })}
+          <Controller
+            name="mensalidadeCentavos"
+            control={control}
+            render={({ field }) => (
+              <MaskedInput
+                className={PLACEHOLDER_INPUT}
+                placeholder="150,00"
+                inputMode="decimal"
+                mask={maskCurrencyBRL}
+                value={
+                  typeof field.value === "number" && field.value > 0
+                    ? formatCentavosInput(field.value)
+                    : ""
+                }
+                onChange={(masked) => {
+                  const cents = parseReaisToCentavos(masked);
+                  field.onChange(cents ?? undefined);
+                }}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              />
+            )}
           />
+          {errors.mensalidadeCentavos && (
+            <p className="mt-1 text-xs text-destructive">
+              Informe um valor válido (ex: 150,00)
+            </p>
+          )}
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Dia do vencimento</label>
@@ -100,20 +138,48 @@ export function NovaTurmaPage() {
             type="number"
             min={1}
             max={28}
-            {...register("diaVencimento", { valueAsNumber: true })}
+            className={PLACEHOLDER_INPUT}
+            placeholder="Ex: 10"
+            {...register("diaVencimento", {
+              setValueAs: (v) => {
+                if (v === "" || v === null || v === undefined) return undefined;
+                const n = Number(v);
+                return Number.isFinite(n) ? n : undefined;
+              },
+            })}
           />
+          {errors.diaVencimento && (
+            <p className="mt-1 text-xs text-destructive">
+              Informe o dia do vencimento (1 a 28)
+            </p>
+          )}
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Chave PIX</label>
-          <Input placeholder="CPF, e-mail ou telefone" {...register("chavePix")} />
+          <Input
+            className={PLACEHOLDER_INPUT}
+            placeholder="Ex: CPF, e-mail ou telefone"
+            {...register("chavePix")}
+          />
+          {errors.chavePix && (
+            <p className="mt-1 text-xs text-destructive">{errors.chavePix.message}</p>
+          )}
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Local (opcional)</label>
-          <Input placeholder="Quadra 1" {...register("local")} />
+          <Input
+            className={PLACEHOLDER_INPUT}
+            placeholder="Ex: Quadra 1"
+            {...register("local")}
+          />
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Horário (opcional)</label>
-          <Input placeholder="18:00" {...register("horarioInicio")} />
+          <Input
+            className={PLACEHOLDER_INPUT}
+            placeholder="Ex: 18:00"
+            {...register("horarioInicio")}
+          />
         </div>
 
         {error && <p className="text-sm text-destructive">{error}</p>}

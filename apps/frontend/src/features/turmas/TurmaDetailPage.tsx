@@ -14,11 +14,17 @@ import {
 } from "@athlon/shared-types";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatDateTime, getInitials } from "@/lib/format";
-import { maskRg } from "@/lib/masks";
+import {
+  formatCentavosInput,
+  maskCurrencyBRL,
+  maskRg,
+  parseReaisToCentavos,
+} from "@/lib/masks";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { QueryError } from "@/components/ui/query-error";
 import { StatusDot } from "@/components/domain/StatusDot";
 import {
@@ -507,14 +513,22 @@ export function TurmaDetailPage() {
                 name="mensalidadeCentavos"
                 control={control}
                 render={({ field }) => (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={field.value / 100}
-                    onChange={(e) => {
-                      const reais = parseFloat(e.target.value);
-                      field.onChange(Number.isFinite(reais) ? Math.round(reais * 100) : 0);
+                  <MaskedInput
+                    className="placeholder:text-muted-foreground/50"
+                    placeholder="150,00"
+                    inputMode="decimal"
+                    mask={maskCurrencyBRL}
+                    value={
+                      typeof field.value === "number" && field.value > 0
+                        ? formatCentavosInput(field.value)
+                        : ""
+                    }
+                    onChange={(masked) => {
+                      field.onChange(parseReaisToCentavos(masked) ?? 0);
                     }}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
                   />
                 )}
               />
