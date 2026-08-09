@@ -44,7 +44,7 @@ export function requireProfessor(req: Request, _res: Response, next: NextFunctio
 }
 
 export function requireAluno(req: Request, _res: Response, next: NextFunction) {
-  if (req.user?.perfil !== "ALUNO") {
+  if (req.user?.perfil !== "ALUNO" || !req.user.alunoId) {
     return next(new AppError(403, "FORBIDDEN", "Acesso restrito a alunos"));
   }
   next();

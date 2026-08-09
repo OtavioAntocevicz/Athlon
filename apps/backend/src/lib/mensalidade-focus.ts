@@ -3,8 +3,8 @@ import { chaveMesFromIso } from "./utils.js";
 
 export type PagamentoResumo = {
   id: string;
-  mes_referencia: string;
-  vencimento: string | null;
+  mes_referencia: string | Date;
+  vencimento: string | Date | null;
   valor_centavos: number;
   status: string;
 };
@@ -31,7 +31,7 @@ export function statusEfetivo(
   return status;
 }
 
-function chaveMes(iso: string): string {
+function chaveMes(iso: string | Date): string {
   return chaveMesFromIso(iso);
 }
 

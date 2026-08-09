@@ -5,7 +5,13 @@ import {
   selecionarMensalidadeEmFoco,
   statusEfetivo,
 } from "../../lib/mensalidade-focus.js";
-import { chaveMesCalendario, chaveMesFromIso, isMesFuturo } from "../../lib/utils.js";
+import { AppError } from "../../middleware/error-handler.js";
+import {
+  chaveMesCalendario,
+  chaveMesFromIso,
+  isMesFuturo,
+  toIsoSafe,
+} from "../../lib/utils.js";
 import { proximoEventoDoAluno } from "../eventos/eventos.service.js";
 
 const EMPTY_PROFESSOR_DASH = {
@@ -28,8 +34,8 @@ const EMPTY_PROFESSOR_DASH = {
 type PagamentoRow = {
   id: string;
   aluno_id: string;
-  mes_referencia: string;
-  vencimento: string | null;
+  mes_referencia: string | Date;
+  vencimento: string | Date | null;
   valor_centavos: number;
   status: string;
 };
@@ -52,9 +58,9 @@ export async function dashboardProfessor(professorId: string) {
     ),
     query<{
       id: string;
-      enviado_em: string;
+      enviado_em: string | Date;
       turma_id: string;
-      mes_referencia: string;
+      mes_referencia: string | Date;
       aluno_nome: string;
       turma_nome: string;
     }>(
@@ -115,16 +121,19 @@ export async function dashboardProfessor(professorId: string) {
     .slice(0, 5);
 
   const atividadesRecentes = comprovantesFiltrados.map((c) => {
-    const mesLabel = new Date(
-      chaveMesFromIso(c.mes_referencia) + "-01T12:00:00Z",
-    ).toLocaleDateString("pt-BR", { month: "long", year: "numeric", timeZone: "UTC" });
+    const mesChave = chaveMesFromIso(c.mes_referencia);
+    const mesLabel = new Date(`${mesChave}-01T12:00:00Z`).toLocaleDateString("pt-BR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
 
     return {
       id: c.id,
       tipo: "COMPROVANTE",
       titulo: `${c.aluno_nome} enviou comprovante`,
       descricao: `${c.turma_nome} - ${mesLabel}`,
-      criadoEm: new Date(c.enviado_em).toISOString(),
+      criadoEm: toIsoSafe(c.enviado_em) ?? new Date().toISOString(),
     };
   });
 
@@ -146,11 +155,15 @@ export async function dashboardAluno(alunoId: string) {
 
   const hoje = new Date();
 
+  if (!alunoId) {
+    throw new AppError(403, "FORBIDDEN", "Perfil de aluno não encontrado");
+  }
+
   const [pagamentos, matriculas] = await Promise.all([
     query<{
       id: string;
-      mes_referencia: string;
-      vencimento: string | null;
+      mes_referencia: string | Date;
+      vencimento: string | Date | null;
       valor_centavos: number;
       status: string;
       chave_pix: string | null;
@@ -185,8 +198,8 @@ export async function dashboardAluno(alunoId: string) {
   const emFoco = selecionarMensalidadeEmFoco(
     pagamentosFiltrados.map((p) => ({
       id: p.id,
-      mes_referencia: p.mes_referencia,
-      vencimento: p.vencimento,
+      mes_referencia: toIsoSafe(p.mes_referencia) ?? String(p.mes_referencia),
+      vencimento: toIsoSafe(p.vencimento),
       valor_centavos: p.valor_centavos,
       status: p.status,
       Turma: { chave_pix: p.chave_pix, nome: p.turma_nome },
@@ -197,7 +210,13 @@ export async function dashboardAluno(alunoId: string) {
     ? (emFoco.Turma as { chave_pix: string | null; nome: string })
     : undefined;
 
-  const totalAtrasadas = contarMensalidadesAtrasadas(pagamentosFiltrados, hoje);
+  const totalAtrasadas = contarMensalidadesAtrasadas(pagamentosFiltrados.map((p) => ({
+    id: p.id,
+    mes_referencia: toIsoSafe(p.mes_referencia) ?? String(p.mes_referencia),
+    vencimento: toIsoSafe(p.vencimento),
+    valor_centavos: p.valor_centavos,
+    status: p.status,
+  })), hoje);
   const totalEmAberto = contarMensalidadesEmAberto(pagamentosFiltrados);
   const proximoEvento = await proximoEventoDoAluno(alunoId);
 
@@ -205,14 +224,12 @@ export async function dashboardAluno(alunoId: string) {
     situacaoFinanceira: {
       pagamentoId: emFoco?.id ?? null,
       mesReferencia: emFoco?.mes_referencia
-        ? new Date(emFoco.mes_referencia).toISOString()
+        ? toIsoSafe(emFoco.mes_referencia)
         : null,
       turmaNome: turmaFoco?.nome ?? null,
       status: emFoco ? statusEfetivo(emFoco, hoje) : "PENDENTE",
       valorCentavos: emFoco?.valor_centavos ?? 0,
-      vencimento: emFoco?.vencimento
-        ? new Date(emFoco.vencimento).toISOString()
-        : null,
+      vencimento: emFoco?.vencimento ? toIsoSafe(emFoco.vencimento) : null,
       chavePix: turmaFoco?.chave_pix ?? null,
       totalAtrasadas,
       totalEmAberto,
