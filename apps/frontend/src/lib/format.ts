@@ -17,15 +17,20 @@ export function formatMes(iso: string): string {
 }
 
 export function formatDate(iso: string): string {
-  // Datas civis (vencimento DATE) vêm como YYYY-MM-DD ou ISO UTC midnight.
+  // Datas civis (vencimento DATE) vêm como YYYY-MM-DD ou ISO em meia-noite UTC.
   // Formatar em UTC evita "voltar um dia" no fuso do Brasil.
-  const day = iso.slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-    const [y, m, d] = day.split("-").map(Number);
+  // Timestamps reais (criadoEm etc.) mantêm o fuso local.
+  const isDateOnly =
+    /^\d{4}-\d{2}-\d{2}$/.test(iso) ||
+    /^\d{4}-\d{2}-\d{2}T00:00:00(\.\d{1,3})?Z$/.test(iso);
+
+  if (isDateOnly) {
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("pt-BR", {
       timeZone: "UTC",
     });
   }
+
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
