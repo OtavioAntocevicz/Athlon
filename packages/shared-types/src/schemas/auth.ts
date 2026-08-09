@@ -24,6 +24,18 @@ const cpfOpcionalSchema = z
   )
   .transform((v) => (v?.trim() ? v.trim() : undefined));
 
+/** Código de convite da turma — obrigatório e normalizado (trim + maiúsculas). */
+export const codigoConviteSchema = z
+  .string({ required_error: "Código da turma é obrigatório" })
+  .transform((v) => v.trim().toUpperCase())
+  .pipe(
+    z
+      .string()
+      .min(4, "Código da turma é obrigatório")
+      .max(32, "Código da turma inválido")
+      .regex(/^[A-Z0-9]+$/, "Código da turma inválido"),
+  );
+
 export const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
   senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
@@ -53,7 +65,7 @@ export const registerAlunoSchema = z.object({
     .min(1, "RG é obrigatório")
     .refine((v) => digitCount(v) >= 7, "RG inválido"),
   cpf: cpfOpcionalSchema,
-  codigoConvite: z.string().min(4, "Código da turma é obrigatório"),
+  codigoConvite: codigoConviteSchema,
 });
 
 export const updateProfessorPerfilSchema = z.object({

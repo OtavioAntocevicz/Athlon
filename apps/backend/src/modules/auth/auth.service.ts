@@ -147,6 +147,24 @@ async function buildAuthResponse(usuarioId: string) {
 }
 
 export async function registerAluno(input: RegisterAlunoInput) {
+  const codigoConvite = input.codigoConvite?.trim().toUpperCase() ?? "";
+  if (codigoConvite.length < 4) {
+    throw new AppError(
+      400,
+      "CONVITE_OBRIGATORIO",
+      "Código da turma é obrigatório para criar conta de aluno",
+    );
+  }
+
+  const turma = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE UPPER(codigo_convite) = $1`,
+    [codigoConvite],
+  );
+
+  if (!turma) {
+    throw new AppError(404, "CONVITE_INVALIDO", "Código da turma inválido");
+  }
+
   const exists = await queryMaybeOne<{ id: string }>(
     `SELECT id FROM "Usuario" WHERE email = $1`,
     [input.email],
@@ -154,15 +172,6 @@ export async function registerAluno(input: RegisterAlunoInput) {
 
   if (exists) {
     throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
-  }
-
-  const turma = await queryMaybeOne<{ id: string }>(
-    `SELECT id FROM "Turma" WHERE codigo_convite = $1`,
-    [input.codigoConvite.trim()],
-  );
-
-  if (!turma) {
-    throw new AppError(404, "CONVITE_INVALIDO", "Código da turma inválido");
   }
 
   const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);

@@ -49,6 +49,7 @@ export function RegisterAlunoPage() {
     register,
     control,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterAlunoInput>({
     resolver: zodResolver(registerAlunoSchema),
@@ -56,15 +57,24 @@ export function RegisterAlunoPage() {
       whatsapp: "",
       rg: "",
       cpf: "",
+      codigoConvite: "",
     },
   });
 
+  const codigoConvite = watch("codigoConvite") ?? "";
+  const podeEnviar = codigoConvite.trim().length >= 4;
+
   const onSubmit = async (data: RegisterAlunoInput) => {
     setError("");
+    const codigo = data.codigoConvite.trim().toUpperCase();
+    if (codigo.length < 4) {
+      setError("Informe o código da turma para criar a conta.");
+      return;
+    }
     try {
       const tokens = await api<AuthTokens>("/auth/register/aluno", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, codigoConvite: codigo }),
       });
       login(tokens);
       navigate("/");
@@ -84,10 +94,23 @@ export function RegisterAlunoPage() {
 
       <h1 className="text-2xl font-bold text-primary">Criar conta de Aluno</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Preencha seus dados para entrar na turma.
+        É obrigatório ter o código da turma do treinador para se cadastrar.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
+        <Field label="Código da turma" required error={errors.codigoConvite?.message}>
+          <Input
+            placeholder="Ex: AB12CD34"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            {...register("codigoConvite")}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sem o código válido da turma, a conta não é criada.
+          </p>
+        </Field>
+
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome" required error={errors.nome?.message}>
             <Input placeholder="João" {...register("nome")} />
@@ -165,16 +188,9 @@ export function RegisterAlunoPage() {
           />
         </Field>
 
-        <Field label="Código da turma" required error={errors.codigoConvite?.message}>
-          <Input
-            placeholder="Código fornecido pelo treinador"
-            {...register("codigoConvite")}
-          />
-        </Field>
-
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit" size="lg" disabled={isSubmitting}>
+        <Button type="submit" size="lg" disabled={isSubmitting || !podeEnviar}>
           {isSubmitting ? "Criando..." : "Criar conta"}
         </Button>
       </form>
