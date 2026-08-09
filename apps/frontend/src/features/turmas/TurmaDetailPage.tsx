@@ -16,6 +16,7 @@ import { api, getErrorMessage } from "@/lib/api";
 import { formatCurrency, formatDateTime, getInitials } from "@/lib/format";
 import {
   formatCentavosInput,
+  maskChavePix,
   maskCurrencyBRL,
   maskRg,
   parseReaisToCentavos,
@@ -155,7 +156,7 @@ export function TurmaDetailPage() {
           nivel: turma.nivel as UpdateTurmaBasicoInput["nivel"],
           mensalidadeCentavos: turma.mensalidadeCentavos,
           diaVencimento: turma.diaVencimento,
-          chavePix: turma.chavePix,
+          chavePix: maskChavePix(turma.chavePix),
           local: turma.local ?? "",
           horarioInicio: turma.horarioInicio ?? "",
           horarioFim: turma.horarioFim ?? "",
@@ -546,7 +547,23 @@ export function TurmaDetailPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium">Chave PIX</label>
-              <Input {...register("chavePix")} />
+              <Controller
+                name="chavePix"
+                control={control}
+                render={({ field }) => (
+                  <MaskedInput
+                    placeholder="Ex: 123.456.789-00 ou e-mail"
+                    inputMode="text"
+                    autoComplete="off"
+                    mask={maskChavePix}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                )}
+              />
             </div>
 
             <div>
@@ -625,7 +642,9 @@ export function TurmaDetailPage() {
               </div>
               <div className="border-t border-primary/5 pt-3">
                 <p className="text-xs text-muted-foreground">Chave PIX</p>
-                <p className="mt-0.5 break-all text-sm font-medium text-primary">{turma.chavePix}</p>
+                <p className="mt-0.5 break-all text-sm font-medium text-primary">
+                  {maskChavePix(turma.chavePix)}
+                </p>
               </div>
             </div>
           </Card>

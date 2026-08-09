@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createProfessorAdminSchema,
@@ -8,9 +8,11 @@ import {
   type AdminProfessorCriado,
 } from "@athlon/shared-types";
 import { api, getErrorMessage } from "@/lib/api";
+import { maskChavePix } from "@/lib/masks";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MaskedInput } from "@/components/ui/masked-input";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -22,6 +24,7 @@ export function AdminNovoProfessorPage() {
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<CreateProfessorAdminInput>({
@@ -88,7 +91,23 @@ export function AdminNovoProfessorPage() {
               <label className="mb-1.5 block text-sm font-medium">
                 Chave PIX <span className="text-destructive">*</span>
               </label>
-              <Input placeholder="CPF, e-mail ou telefone" {...register("chavePix")} />
+              <Controller
+                name="chavePix"
+                control={control}
+                render={({ field }) => (
+                  <MaskedInput
+                    placeholder="Ex: 123.456.789-00 ou e-mail"
+                    inputMode="text"
+                    autoComplete="off"
+                    mask={maskChavePix}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                )}
+              />
               {errors.chavePix && (
                 <p className="mt-1 text-sm text-destructive">{errors.chavePix.message}</p>
               )}

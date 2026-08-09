@@ -11,6 +11,7 @@ import {
 import { api } from "@/lib/api";
 import {
   formatCentavosInput,
+  maskChavePix,
   maskCurrencyBRL,
   parseReaisToCentavos,
 } from "@/lib/masks";
@@ -46,7 +47,7 @@ export function NovaTurmaPage() {
   useEffect(() => {
     api<AuthUser>("/auth/me")
       .then((me) => {
-        if (me.chavePix) setValue("chavePix", me.chavePix);
+        if (me.chavePix) setValue("chavePix", maskChavePix(me.chavePix));
       })
       .catch(() => {});
   }, [setValue]);
@@ -156,10 +157,23 @@ export function NovaTurmaPage() {
         </div>
         <div>
           <label className="mb-1.5 block text-sm font-medium">Chave PIX</label>
-          <Input
-            className={PLACEHOLDER_INPUT}
-            placeholder="Ex: CPF, e-mail ou telefone"
-            {...register("chavePix")}
+          <Controller
+            name="chavePix"
+            control={control}
+            render={({ field }) => (
+              <MaskedInput
+                className={PLACEHOLDER_INPUT}
+                placeholder="Ex: 123.456.789-00 ou e-mail"
+                inputMode="text"
+                autoComplete="off"
+                mask={maskChavePix}
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              />
+            )}
           />
           {errors.chavePix && (
             <p className="mt-1 text-xs text-destructive">{errors.chavePix.message}</p>
