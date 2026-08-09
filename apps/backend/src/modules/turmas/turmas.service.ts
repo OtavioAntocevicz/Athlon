@@ -11,14 +11,19 @@ import {
   criarUploadUrlFotoTurma,
   removerArquivoStorage,
   removerFotoTurmaStorage,
+  uploadFotoTurmaStorage,
 } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
 import { gerarCodigoConvite } from "../../lib/utils.js";
-import type { CreateTurmaInput, UpdateTurmaInput } from "@athlon/shared-types";
+import type {
+  CreateTurmaInput,
+  UpdateTurmaBasicoInput,
+  UpdateTurmaInput,
+  UploadFotoTurmaInput,
+} from "@athlon/shared-types";
 import { statusEfetivo } from "../../lib/mensalidade-focus.js";
 import { isMesFuturo } from "../../lib/utils.js";
 import { gerarMensalidadesParaTurma } from "../mensalidades/mensalidades.service.js";
-import type { UpdateTurmaBasicoInput } from "@athlon/shared-types";
 
 type TurmaRow = Record<string, unknown>;
 
@@ -380,6 +385,36 @@ export async function criarUploadUrlFoto(
   }
 
   return criarUploadUrlFotoTurma(turmaId, contentType);
+}
+
+/** Upload via API (evita CORS do R2 no navegador). */
+export async function enviarFotoTurma(
+  turmaId: string,
+  professorId: string,
+  input: UploadFotoTurmaInput,
+) {
+  const turmaCheck = await queryMaybeOne<{ id: string }>(
+    `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+    [turmaId, professorId],
+  );
+
+  if (!turmaCheck) {
+    throw new AppError(404, "NOT_FOUND", "Turma não encontrada");
+  }
+
+  const raw = input.dataBase64.includes(",")
+    ? input.dataBase64.split(",").pop()!
+    : input.dataBase64;
+
+  let body: Buffer;
+  try {
+    body = Buffer.from(raw, "base64");
+  } catch {
+    throw new AppError(400, "INVALID_FILE", "Arquivo inválido");
+  }
+
+  const uploaded = await uploadFotoTurmaStorage(turmaId, input.contentType, body);
+  return atualizarFotoTurma(turmaId, professorId, uploaded.fotoUrl);
 }
 
 export async function atualizarFotoTurma(

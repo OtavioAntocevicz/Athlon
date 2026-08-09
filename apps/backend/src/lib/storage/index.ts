@@ -8,6 +8,22 @@ export async function criarUploadUrlFotoTurma(turmaId: string, contentType: stri
   return getStorageService().createTurmaFotoUploadUrl(turmaId, contentType);
 }
 
+export async function uploadFotoTurmaStorage(
+  turmaId: string,
+  contentType: string,
+  body: Buffer,
+) {
+  return getStorageService().uploadTurmaFoto(turmaId, contentType, body);
+}
+
+export async function uploadComprovanteStorage(
+  pagamentoId: string,
+  contentType: string,
+  body: Buffer,
+) {
+  return getStorageService().uploadComprovante(pagamentoId, contentType, body);
+}
+
 export async function getSignedReadUrl(arquivoUrl: string | null | undefined) {
   return getStorageService().getSignedReadUrl(arquivoUrl);
 }

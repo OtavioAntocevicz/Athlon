@@ -36,3 +36,17 @@ export const atualizarFotoTurmaSchema = z.object({
 });
 
 export type AtualizarFotoTurmaInput = z.infer<typeof atualizarFotoTurmaSchema>;
+
+export const uploadFotoTurmaSchema = z.object({
+  contentType: z
+    .string()
+    .min(1)
+    .transform((v) => (v === "image/jpg" ? "image/jpeg" : v))
+    .refine(
+      (v) => ["image/jpeg", "image/png", "image/webp"].includes(v),
+      "Tipo de imagem não permitido. Use JPEG, PNG ou WebP.",
+    ),
+  dataBase64: z.string().min(1, "Arquivo inválido"),
+});
+
+export type UploadFotoTurmaInput = z.infer<typeof uploadFotoTurmaSchema>;
