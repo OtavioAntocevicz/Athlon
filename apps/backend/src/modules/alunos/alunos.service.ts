@@ -246,9 +246,14 @@ export async function adicionarAlunoTurma(
 }
 
 export async function previewTurmaPorCodigo(alunoId: string, codigoConvite: string) {
+  const codigo = codigoConvite?.trim().toUpperCase() ?? "";
+  if (codigo.length < 4) {
+    throw new AppError(400, "CONVITE_OBRIGATORIO", "Código da turma é obrigatório");
+  }
+
   const turma = await queryMaybeOne<TurmaRow>(
-    `SELECT * FROM "Turma" WHERE codigo_convite = $1`,
-    [codigoConvite.trim()],
+    `SELECT * FROM "Turma" WHERE UPPER(codigo_convite) = $1`,
+    [codigo],
   );
 
   if (!turma) throw new AppError(404, "CONVITE_INVALIDO", "Código inválido");
