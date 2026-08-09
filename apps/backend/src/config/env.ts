@@ -23,7 +23,7 @@ export const env = {
   r2AccountId: process.env.R2_ACCOUNT_ID ?? null,
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? null,
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? null,
-  r2Bucket: process.env.R2_BUCKET ?? "athonsport",
+  r2Bucket: process.env.R2_BUCKET ?? "athlon-sport",
   r2PublicBaseUrl: process.env.R2_PUBLIC_BASE_URL ?? null,
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? null,
   vapidPrivateKey: process.env.VAPID_PRIVATE_KEY ?? null,

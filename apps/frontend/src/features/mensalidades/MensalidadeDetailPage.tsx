@@ -55,31 +55,21 @@ export function MensalidadeDetailPage() {
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       setUploading(true);
-      const { uploadUrl, arquivoUrl, token } = await api<{
-        uploadUrl: string;
-        arquivoUrl: string;
-        token: string;
-      }>(`/mensalidades/${id}/comprovante/upload-url`, {
-        method: "POST",
-        body: JSON.stringify({ contentType: file.type }),
-      });
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type,
-          Authorization: `Bearer ${token}`,
-        },
-        body: file,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Falha ao enviar o arquivo. Tente novamente.");
+      const contentType = file.type === "image/jpg" ? "image/jpeg" : file.type || "image/jpeg";
+      const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!allowed.includes(contentType)) {
+        throw new Error("Tipo de arquivo não permitido. Use JPEG, PNG, WebP ou PDF.");
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        throw new Error("Arquivo muito grande. Máximo 8 MB.");
       }
 
-      await api(`/mensalidades/${id}/comprovante`, {
+      const { fileToBase64 } = await import("@/lib/file-to-base64");
+      const dataBase64 = await fileToBase64(file);
+
+      await api(`/mensalidades/${id}/comprovante/upload`, {
         method: "POST",
-        body: JSON.stringify({ arquivoUrl }),
+        body: JSON.stringify({ contentType, dataBase64 }),
       });
     },
     onSuccess: () => {
@@ -87,7 +77,7 @@ export function MensalidadeDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["mensalidade", id] });
       queryClient.invalidateQueries({ queryKey: ["mensalidades"] });
     },
-    onError: (e) => setMessage(e instanceof Error ? e.message : "Erro no upload"),
+    onError: (e) => setMessage(getErrorMessage(e, "Erro no upload")),
     onSettled: () => setUploading(false),
   });
 

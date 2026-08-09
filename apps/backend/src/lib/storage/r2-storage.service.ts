@@ -8,10 +8,31 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nanoid } from "nanoid";
 import { env } from "../../config/env.js";
 import { AppError } from "../../middleware/error-handler.js";
-import type { FotoUploadUrlResult, StorageService, UploadUrlResult } from "./types.js";
+import type {
+  FotoUploadUrlResult,
+  StorageService,
+  UploadedArquivoResult,
+  UploadedFotoResult,
+  UploadUrlResult,
+} from "./types.js";
 
 const COMPROVANTE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
 const FOTO_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const MAX_FOTO_BYTES = 6 * 1024 * 1024;
+const MAX_COMPROVANTE_BYTES = 8 * 1024 * 1024;
+
+function normalizeContentType(contentType: string): string {
+  const ct = contentType.trim().toLowerCase();
+  if (ct === "image/jpg") return "image/jpeg";
+  return ct;
+}
+
+function extFromContentType(contentType: string, forPdf = false): string {
+  if (forPdf && contentType === "application/pdf") return "pdf";
+  if (contentType === "image/png") return "png";
+  if (contentType === "image/webp") return "webp";
+  return "jpg";
+}
 
 function getClient(): S3Client {
   if (!env.r2AccountId || !env.r2AccessKeyId || !env.r2SecretAccessKey) {
@@ -56,12 +77,12 @@ export class R2StorageService implements StorageService {
     pagamentoId: string,
     contentType: string,
   ): Promise<UploadUrlResult> {
-    if (!COMPROVANTE_TYPES.includes(contentType as (typeof COMPROVANTE_TYPES)[number])) {
+    const ct = normalizeContentType(contentType);
+    if (!COMPROVANTE_TYPES.includes(ct as (typeof COMPROVANTE_TYPES)[number])) {
       throw new AppError(400, "INVALID_TYPE", "Tipo de arquivo não permitido");
     }
 
-    const ext = contentType.split("/")[1] === "pdf" ? "pdf" : "jpg";
-    const path = `comprovantes/${pagamentoId}/${nanoid()}.${ext}`;
+    const path = `comprovantes/${pagamentoId}/${nanoid()}.${extFromContentType(ct, true)}`;
     const client = getClient();
 
     const uploadUrl = await getSignedUrl(
@@ -69,7 +90,7 @@ export class R2StorageService implements StorageService {
       new PutObjectCommand({
         Bucket: env.r2Bucket,
         Key: path,
-        ContentType: contentType,
+        ContentType: ct,
       }),
       { expiresIn: 300 },
     );
@@ -85,13 +106,12 @@ export class R2StorageService implements StorageService {
     turmaId: string,
     contentType: string,
   ): Promise<FotoUploadUrlResult> {
-    if (!FOTO_TYPES.includes(contentType as (typeof FOTO_TYPES)[number])) {
+    const ct = normalizeContentType(contentType);
+    if (!FOTO_TYPES.includes(ct as (typeof FOTO_TYPES)[number])) {
       throw new AppError(400, "INVALID_TYPE", "Tipo de imagem não permitido. Use JPEG, PNG ou WebP.");
     }
 
-    const mimeExt = contentType.split("/")[1];
-    const ext = mimeExt === "png" ? "png" : mimeExt === "webp" ? "webp" : "jpg";
-    const path = `turmas-fotos/turmas/${turmaId}/${nanoid()}.${ext}`;
+    const path = `turmas-fotos/turmas/${turmaId}/${nanoid()}.${extFromContentType(ct)}`;
     const client = getClient();
 
     const uploadUrl = await getSignedUrl(
@@ -99,7 +119,7 @@ export class R2StorageService implements StorageService {
       new PutObjectCommand({
         Bucket: env.r2Bucket,
         Key: path,
-        ContentType: contentType,
+        ContentType: ct,
       }),
       { expiresIn: 300 },
     );
@@ -109,6 +129,66 @@ export class R2StorageService implements StorageService {
       path,
       fotoUrl: publicUrl(path),
     };
+  }
+
+  async uploadTurmaFoto(
+    turmaId: string,
+    contentType: string,
+    body: Buffer,
+  ): Promise<UploadedFotoResult> {
+    const ct = normalizeContentType(contentType);
+    if (!FOTO_TYPES.includes(ct as (typeof FOTO_TYPES)[number])) {
+      throw new AppError(400, "INVALID_TYPE", "Tipo de imagem não permitido. Use JPEG, PNG ou WebP.");
+    }
+    if (!body.length) {
+      throw new AppError(400, "EMPTY_FILE", "Arquivo vazio");
+    }
+    if (body.length > MAX_FOTO_BYTES) {
+      throw new AppError(400, "FILE_TOO_LARGE", "Foto muito grande. Máximo 6 MB.");
+    }
+
+    const path = `turmas-fotos/turmas/${turmaId}/${nanoid()}.${extFromContentType(ct)}`;
+    const client = getClient();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: env.r2Bucket,
+        Key: path,
+        Body: body,
+        ContentType: ct,
+      }),
+    );
+
+    return { path, fotoUrl: publicUrl(path) };
+  }
+
+  async uploadComprovante(
+    pagamentoId: string,
+    contentType: string,
+    body: Buffer,
+  ): Promise<UploadedArquivoResult> {
+    const ct = normalizeContentType(contentType);
+    if (!COMPROVANTE_TYPES.includes(ct as (typeof COMPROVANTE_TYPES)[number])) {
+      throw new AppError(400, "INVALID_TYPE", "Tipo de arquivo não permitido");
+    }
+    if (!body.length) {
+      throw new AppError(400, "EMPTY_FILE", "Arquivo vazio");
+    }
+    if (body.length > MAX_COMPROVANTE_BYTES) {
+      throw new AppError(400, "FILE_TOO_LARGE", "Arquivo muito grande. Máximo 8 MB.");
+    }
+
+    const path = `comprovantes/${pagamentoId}/${nanoid()}.${extFromContentType(ct, true)}`;
+    const client = getClient();
+    await client.send(
+      new PutObjectCommand({
+        Bucket: env.r2Bucket,
+        Key: path,
+        Body: body,
+        ContentType: ct,
+      }),
+    );
+
+    return { path, arquivoUrl: path };
   }
 
   async getSignedReadUrl(arquivoUrl: string | null | undefined): Promise<string | null> {

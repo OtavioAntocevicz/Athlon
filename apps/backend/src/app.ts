@@ -44,7 +44,8 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+// Base64 de fotos/comprovantes (até ~6–8 MB) precisa de limite maior que o default 100kb.
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));

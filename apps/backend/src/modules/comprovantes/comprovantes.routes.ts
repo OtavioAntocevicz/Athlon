@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { recusarComprovanteSchema, confirmarComprovanteSchema } from "@athlon/shared-types";
+import {
+  recusarComprovanteSchema,
+  confirmarComprovanteSchema,
+  uploadComprovanteSchema,
+} from "@athlon/shared-types";
 import { authenticate, requireProfessor, requireAluno } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import * as comprovantesService from "./comprovantes.service.js";
@@ -78,6 +82,24 @@ mensalidadeComprovanteRouter.post(
       const { contentType } = req.body;
       const data = await criarUploadUrl(String(req.params.id), contentType ?? "image/jpeg");
       res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+mensalidadeComprovanteRouter.post(
+  "/upload",
+  uploadLimiter,
+  validate(uploadComprovanteSchema),
+  async (req, res, next) => {
+    try {
+      const data = await comprovantesService.enviarComprovante(
+        String(req.params.id),
+        req.user!.alunoId!,
+        req.body,
+      );
+      res.status(201).json({ data });
     } catch (e) {
       next(e);
     }

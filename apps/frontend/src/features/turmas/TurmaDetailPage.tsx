@@ -183,31 +183,21 @@ export function TurmaDetailPage() {
     mutationFn: async (file: File) => {
       setUploadingFoto(true);
       setFotoError("");
-      const { uploadUrl, fotoUrl, token } = await api<{
-        uploadUrl: string;
-        fotoUrl: string;
-        token: string;
-      }>(`/turmas/${id}/foto/upload-url`, {
-        method: "POST",
-        body: JSON.stringify({ contentType: file.type || "image/jpeg" }),
-      });
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": file.type || "image/jpeg",
-          Authorization: `Bearer ${token}`,
-        },
-        body: file,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Falha ao enviar a foto. Tente novamente.");
+      const contentType = file.type === "image/jpg" ? "image/jpeg" : file.type || "image/jpeg";
+      if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+        throw new Error("Tipo de imagem não permitido. Use JPEG, PNG ou WebP.");
+      }
+      if (file.size > 6 * 1024 * 1024) {
+        throw new Error("Foto muito grande. Máximo 6 MB.");
       }
 
-      return api<TurmaDetail>(`/turmas/${id}/foto`, {
-        method: "PATCH",
-        body: JSON.stringify({ fotoUrl }),
+      const { fileToBase64 } = await import("@/lib/file-to-base64");
+      const dataBase64 = await fileToBase64(file);
+
+      return api<TurmaDetail>(`/turmas/${id}/foto/upload`, {
+        method: "POST",
+        body: JSON.stringify({ contentType, dataBase64 }),
       });
     },
     onSuccess: () => {

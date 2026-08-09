@@ -6,8 +6,13 @@ import {
   queryOne,
   turmaIdsDoProfessor,
 } from "../../lib/db.js";
-import { getSignedReadUrl, removerArquivoStorage } from "../../lib/storage/index.js";
+import {
+  getSignedReadUrl,
+  removerArquivoStorage,
+  uploadComprovanteStorage,
+} from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
+import type { UploadComprovanteInput } from "@athlon/shared-types";
 
 const STATUS_ENVIAVEL = ["PENDENTE", "RECUSADO", "ATRASADO"] as const;
 
@@ -21,6 +26,26 @@ async function limparArquivoComprovante(
 ) {
   await removerArquivoStorage(arquivoUrl);
   await execute(`UPDATE "Comprovante" SET arquivo_url = NULL WHERE id = $1`, [comprovanteId]);
+}
+
+export async function enviarComprovante(
+  pagamentoId: string,
+  alunoId: string,
+  input: UploadComprovanteInput,
+) {
+  const raw = input.dataBase64.includes(",")
+    ? input.dataBase64.split(",").pop()!
+    : input.dataBase64;
+
+  let body: Buffer;
+  try {
+    body = Buffer.from(raw, "base64");
+  } catch {
+    throw new AppError(400, "INVALID_FILE", "Arquivo inválido");
+  }
+
+  const uploaded = await uploadComprovanteStorage(pagamentoId, input.contentType, body);
+  return confirmarComprovante(pagamentoId, alunoId, uploaded.arquivoUrl);
 }
 
 export async function confirmarComprovante(

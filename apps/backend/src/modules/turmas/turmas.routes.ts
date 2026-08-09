@@ -5,6 +5,7 @@ import {
   criarEventoSchema,
   atualizarEventoSchema,
   atualizarFotoTurmaSchema,
+  uploadFotoTurmaSchema,
   updateTurmaBasicoSchema,
   updateTurmaSchema,
 } from "@athlon/shared-types";
@@ -85,6 +86,23 @@ turmasRouter.post("/:id/foto/upload-url", async (req, res, next) => {
     next(e);
   }
 });
+
+turmasRouter.post(
+  "/:id/foto/upload",
+  validate(uploadFotoTurmaSchema),
+  async (req, res, next) => {
+    try {
+      const data = await turmasService.enviarFotoTurma(
+        String(req.params.id),
+        req.user!.professorId!,
+        req.body,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 turmasRouter.patch("/:id/foto", validate(atualizarFotoTurmaSchema), async (req, res, next) => {
   try {
