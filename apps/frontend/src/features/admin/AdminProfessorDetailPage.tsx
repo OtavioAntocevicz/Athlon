@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState, type MouseEvent } from "react";
 import { api, getErrorMessage } from "@/lib/api";
+import { maskChavePix } from "@/lib/masks";
 import type { AdminProfessorDetalhe } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { MetricCard } from "@/components/domain/MetricCard";
@@ -159,7 +160,7 @@ export function AdminProfessorDetailPage() {
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs text-muted-foreground">Chave PIX</p>
             <p className="max-w-[70%] break-all text-right text-sm font-medium text-primary">
-              {data.chavePix ?? "-"}
+              {data.chavePix ? maskChavePix(data.chavePix) : "-"}
             </p>
           </div>
           <div className="flex items-baseline justify-between gap-3">
