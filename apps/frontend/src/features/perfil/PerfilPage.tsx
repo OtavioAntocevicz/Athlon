@@ -15,7 +15,7 @@ import {
 import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getInitials } from "@/lib/format";
-import { maskCpf, maskRg, maskWhatsApp } from "@/lib/masks";
+import { maskChavePix, maskCpf, maskRg, maskWhatsApp } from "@/lib/masks";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -42,7 +42,9 @@ export function PerfilPage() {
 
   const profForm = useForm<UpdateProfessorPerfilInput>({
     resolver: zodResolver(updateProfessorPerfilSchema),
-    values: me ? { nome: me.nome, chavePix: me.chavePix ?? "" } : undefined,
+    values: me
+      ? { nome: me.nome, chavePix: me.chavePix ? maskChavePix(me.chavePix) : "" }
+      : undefined,
   });
 
   const alunoForm = useForm<UpdateAlunoPerfilInput>({
@@ -143,7 +145,23 @@ export function PerfilPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">Chave PIX</label>
-              <Input {...profForm.register("chavePix")} />
+              <Controller
+                control={profForm.control}
+                name="chavePix"
+                render={({ field }) => (
+                  <MaskedInput
+                    placeholder="Ex: (41) 91234-5678, CPF ou e-mail"
+                    inputMode="text"
+                    autoComplete="off"
+                    mask={maskChavePix}
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
+                )}
+              />
             </div>
             {saveError && <p className="text-sm text-destructive">{saveError}</p>}
             <div className="flex gap-2">
@@ -180,7 +198,17 @@ export function PerfilPage() {
                 name="whatsapp"
                 control={alunoForm.control}
                 render={({ field }) => (
-                  <MaskedInput mask={maskWhatsApp} {...field} />
+                  <MaskedInput
+                    mask={maskWhatsApp}
+                    placeholder="(41) 91234-5678"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
+                  />
                 )}
               />
             </div>
@@ -220,7 +248,9 @@ export function PerfilPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Chave PIX</p>
-                  <p className="font-medium">{me.chavePix ?? "-"}</p>
+                  <p className="font-medium">
+                    {me.chavePix ? maskChavePix(me.chavePix) : "-"}
+                  </p>
                 </div>
               </>
             ) : me.aluno ? (
