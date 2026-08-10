@@ -60,7 +60,7 @@ export function LoginFormPage({
         body: JSON.stringify(data),
       });
       login(tokens);
-      navigate(tokens.user.perfil === "ADM" ? "/admin" : "/");
+      // Redirecionamento feito pelo GuestRoute após o estado de auth atualizar.
     } catch (e) {
       setError(getErrorMessage(e, "Erro ao entrar"));
     }

@@ -24,8 +24,14 @@ export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (user) {
-    if (user.perfil === "ADM") return <Navigate to="/admin" replace />;
-    return <Navigate to="/" replace />;
+    // Evita flash do formulário de login enquanto o router troca de rota.
+    const target = user.perfil === "ADM" ? "/admin" : "/";
+    return (
+      <>
+        <LoadingScreen />
+        <Navigate to={target} replace />
+      </>
+    );
   }
   return <>{children}</>;
 }

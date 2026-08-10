@@ -77,7 +77,7 @@ export function RegisterAlunoPage() {
         body: JSON.stringify({ ...data, codigoConvite: codigo }),
       });
       login(tokens);
-      navigate("/");
+      // Redirecionamento feito pelo GuestRoute após o estado de auth atualizar.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao cadastrar");
     }
