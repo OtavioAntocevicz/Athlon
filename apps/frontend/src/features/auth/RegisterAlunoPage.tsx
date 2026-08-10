@@ -44,12 +44,12 @@ export function RegisterAlunoPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [error, setError] = useState("");
+  const [codigoDev, setCodigoDev] = useState("");
 
   const {
     register,
     control,
     handleSubmit,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterAlunoInput>({
     resolver: zodResolver(registerAlunoSchema),
@@ -57,27 +57,23 @@ export function RegisterAlunoPage() {
       whatsapp: "",
       rg: "",
       cpf: "",
-      codigoConvite: "",
     },
   });
 
-  const codigoConvite = watch("codigoConvite") ?? "";
-  const podeEnviar = codigoConvite.trim().length >= 4;
-
   const onSubmit = async (data: RegisterAlunoInput) => {
     setError("");
-    const codigo = data.codigoConvite.trim().toUpperCase();
-    if (codigo.length < 4) {
-      setError("Informe o código da turma para criar a conta.");
-      return;
-    }
+    setCodigoDev("");
     try {
-      const tokens = await api<AuthTokens>("/auth/register/aluno", {
-        method: "POST",
-        body: JSON.stringify({ ...data, codigoConvite: codigo }),
-      });
+      const result = await api<AuthTokens & { codigoVerificacao?: string }>(
+        "/auth/register/aluno",
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        },
+      );
+      const { codigoVerificacao, ...tokens } = result;
+      if (codigoVerificacao) setCodigoDev(codigoVerificacao);
       login(tokens);
-      // Redirecionamento feito pelo GuestRoute após o estado de auth atualizar.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao cadastrar");
     }
@@ -94,23 +90,10 @@ export function RegisterAlunoPage() {
 
       <h1 className="text-2xl font-bold text-primary">Criar conta de Aluno</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        É obrigatório ter o código da turma do treinador para se cadastrar.
+        Depois de criar a conta, confirme seu e-mail para entrar na turma do treinador.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
-        <Field label="Código da turma" required error={errors.codigoConvite?.message}>
-          <Input
-            placeholder="Ex: AB12CD34"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            {...register("codigoConvite")}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Sem o código válido da turma, a conta não é criada.
-          </p>
-        </Field>
-
         <div className="grid grid-cols-2 gap-3">
           <Field label="Nome" required error={errors.nome?.message}>
             <Input placeholder="João" {...register("nome")} />
@@ -188,9 +171,16 @@ export function RegisterAlunoPage() {
           />
         </Field>
 
+        {codigoDev && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+            Modo dev: código de verificação{" "}
+            <strong className="text-primary">{codigoDev}</strong>
+          </p>
+        )}
+
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button type="submit" size="lg" disabled={isSubmitting || !podeEnviar}>
+        <Button type="submit" size="lg" disabled={isSubmitting}>
           {isSubmitting ? "Criando..." : "Criar conta"}
         </Button>
       </form>

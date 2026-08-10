@@ -72,7 +72,7 @@ export function TurmasAlunoPage() {
             </div>
             <p className="text-base font-semibold text-primary">Nenhuma turma ainda</p>
             <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-              Peça o código de convite ao seu treinador e entre na turma.
+              Peça o código de convite ao seu treinador e entre na sua primeira turma.
             </p>
             <Button className="mt-6" onClick={() => setEntrarOpen(true)}>
               <Plus className="h-4 w-4" /> Entrar com código

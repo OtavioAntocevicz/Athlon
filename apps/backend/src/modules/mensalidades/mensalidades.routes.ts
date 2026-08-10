@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { query } from "../../lib/db.js";
-import { authenticate, requireProfessor } from "../../middleware/auth.js";
+import { authenticate, requireProfessor, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import * as mensalidadesService from "./mensalidades.service.js";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
@@ -8,7 +8,7 @@ export const mensalidadesRouter = Router();
 
 mensalidadesRouter.use(authenticate);
 
-mensalidadesRouter.get("/", async (req, res, next) => {
+mensalidadesRouter.get("/", requireAlunoEmailVerificado, async (req, res, next) => {
   try {
     const status = req.query.status as StatusMensalidade | undefined;
     const turmaId = req.query.turmaId as string | undefined;
@@ -25,7 +25,7 @@ mensalidadesRouter.get("/", async (req, res, next) => {
   }
 });
 
-mensalidadesRouter.get("/:id", async (req, res, next) => {
+mensalidadesRouter.get("/:id", requireAlunoEmailVerificado, async (req, res, next) => {
   try {
     const data = await mensalidadesService.getMensalidade(String(req.params.id), req.user!);
     res.json({ data });

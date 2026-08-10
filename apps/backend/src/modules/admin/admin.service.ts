@@ -198,8 +198,8 @@ export async function criarProfessor(input: CreateProfessorAdminInput) {
 
   await execute(
     `INSERT INTO "Usuario"
-       (id, email, nome, senha_hash, perfil, ativo, criado_em, atualizado_em)
-     VALUES ($1, $2, $3, $4, 'PROFESSOR', true, $5, $5)`,
+       (id, email, nome, senha_hash, perfil, ativo, email_verificado_em, criado_em, atualizado_em)
+     VALUES ($1, $2, $3, $4, 'PROFESSOR', true, $5, $5, $5)`,
     [usuarioId, input.email, input.nome, senha_hash, ts],
   );
 

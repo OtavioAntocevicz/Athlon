@@ -8,6 +8,7 @@ import {
   changePasswordSchema,
   requestPasswordResetSchema,
   confirmPasswordResetSchema,
+  confirmEmailVerificationSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import { authenticate } from "../../middleware/auth.js";
@@ -145,3 +146,32 @@ authRouter.post("/refresh", async (req, res, next) => {
     next(e);
   }
 });
+
+authRouter.post(
+  "/verificar-email/confirmar",
+  authenticate,
+  loginLimiter,
+  validate(confirmEmailVerificationSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.confirmarVerificacaoEmail(req.user!.sub, req.body);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
+  "/verificar-email/reenviar",
+  authenticate,
+  loginLimiter,
+  async (req, res, next) => {
+    try {
+      const data = await authService.reenviarVerificacaoEmail(req.user!.sub);
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);

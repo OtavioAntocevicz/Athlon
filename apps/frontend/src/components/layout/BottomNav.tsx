@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { Home, Wallet, Users, GraduationCap, UserCircle, Trophy } from "lucide-react";
+import { Home, Wallet, Users, GraduationCap, UserCircle, Trophy, Mail } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
+import { alunoPrecisaVerificarEmail } from "@/lib/aluno-email";
 
 type NavItem = {
   to: string;
@@ -28,13 +29,20 @@ const alunoNav: NavItem[] = [
   { to: "/perfil", icon: UserCircle, label: "Perfil" },
 ];
 
+const alunoNavPendenteEmail: NavItem[] = [
+  { to: "/verificar-email", icon: Mail, label: "Verificar", primary: true },
+  { to: "/perfil", icon: UserCircle, label: "Perfil" },
+];
+
 export function BottomNav() {
   const { user } = useAuth();
   const { bloqueado } = useAlunoBloqueado();
 
-  const alunoItems = bloqueado
-    ? alunoNav.filter((item) => item.to !== "/minhas-turmas")
-    : alunoNav;
+  const alunoItems = alunoPrecisaVerificarEmail(user)
+    ? alunoNavPendenteEmail
+    : bloqueado
+      ? alunoNav.filter((item) => item.to !== "/minhas-turmas")
+      : alunoNav;
 
   const items = user?.perfil === "ALUNO" ? alunoItems : professorNav;
 

@@ -5,7 +5,7 @@ import {
   updateAlunoSchema,
   updateMatriculaSchema,
 } from "@athlon/shared-types";
-import { authenticate, requireAluno, requireProfessor } from "../../middleware/auth.js";
+import { authenticate, requireAluno, requireProfessor, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import {
   alunoTemBloqueioAtivo,
   requireAlunoSemBloqueio,
@@ -43,7 +43,7 @@ alunosRouter.get("/me/bloqueio", requireAluno, async (req, res, next) => {
   }
 });
 
-alunosRouter.get("/minhas-turmas", requireAluno, requireAlunoSemBloqueio, async (req, res, next) => {
+alunosRouter.get("/minhas-turmas", requireAluno, requireAlunoEmailVerificado, requireAlunoSemBloqueio, async (req, res, next) => {
   try {
     const data = await alunosService.listarMinhasTurmas(req.user!.alunoId!);
     res.json({ data });
@@ -52,7 +52,7 @@ alunosRouter.get("/minhas-turmas", requireAluno, requireAlunoSemBloqueio, async 
   }
 });
 
-alunosRouter.get("/minhas-turmas/:turmaId", requireAluno, requireAlunoSemBloqueio, async (req, res, next) => {
+alunosRouter.get("/minhas-turmas/:turmaId", requireAluno, requireAlunoEmailVerificado, requireAlunoSemBloqueio, async (req, res, next) => {
   try {
     const data = await alunosService.getMinhaTurma(
       req.user!.alunoId!,
@@ -67,6 +67,7 @@ alunosRouter.get("/minhas-turmas/:turmaId", requireAluno, requireAlunoSemBloquei
 alunosRouter.get(
   "/minhas-turmas/:turmaId/eventos",
   requireAluno,
+  requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,
   async (req, res, next) => {
     try {
@@ -84,6 +85,7 @@ alunosRouter.get(
 alunosRouter.patch(
   "/minhas-turmas/:turmaId",
   requireAluno,
+  requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,
   validate(updateMatriculaSchema),
   async (req, res, next) => {
@@ -121,6 +123,7 @@ alunosRouter.patch("/:id", validate(updateAlunoSchema), async (req, res, next) =
 alunosRouter.post(
   "/preview-turma",
   requireAluno,
+  requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,
   validate(entrarTurmaSchema),
   async (req, res, next) => {
@@ -139,6 +142,7 @@ alunosRouter.post(
 alunosRouter.post(
   "/entrar-turma",
   requireAluno,
+  requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,
   validate(entrarTurmaSchema),
   async (req, res, next) => {

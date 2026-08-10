@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate, requireProfessor, requireAluno } from "../../middleware/auth.js";
+import { authenticate, requireProfessor, requireAluno, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import * as dashboardService from "./dashboard.service.js";
 
 export const dashboardRouter = Router();
@@ -15,7 +15,7 @@ dashboardRouter.get("/professor", requireProfessor, async (req, res, next) => {
   }
 });
 
-dashboardRouter.get("/aluno", requireAluno, async (req, res, next) => {
+dashboardRouter.get("/aluno", requireAluno, requireAlunoEmailVerificado, async (req, res, next) => {
   try {
     const data = await dashboardService.dashboardAluno(req.user!.alunoId!);
     res.json({ data });

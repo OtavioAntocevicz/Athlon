@@ -4,7 +4,7 @@ import {
   confirmarComprovanteSchema,
   uploadComprovanteSchema,
 } from "@athlon/shared-types";
-import { authenticate, requireProfessor, requireAluno } from "../../middleware/auth.js";
+import { authenticate, requireProfessor, requireAluno, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import * as comprovantesService from "./comprovantes.service.js";
 import { criarUploadUrl } from "../../lib/storage/index.js";
@@ -72,7 +72,7 @@ comprovantesRouter.post(
 
 export const mensalidadeComprovanteRouter = Router({ mergeParams: true });
 
-mensalidadeComprovanteRouter.use(authenticate, requireAluno);
+mensalidadeComprovanteRouter.use(authenticate, requireAluno, requireAlunoEmailVerificado);
 
 mensalidadeComprovanteRouter.post(
   "/upload-url",

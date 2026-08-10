@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate } from "../../middleware/auth.js";
+import { authenticate, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error-handler.js";
 import * as eventosService from "./eventos.service.js";
 
@@ -7,7 +7,7 @@ export const eventosRouter = Router();
 
 eventosRouter.use(authenticate);
 
-eventosRouter.get("/", async (req, res, next) => {
+eventosRouter.get("/", requireAlunoEmailVerificado, async (req, res, next) => {
   try {
     if (req.user!.perfil === "ALUNO" && req.user!.alunoId) {
       const data = await eventosService.listarEventosDoAluno(req.user!.alunoId);

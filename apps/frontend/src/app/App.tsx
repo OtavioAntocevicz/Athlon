@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/lib/auth-context";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { AppRouter } from "./router";
+import { AlunoEmailGate } from "./guards";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,7 +20,9 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <AppRouter />
+          <AlunoEmailGate>
+            <AppRouter />
+          </AlunoEmailGate>
           <PwaInstallPrompt />
         </BrowserRouter>
       </AuthProvider>

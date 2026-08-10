@@ -43,9 +43,34 @@ export function requireProfessor(req: Request, _res: Response, next: NextFunctio
   next();
 }
 
-export function requireAluno(req: Request, _res: Response, next: NextFunction) {
+export async function requireAluno(req: Request, _res: Response, next: NextFunction) {
   if (req.user?.perfil !== "ALUNO" || !req.user.alunoId) {
     return next(new AppError(403, "FORBIDDEN", "Acesso restrito a alunos"));
+  }
+  next();
+}
+
+export async function requireAlunoEmailVerificado(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  if (req.user?.perfil !== "ALUNO") return next();
+
+  const { queryMaybeOne } = await import("../lib/db.js");
+  const usuario = await queryMaybeOne<{ email_verificado_em: string | null }>(
+    `SELECT email_verificado_em FROM "Usuario" WHERE id = $1`,
+    [req.user.sub],
+  );
+
+  if (!usuario?.email_verificado_em) {
+    return next(
+      new AppError(
+        403,
+        "EMAIL_NAO_VERIFICADO",
+        "Confirme seu e-mail antes de continuar.",
+      ),
+    );
   }
   next();
 }

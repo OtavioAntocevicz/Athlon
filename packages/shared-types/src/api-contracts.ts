@@ -27,6 +27,8 @@ export interface AuthUser {
   perfil: PerfilUsuario;
   professorId?: string;
   alunoId?: string;
+  /** Alunos precisam confirmar o e-mail antes de entrar em turmas. */
+  emailVerificado?: boolean;
   chavePix?: string | null;
   aluno?: AlunoPerfilDados | null;
 }
