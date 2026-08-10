@@ -9,7 +9,6 @@ import {
 } from "@athlon/shared-types";
 import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { Logo } from "@/components/layout/Logo";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,11 +99,7 @@ export function VerificarEmailPage() {
   return (
     <AppShell>
       <PageEnter variant="fade">
-        <div className="flex justify-center pt-4">
-          <Logo size="lg" />
-        </div>
-
-        <div className="mt-8 flex items-start gap-3">
+        <div className="mt-2 flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
             <Mail className="h-5 w-5" />
           </div>
