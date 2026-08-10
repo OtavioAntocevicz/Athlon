@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(tokens.accessToken, tokens.refreshToken);
     localStorage.setItem("athlon_user", JSON.stringify(tokens.user));
     setUser(tokens.user);
-    preloadPostLoginDestination(tokens.user.perfil);
+    preloadPostLoginDestination(tokens.user);
     track("login", { perfil: tokens.user.perfil });
   };
 

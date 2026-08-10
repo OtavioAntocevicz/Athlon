@@ -219,9 +219,9 @@ export async function adicionarAlunoTurma(
       alunoId = generateId();
 
       await execute(
-        `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, criado_em, atualizado_em)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [usuarioId, input.email, input.nome, senha_hash, "ALUNO", ts, ts],
+        `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, email_verificado_em, criado_em, atualizado_em)
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $6)`,
+        [usuarioId, input.email, input.nome, senha_hash, "ALUNO", ts],
       );
 
       await execute(

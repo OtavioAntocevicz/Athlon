@@ -1,6 +1,11 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
+import {
+  alunoPrecisaVerificarEmail,
+  alunoPodeAcessarSemVerificacao,
+  destinoPosLogin,
+} from "@/lib/aluno-email";
 import type { ReactNode } from "react";
 
 export function LoadingScreen() {
@@ -20,12 +25,32 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+/** Bloqueia aluno não verificado fora das rotas permitidas (verificação, perfil, chamados). */
+export function AlunoEmailGate({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (!alunoPrecisaVerificarEmail(user)) return <>{children}</>;
+  if (alunoPodeAcessarSemVerificacao(location.pathname)) return <>{children}</>;
+
+  return <Navigate to="/verificar-email" replace />;
+}
+
+export function AlunoVerificacaoRoute({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login/aluno" replace />;
+  if (user.perfil !== "ALUNO") return <Navigate to="/" replace />;
+  if (user.emailVerificado === true) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   if (isLoading) return <LoadingScreen />;
   if (user) {
-    // Evita flash do formulário de login enquanto o router troca de rota.
-    const target = user.perfil === "ADM" ? "/admin" : "/";
+    const target = destinoPosLogin(user);
     return (
       <>
         <LoadingScreen />

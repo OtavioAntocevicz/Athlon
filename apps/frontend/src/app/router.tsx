@@ -8,11 +8,13 @@ import {
   ProfessorRoute,
   AlunoTurmasRoute,
   AdminRoute,
+  AlunoVerificacaoRoute,
 } from "./guards";
 import { ChunkErrorBoundary } from "./ChunkErrorBoundary";
 import { SectionLoadingFallback } from "./SectionLoadingFallback";
 import { ProfileSelectPage } from "@/features/auth/ProfileSelectPage";
 import { LoginFormPage } from "@/features/auth/LoginFormPage";
+import { VerificarEmailPage } from "@/features/auth/VerificarEmailPage";
 
 function LazyRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -486,6 +488,17 @@ export function AppRouter() {
               <AdminPerfilPage />
             </LazyRoute>
           </AdminRoute>
+        }
+      />
+
+      <Route
+        path="/verificar-email"
+        element={
+          <ProtectedRoute>
+            <AlunoVerificacaoRoute>
+              <VerificarEmailPage />
+            </AlunoVerificacaoRoute>
+          </ProtectedRoute>
         }
       />
 

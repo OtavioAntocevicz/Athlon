@@ -65,7 +65,10 @@ export const registerAlunoSchema = z.object({
     .min(1, "RG é obrigatório")
     .refine((v) => digitCount(v) >= 7, "RG inválido"),
   cpf: cpfOpcionalSchema,
-  codigoConvite: codigoConviteSchema,
+});
+
+export const confirmEmailVerificationSchema = z.object({
+  codigo: z.string().regex(/^\d{6}$/, "Código deve ter 6 dígitos"),
 });
 
 export const updateProfessorPerfilSchema = z.object({
@@ -130,3 +133,4 @@ export type UpdateAlunoPerfilInput = z.infer<typeof updateAlunoPerfilSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>;
 export type ConfirmPasswordResetInput = z.infer<typeof confirmPasswordResetSchema>;
+export type ConfirmEmailVerificationInput = z.infer<typeof confirmEmailVerificationSchema>;

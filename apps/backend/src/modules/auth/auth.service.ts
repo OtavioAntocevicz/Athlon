@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import {
   execute,
   generateId,
-  matricularAlunoTurma,
   now,
   queryMaybeOne,
   queryOne,
@@ -18,13 +17,16 @@ import type {
   ChangePasswordInput,
   RequestPasswordResetInput,
   ConfirmPasswordResetInput,
+  ConfirmEmailVerificationInput,
 } from "@athlon/shared-types";
-import { sendPasswordResetEmail } from "../../lib/email.js";
+import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../../lib/email.js";
 import { env } from "../../config/env.js";
 import { createHash, randomInt } from "node:crypto";
 
 const BCRYPT_ROUNDS = 12;
 const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+const EMAIL_VERIFY_TTL_MS = 30 * 60 * 1000;
+const EMAIL_VERIFY_RESEND_COOLDOWN_MS = 60 * 1000;
 
 function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -101,6 +103,77 @@ async function findRecuperacaoAtiva(input: {
   return null;
 }
 
+type VerificacaoEmailRow = {
+  id: string;
+  usuario_id: string;
+  codigo_hash: string;
+  expira_em: string;
+  usado_em: string | null;
+  criado_em: string;
+};
+
+async function invalidateVerificacoesPendentes(usuarioId: string) {
+  const ts = now();
+  await execute(
+    `UPDATE "VerificacaoEmail" SET usado_em = $1
+     WHERE usuario_id = $2 AND usado_em IS NULL AND expira_em > $1`,
+    [ts, usuarioId],
+  );
+}
+
+async function findVerificacaoEmailAtiva(
+  usuarioId: string,
+  codigo: string,
+): Promise<VerificacaoEmailRow | null> {
+  return queryMaybeOne<VerificacaoEmailRow>(
+    `SELECT id, usuario_id, codigo_hash, expira_em, usado_em, criado_em
+     FROM "VerificacaoEmail"
+     WHERE usado_em IS NULL AND expira_em > $1 AND usuario_id = $2 AND codigo_hash = $3`,
+    [now(), usuarioId, hashValue(codigo)],
+  );
+}
+
+function isEmailVerificado(perfil: string, emailVerificadoEm: string | null): boolean {
+  return perfil !== "ALUNO" || !!emailVerificadoEm;
+}
+
+async function enviarCodigoVerificacaoEmail(usuario: {
+  id: string;
+  email: string;
+  nome: string;
+}): Promise<{ codigoExposto?: string }> {
+  const codigo = generateResetCode();
+  const expiraEm = new Date(Date.now() + EMAIL_VERIFY_TTL_MS).toISOString();
+  const ts = now();
+
+  await invalidateVerificacoesPendentes(usuario.id);
+
+  await execute(
+    `INSERT INTO "VerificacaoEmail" (id, usuario_id, codigo_hash, expira_em, criado_em)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [generateId(), usuario.id, hashValue(codigo), expiraEm, ts],
+  );
+
+  try {
+    await sendEmailVerificationEmail({
+      to: usuario.email,
+      nome: usuario.nome,
+      codigo,
+    });
+  } catch (err) {
+    console.error("[auth] Falha ao enviar e-mail de verificação:", err);
+    if (!env.recoveryShowCode) {
+      throw new AppError(
+        503,
+        "EMAIL_UNAVAILABLE",
+        "Não foi possível enviar o e-mail de verificação. Tente novamente mais tarde.",
+      );
+    }
+  }
+
+  return env.recoveryShowCode ? { codigoExposto: codigo } : {};
+}
+
 type AuthUsuarioRow = {
   id: string;
   email: string;
@@ -108,11 +181,12 @@ type AuthUsuarioRow = {
   perfil: string;
   professor_id: string | null;
   aluno_id: string | null;
+  email_verificado_em: string | null;
 };
 
 async function buildAuthResponse(usuarioId: string) {
   const usuario = await queryOne<AuthUsuarioRow>(
-    `SELECT u.id, u.email, u.nome, u.perfil,
+    `SELECT u.id, u.email, u.nome, u.perfil, u.email_verificado_em,
             p.id AS professor_id,
             a.id AS aluno_id
      FROM "Usuario" u
@@ -132,6 +206,8 @@ async function buildAuthResponse(usuarioId: string) {
     alunoId: usuario.aluno_id ?? undefined,
   };
 
+  const emailVerificado = isEmailVerificado(usuario.perfil, usuario.email_verificado_em);
+
   return {
     accessToken: signAccessToken(payload),
     refreshToken: signRefreshToken(payload),
@@ -142,29 +218,12 @@ async function buildAuthResponse(usuarioId: string) {
       perfil: usuario.perfil,
       professorId: usuario.professor_id ?? undefined,
       alunoId: usuario.aluno_id ?? undefined,
+      emailVerificado,
     },
   };
 }
 
 export async function registerAluno(input: RegisterAlunoInput) {
-  const codigoConvite = input.codigoConvite?.trim().toUpperCase() ?? "";
-  if (codigoConvite.length < 4) {
-    throw new AppError(
-      400,
-      "CONVITE_OBRIGATORIO",
-      "Código da turma é obrigatório para criar conta de aluno",
-    );
-  }
-
-  const turma = await queryMaybeOne<{ id: string }>(
-    `SELECT id FROM "Turma" WHERE UPPER(codigo_convite) = $1`,
-    [codigoConvite],
-  );
-
-  if (!turma) {
-    throw new AppError(404, "CONVITE_INVALIDO", "Código da turma inválido");
-  }
-
   const exists = await queryMaybeOne<{ id: string }>(
     `SELECT id FROM "Usuario" WHERE email = $1`,
     [input.email],
@@ -205,13 +264,6 @@ export async function registerAluno(input: RegisterAlunoInput) {
         ts,
       ],
     );
-
-    await matricularAlunoTurma(alunoId, turma.id);
-
-    const { gerarMensalidadesParaAluno } = await import(
-      "../mensalidades/mensalidades.service.js"
-    );
-    await gerarMensalidadesParaAluno(alunoId, turma.id);
   } catch (err) {
     try {
       await execute(`DELETE FROM "Usuario" WHERE id = $1`, [usuarioId]);
@@ -224,14 +276,25 @@ export async function registerAluno(input: RegisterAlunoInput) {
     throw err;
   }
 
-  return buildAuthResponse(usuarioId);
+  const { codigoExposto } = await enviarCodigoVerificacaoEmail({
+    id: usuarioId,
+    email: input.email,
+    nome: nomeCompleto,
+  });
+
+  const auth = await buildAuthResponse(usuarioId);
+
+  return {
+    ...auth,
+    ...(codigoExposto ? { codigoVerificacao: codigoExposto } : {}),
+  };
 }
 
 export async function login(input: LoginInput) {
   const usuario = await queryMaybeOne<
     AuthUsuarioRow & { senha_hash: string; ativo: boolean }
   >(
-    `SELECT u.id, u.email, u.nome, u.senha_hash, u.perfil, u.ativo,
+    `SELECT u.id, u.email, u.nome, u.senha_hash, u.perfil, u.ativo, u.email_verificado_em,
             p.id AS professor_id,
             a.id AS aluno_id
      FROM "Usuario" u
@@ -262,6 +325,7 @@ type MeUsuarioRow = {
   email: string;
   nome: string;
   perfil: string;
+  email_verificado_em: string | null;
   professor_id: string | null;
   chave_pix: string | null;
   aluno_id: string | null;
@@ -274,7 +338,7 @@ type MeUsuarioRow = {
 
 export async function getMe(userId: string) {
   const usuario = await queryOne<MeUsuarioRow>(
-    `SELECT u.id, u.email, u.nome, u.perfil,
+    `SELECT u.id, u.email, u.nome, u.perfil, u.email_verificado_em,
             p.id AS professor_id, p.chave_pix,
             a.id AS aluno_id, a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
             a.telefone AS aluno_telefone, a.rg AS aluno_rg, a.cpf AS aluno_cpf
@@ -291,6 +355,7 @@ export async function getMe(userId: string) {
     email: usuario.email,
     nome: usuario.nome,
     perfil: usuario.perfil,
+    emailVerificado: isEmailVerificado(usuario.perfil, usuario.email_verificado_em),
     professorId: usuario.professor_id ?? undefined,
     alunoId: usuario.aluno_id ?? undefined,
     chavePix: usuario.chave_pix ?? null,
@@ -337,12 +402,32 @@ export async function updateAlunoPerfil(
   alunoId: string,
   input: UpdateAlunoPerfilInput,
 ) {
+  const atual = await queryOne<{ email: string; perfil: string }>(
+    `SELECT email, perfil FROM "Usuario" WHERE id = $1`,
+    [userId],
+    { message: "Usuário não encontrado" },
+  );
+
   const ts = now();
   const nomeCompleto = `${input.nome.trim()} ${input.sobrenome.trim()}`;
+  const emailAlterado = atual.email.trim().toLowerCase() !== input.email.trim().toLowerCase();
+
+  if (emailAlterado) {
+    const exists = await queryMaybeOne<{ id: string }>(
+      `SELECT id FROM "Usuario" WHERE email = $1 AND id <> $2`,
+      [input.email, userId],
+    );
+    if (exists) {
+      throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+    }
+  }
 
   await execute(
-    `UPDATE "Usuario" SET nome = $1, email = $2, atualizado_em = $3 WHERE id = $4`,
-    [nomeCompleto, input.email, ts, userId],
+    `UPDATE "Usuario"
+     SET nome = $1, email = $2, atualizado_em = $3,
+         email_verificado_em = CASE WHEN $4 THEN NULL ELSE email_verificado_em END
+     WHERE id = $5`,
+    [nomeCompleto, input.email, ts, emailAlterado, userId],
   );
 
   await execute(
@@ -360,6 +445,14 @@ export async function updateAlunoPerfil(
       alunoId,
     ],
   );
+
+  if (emailAlterado && atual.perfil === "ALUNO") {
+    await enviarCodigoVerificacaoEmail({
+      id: userId,
+      email: input.email,
+      nome: nomeCompleto,
+    });
+  }
 
   return getMe(userId);
 }
@@ -497,4 +590,98 @@ export async function confirmarRecuperacaoSenha(input: ConfirmPasswordResetInput
   await invalidateRecuperacoesPendentes(usuarioId!);
 
   return { ok: true };
+}
+
+export async function confirmarVerificacaoEmail(
+  userId: string,
+  input: ConfirmEmailVerificationInput,
+) {
+  const usuario = await queryOne<{ perfil: string; email_verificado_em: string | null }>(
+    `SELECT perfil, email_verificado_em FROM "Usuario" WHERE id = $1`,
+    [userId],
+    { message: "Usuário não encontrado" },
+  );
+
+  if (usuario.perfil !== "ALUNO") {
+    throw new AppError(400, "INVALID_PERFIL", "Verificação de e-mail não se aplica a este perfil.");
+  }
+
+  if (usuario.email_verificado_em) {
+    return buildAuthResponse(userId);
+  }
+
+  const verificacao = await findVerificacaoEmailAtiva(userId, input.codigo);
+  if (!verificacao) {
+    throw new AppError(400, "INVALID_CODE", "Código inválido ou expirado.");
+  }
+
+  const ts = now();
+  await execute(
+    `UPDATE "Usuario" SET email_verificado_em = $1, atualizado_em = $1 WHERE id = $2`,
+    [ts, userId],
+  );
+  await execute(`UPDATE "VerificacaoEmail" SET usado_em = $1 WHERE id = $2`, [
+    ts,
+    verificacao.id,
+  ]);
+  await invalidateVerificacoesPendentes(userId);
+
+  return buildAuthResponse(userId);
+}
+
+export async function reenviarVerificacaoEmail(userId: string) {
+  const usuario = await queryOne<{
+    perfil: string;
+    email: string;
+    nome: string;
+    email_verificado_em: string | null;
+  }>(
+    `SELECT perfil, email, nome, email_verificado_em FROM "Usuario" WHERE id = $1`,
+    [userId],
+    { message: "Usuário não encontrado" },
+  );
+
+  if (usuario.perfil !== "ALUNO") {
+    throw new AppError(400, "INVALID_PERFIL", "Verificação de e-mail não se aplica a este perfil.");
+  }
+
+  if (usuario.email_verificado_em) {
+    return {
+      ok: true,
+      message: "Seu e-mail já está confirmado.",
+    };
+  }
+
+  const ultimo = await queryMaybeOne<{ criado_em: string }>(
+    `SELECT criado_em FROM "VerificacaoEmail"
+     WHERE usuario_id = $1
+     ORDER BY criado_em DESC
+     LIMIT 1`,
+    [userId],
+  );
+
+  if (
+    ultimo &&
+    Date.now() - new Date(ultimo.criado_em).getTime() < EMAIL_VERIFY_RESEND_COOLDOWN_MS
+  ) {
+    throw new AppError(
+      429,
+      "RATE_LIMIT",
+      "Aguarde um minuto antes de solicitar um novo código.",
+    );
+  }
+
+  const { codigoExposto } = await enviarCodigoVerificacaoEmail({
+    id: userId,
+    email: usuario.email,
+    nome: usuario.nome,
+  });
+
+  return {
+    ok: true,
+    message: env.recoveryShowCode
+      ? "Modo temporário: use o código abaixo (e-mail pode não chegar)."
+      : "Enviamos um novo código para o seu e-mail.",
+    ...(codigoExposto ? { codigo: codigoExposto } : {}),
+  };
 }

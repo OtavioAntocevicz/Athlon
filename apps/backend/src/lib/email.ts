@@ -47,3 +47,50 @@ export async function sendPasswordResetEmail(input: SendPasswordResetEmailInput)
     throw new Error(`Falha ao enviar e-mail: ${body}`);
   }
 }
+
+type SendEmailVerificationInput = {
+  to: string;
+  nome: string;
+  codigo: string;
+};
+
+export async function sendEmailVerificationEmail(
+  input: SendEmailVerificationInput,
+): Promise<void> {
+  const subject = "Confirme seu e-mail - ATHLON";
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      <h2 style="color: #5C3D2E;">ATHLON</h2>
+      <p>Olá, ${input.nome}!</p>
+      <p>Bem-vindo(a) ao ATHLON. Para continuar e entrar na sua turma, confirme seu e-mail com o código abaixo:</p>
+      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #5C3D2E;">${input.codigo}</p>
+      <p style="font-size: 13px; color: #666;">O código expira em 30 minutos. Se você não criou esta conta, ignore este e-mail.</p>
+    </div>
+  `.trim();
+
+  if (!env.resendApiKey) {
+    console.info(
+      `[email:dev] Verificação de e-mail para ${input.to}\n  Código: ${input.codigo}`,
+    );
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.emailFrom,
+      to: input.to,
+      subject,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Falha ao enviar e-mail: ${body}`);
+  }
+}

@@ -39,8 +39,8 @@ async function main() {
 
   try {
     await pool.query(
-      `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, ativo, criado_em, atualizado_em)
-       VALUES ($1, $2, $3, $4, 'ADM', true, $5, $5)`,
+      `INSERT INTO "Usuario" (id, email, nome, senha_hash, perfil, ativo, email_verificado_em, criado_em, atualizado_em)
+       VALUES ($1, $2, $3, $4, 'ADM', true, $5, $5, $5)`,
       [nanoid(), email, nome, senha_hash, ts],
     );
     console.log("ADM criado com sucesso:", email);
