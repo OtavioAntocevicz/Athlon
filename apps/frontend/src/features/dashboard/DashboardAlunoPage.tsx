@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   MapPin,
@@ -7,6 +8,7 @@ import {
   GraduationCap,
   ChevronRight,
   Calendar,
+  Plus,
 } from "lucide-react";
 import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -21,6 +23,7 @@ import { QueryError } from "@/components/ui/query-error";
 import type { StatusMensalidade } from "@athlon/shared-types";
 import { PageEnter } from "@/components/ui/page-enter";
 import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
+import { EntrarTurmaModal } from "@/features/turmas/EntrarTurmaModal";
 
 interface DashboardAluno {
   situacaoFinanceira: {
@@ -65,7 +68,9 @@ const STATUS_MSG: Partial<Record<StatusMensalidade, string>> = {
 export function DashboardAlunoPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { bloqueado, bloqueios } = useAlunoBloqueado();
+  const [entrarTurmaOpen, setEntrarTurmaOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", "aluno"],
@@ -97,7 +102,9 @@ export function DashboardAlunoPage() {
 
   const fin = data.situacaoFinanceira;
   const proximoEvento = data.proximoEvento;
-  const precisaPagar = fin.status !== "PAGO" && fin.status !== "EM_ANALISE";
+  const semTurmas = data.turmas.length === 0;
+  const precisaPagar =
+    !semTurmas && fin.status !== "PAGO" && fin.status !== "EM_ANALISE";
   const turmasBloqueadas =
     bloqueios.length > 0
       ? bloqueios
@@ -119,10 +126,36 @@ export function DashboardAlunoPage() {
           <h1 className="text-2xl font-bold text-primary">
             Olá, {user?.nome?.split(" ")[0]}!
           </h1>
-          <p className="text-sm text-muted-foreground">Sua situação hoje</p>
+          <p className="text-sm text-muted-foreground">
+            {semTurmas ? "Entre na sua primeira turma para começar" : "Sua situação hoje"}
+          </p>
         </div>
 
-        {bloqueado && (
+        <EntrarTurmaModal
+          open={entrarTurmaOpen}
+          onClose={() => setEntrarTurmaOpen(false)}
+          onSuccess={() => {
+            void queryClient.invalidateQueries({ queryKey: ["dashboard", "aluno"] });
+            void queryClient.invalidateQueries({ queryKey: ["minhas-turmas"] });
+          }}
+        />
+
+        {semTurmas && (
+          <Card className="mt-6 flex flex-col items-center px-6 py-10 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl border-2 border-accent bg-primary text-white">
+              <GraduationCap className="h-8 w-8" />
+            </div>
+            <p className="text-lg font-semibold text-primary">Nenhuma turma ainda</p>
+            <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+              Peça o código de convite ao seu treinador e entre na sua primeira turma.
+            </p>
+            <Button className="mt-6 w-full max-w-xs" onClick={() => setEntrarTurmaOpen(true)}>
+              <Plus className="h-4 w-4" /> Entrar com código da turma
+            </Button>
+          </Card>
+        )}
+
+        {!semTurmas && bloqueado && (
           <Card className="mt-4 border-destructive/30 bg-destructive/5 p-4">
             <p className="text-sm font-semibold text-destructive">
               Conta bloqueada por inadimplência
@@ -144,150 +177,154 @@ export function DashboardAlunoPage() {
           </Card>
         )}
 
-        <div className="mt-6 grid grid-cols-2 gap-3">
-          <MetricCard
-            title="Em aberto"
-            value={String(fin.totalEmAberto)}
-            icon={Wallet}
-            accent={fin.totalEmAberto > 0 ? "warning" : "default"}
-          />
-          <MetricCard
-            title="Atrasadas"
-            value={String(fin.totalAtrasadas)}
-            icon={AlertTriangle}
-            accent={fin.totalAtrasadas > 0 ? "danger" : "default"}
-          />
-          <MetricCard
-            title="Turmas"
-            value={String(data.turmas.length)}
-            icon={GraduationCap}
-          />
-          <MetricCard
-            title="Próx. venc."
-            value={fin.vencimento && precisaPagar ? formatDate(fin.vencimento) : "-"}
-            icon={Calendar}
-            compact
-          />
-        </div>
+        {!semTurmas && (
+          <>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <MetricCard
+                title="Em aberto"
+                value={String(fin.totalEmAberto)}
+                icon={Wallet}
+                accent={fin.totalEmAberto > 0 ? "warning" : "default"}
+              />
+              <MetricCard
+                title="Atrasadas"
+                value={String(fin.totalAtrasadas)}
+                icon={AlertTriangle}
+                accent={fin.totalAtrasadas > 0 ? "danger" : "default"}
+              />
+              <MetricCard
+                title="Turmas"
+                value={String(data.turmas.length)}
+                icon={GraduationCap}
+              />
+              <MetricCard
+                title="Próx. venc."
+                value={fin.vencimento && precisaPagar ? formatDate(fin.vencimento) : "-"}
+                icon={Calendar}
+                compact
+              />
+            </div>
 
-        {precisaPagar && (
-          <Card
-            className="mt-5 cursor-pointer bg-primary p-4 text-white transition-transform active:scale-[0.99]"
-            onClick={() =>
-              navigate(fin.pagamentoId ? `/mensalidades/${fin.pagamentoId}` : "/mensalidades")
-            }
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
-                <Wallet className="h-5 w-5" strokeWidth={2.25} />
+            {precisaPagar && (
+              <Card
+                className="mt-5 cursor-pointer bg-primary p-4 text-white transition-transform active:scale-[0.99]"
+                onClick={() =>
+                  navigate(fin.pagamentoId ? `/mensalidades/${fin.pagamentoId}` : "/mensalidades")
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-primary">
+                    <Wallet className="h-5 w-5" strokeWidth={2.25} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">
+                      {fin.status === "RECUSADO" ? "Reenviar comprovante" : "Pagar mensalidade"}
+                    </p>
+                    <p className="text-sm text-white/70">
+                      {formatCurrency(fin.valorCentavos)}
+                      {fin.turmaNome ? ` · ${fin.turmaNome}` : ""}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-white/50" />
+                </div>
+              </Card>
+            )}
+
+            <Card className="mt-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="font-semibold text-primary">Situação financeira</p>
+                <StatusBadge status={fin.status} />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  {fin.status === "RECUSADO" ? "Reenviar comprovante" : "Pagar mensalidade"}
-                </p>
-                <p className="text-sm text-white/70">
-                  {formatCurrency(fin.valorCentavos)}
+
+              {fin.mesReferencia && (
+                <p className="text-sm font-medium text-primary">
+                  {formatMes(fin.mesReferencia)}
                   {fin.turmaNome ? ` · ${fin.turmaNome}` : ""}
                 </p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-white/50" />
-            </div>
-          </Card>
-        )}
+              )}
 
-        <Card className="mt-4">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="font-semibold text-primary">Situação financeira</p>
-            <StatusBadge status={fin.status} />
-          </div>
+              <p className="mt-2 text-2xl font-bold">{formatCurrency(fin.valorCentavos)}</p>
 
-          {fin.mesReferencia && (
-            <p className="text-sm font-medium text-primary">
-              {formatMes(fin.mesReferencia)}
-              {fin.turmaNome ? ` · ${fin.turmaNome}` : ""}
-            </p>
-          )}
-
-          <p className="mt-2 text-2xl font-bold">{formatCurrency(fin.valorCentavos)}</p>
-
-          {fin.vencimento && precisaPagar && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Vencimento: {formatDate(fin.vencimento)}
-            </p>
-          )}
-
-          {STATUS_MSG[fin.status] && (
-            <p className="mt-2 text-sm text-muted-foreground">{STATUS_MSG[fin.status]}</p>
-          )}
-
-          {fin.chavePix && precisaPagar && (
-            <Button variant="secondary" className="mt-4 w-full" onClick={copyPix}>
-              Copiar PIX
-            </Button>
-          )}
-
-          <Button
-            variant="outline"
-            className="mt-2 w-full"
-            onClick={() => navigate("/mensalidades")}
-          >
-            Ver mensalidades
-          </Button>
-        </Card>
-
-        {!bloqueado && proximoEvento && (() => {
-          const styles = eventoTipoStyles(proximoEvento.tipo);
-          const Icon = styles.Icon;
-          return (
-            <Card
-              className={`mt-4 cursor-pointer p-4 active:scale-[0.99] ${styles.cardClass}`}
-              onClick={() => navigate(`/minhas-turmas/${proximoEvento.turmaId}`)}
-            >
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="font-semibold text-primary">Próximo evento</p>
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.badgeClass}`}
-                >
-                  <Icon className="h-3 w-3" />
-                  {labelTipoEvento(proximoEvento.tipo)}
-                </span>
-              </div>
-              <p className="font-medium text-primary">{proximoEvento.titulo}</p>
-              <p className="text-sm text-muted-foreground">{proximoEvento.turmaNome}</p>
-              <p className="mt-2 text-sm font-medium">{formatDateTime(proximoEvento.inicio)}</p>
-              {proximoEvento.local && (
-                <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5" /> {proximoEvento.local}
+              {fin.vencimento && precisaPagar && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Vencimento: {formatDate(fin.vencimento)}
                 </p>
               )}
-            </Card>
-          );
-        })()}
 
-        {!bloqueado && data.turmas.length > 0 && (
-          <>
-            <h2 className="mb-3 mt-8 text-lg font-bold text-primary">Minhas Turmas</h2>
-            <div className="space-y-3">
-              {data.turmas.map((t) => (
+              {STATUS_MSG[fin.status] && (
+                <p className="mt-2 text-sm text-muted-foreground">{STATUS_MSG[fin.status]}</p>
+              )}
+
+              {fin.chavePix && precisaPagar && (
+                <Button variant="secondary" className="mt-4 w-full" onClick={copyPix}>
+                  Copiar PIX
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={() => navigate("/mensalidades")}
+              >
+                Ver mensalidades
+              </Button>
+            </Card>
+
+            {!bloqueado && proximoEvento && (() => {
+              const styles = eventoTipoStyles(proximoEvento.tipo);
+              const Icon = styles.Icon;
+              return (
                 <Card
-                  key={t.id}
-                  className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"
-                  onClick={() => navigate(`/minhas-turmas/${t.id}`)}
+                  className={`mt-4 cursor-pointer p-4 active:scale-[0.99] ${styles.cardClass}`}
+                  onClick={() => navigate(`/minhas-turmas/${proximoEvento.turmaId}`)}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-primary">{t.nome}</p>
-                    <p className="text-xs text-muted-foreground">{t.modalidade}</p>
-                    {t.horarioInicio && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {t.horarioInicio}
-                        {t.local ? ` - ${t.local}` : ""}
-                      </p>
-                    )}
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="font-semibold text-primary">Próximo evento</p>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles.badgeClass}`}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {labelTipoEvento(proximoEvento.tipo)}
+                    </span>
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <p className="font-medium text-primary">{proximoEvento.titulo}</p>
+                  <p className="text-sm text-muted-foreground">{proximoEvento.turmaNome}</p>
+                  <p className="mt-2 text-sm font-medium">{formatDateTime(proximoEvento.inicio)}</p>
+                  {proximoEvento.local && (
+                    <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" /> {proximoEvento.local}
+                    </p>
+                  )}
                 </Card>
-              ))}
-            </div>
+              );
+            })()}
+
+            {!bloqueado && (
+              <>
+                <h2 className="mb-3 mt-8 text-lg font-bold text-primary">Minhas Turmas</h2>
+                <div className="space-y-3">
+                  {data.turmas.map((t) => (
+                    <Card
+                      key={t.id}
+                      className="flex cursor-pointer items-center gap-3 p-3 active:scale-[0.99]"
+                      onClick={() => navigate(`/minhas-turmas/${t.id}`)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-primary">{t.nome}</p>
+                        <p className="text-xs text-muted-foreground">{t.modalidade}</p>
+                        {t.horarioInicio && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {t.horarioInicio}
+                            {t.local ? ` - ${t.local}` : ""}
+                          </p>
+                        )}
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </PageEnter>
