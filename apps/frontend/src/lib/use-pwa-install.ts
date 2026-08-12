@@ -30,6 +30,8 @@ export function detectEhIOSNaoSafari(): boolean {
 
 export function detectJaInstalado(): boolean {
   if (typeof window === "undefined") return false;
+  if (window.__ATHLON_APP__ === true) return true;
+  if (/AthlonMobile\/\d/i.test(navigator.userAgent)) return true;
   const nav = window.navigator as Navigator & { standalone?: boolean };
   return (
     window.matchMedia("(display-mode: standalone)").matches || nav.standalone === true

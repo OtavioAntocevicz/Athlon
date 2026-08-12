@@ -15,7 +15,8 @@
     "db:migrate": "pnpm --filter @athlon/backend db:migrate",
     "test:db": "pnpm --filter @athlon/backend test:db",
     "seed:admin": "pnpm --filter @athlon/backend seed:admin",
-    "test": "pnpm --filter @athlon/shared-types build && pnpm --filter @athlon/frontend test"
+    "test": "pnpm --filter @athlon/shared-types build && pnpm --filter @athlon/frontend test",
+    "dev:mobile": "pnpm --filter @athlon/mobile start"
   },
   "dependencies": {
     "@athlon/backend": "workspace:*",

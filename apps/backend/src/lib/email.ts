@@ -48,6 +48,57 @@ export async function sendPasswordResetEmail(input: SendPasswordResetEmailInput)
   }
 }
 
+type SendChamadoRespondidoEmailInput = {
+  to: string;
+  nome: string;
+  assunto: string;
+  resposta: string;
+  link: string;
+};
+
+export async function sendChamadoRespondidoEmail(
+  input: SendChamadoRespondidoEmailInput,
+): Promise<void> {
+  const subject = `Resposta ao seu chamado - ${input.assunto}`;
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      <h2 style="color: #5C3D2E;">ATHLON</h2>
+      <p>Olá, ${input.nome}!</p>
+      <p>Seu chamado de suporte recebeu uma resposta da equipe ATHLON.</p>
+      <p style="font-weight: 600; color: #5C3D2E;">Assunto: ${input.assunto}</p>
+      <div style="margin: 16px 0; padding: 12px 16px; background: #F5EDE4; border-radius: 8px; white-space: pre-wrap;">${input.resposta}</div>
+      <p><a href="${input.link}" style="color: #5C3D2E;">Ver chamado no app</a></p>
+      <p style="font-size: 13px; color: #666;">Se o link não abrir, acesse Chamados no menu Perfil do aplicativo.</p>
+    </div>
+  `.trim();
+
+  if (!env.resendApiKey) {
+    console.info(
+      `[email:dev] Chamado respondido para ${input.to}\n  Assunto: ${input.assunto}\n  Link: ${input.link}`,
+    );
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.emailFrom,
+      to: input.to,
+      subject,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Falha ao enviar e-mail: ${body}`);
+  }
+}
+
 type SendEmailVerificationInput = {
   to: string;
   nome: string;

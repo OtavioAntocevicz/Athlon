@@ -8,7 +8,8 @@ Este documento resume a arquitetura após a remoção do Supabase.
 - **API:** Railway → https://api.athlonsport.app.br
 - **Banco:** PostgreSQL no Railway (`pg` / node-postgres)
 - **Storage:** Cloudflare R2 (`comprovantes/`, `turmas-fotos/`)
-- **E-mail:** Resend
+- **E-mail:** Resend (configurado em produção)
+- **App Play Store:** `apps/mobile` (Expo + WebView) — ver [docs/play-store-mobile.md](./play-store-mobile.md)
 - **Crons:** `node-cron` no processo Express (Railway)
 
 ## Variáveis de ambiente

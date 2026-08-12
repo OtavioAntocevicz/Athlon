@@ -1,5 +1,7 @@
 import { execute, generateId, now, query, queryMaybeOne } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
+import { sendChamadoRespondidoEmail } from "../../lib/email.js";
+import { env } from "../../config/env.js";
 import type {
   AutorChamado,
   ChamadoDetalhe,
@@ -224,8 +226,26 @@ export async function responderChamadoAdmin(
   chamadoId: string,
   input: ResponderChamadoInput,
 ) {
-  const existing = await queryMaybeOne<{ id: string }>(
-    `SELECT id FROM "Chamado" WHERE id = $1`,
+  const existing = await queryMaybeOne<{
+    id: string;
+    assunto: string;
+    aluno_id: string | null;
+    professor_id: string | null;
+    aluno_email: string | null;
+    aluno_nome: string | null;
+    aluno_sobrenome: string | null;
+    professor_email: string | null;
+    professor_nome: string | null;
+  }>(
+    `SELECT c.id, c.assunto, c.aluno_id, c.professor_id,
+            ua.email AS aluno_email, a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
+            up.email AS professor_email, up.nome AS professor_nome
+     FROM "Chamado" c
+     LEFT JOIN "Aluno" a ON a.id = c.aluno_id
+     LEFT JOIN "Usuario" ua ON ua.id = a.usuario_id
+     LEFT JOIN "Professor" pr ON pr.id = c.professor_id
+     LEFT JOIN "Usuario" up ON up.id = pr.usuario_id
+     WHERE c.id = $1`,
     [chamadoId],
   );
 
@@ -233,13 +253,36 @@ export async function responderChamadoAdmin(
 
   const ts = now();
   const status = input.status ?? "RESPONDIDO";
+  const resposta = input.respostaAdmin.trim();
 
   await execute(
     `UPDATE "Chamado"
      SET resposta_admin = $1, status = $2, respondido_em = $3, atualizado_em = $3
      WHERE id = $4`,
-    [input.respostaAdmin.trim(), status, ts, chamadoId],
+    [resposta, status, ts, chamadoId],
   );
+
+  const destinatarioEmail = existing.professor_id
+    ? existing.professor_email
+    : existing.aluno_email;
+  const destinatarioNome = existing.professor_id
+    ? (existing.professor_nome ?? "Treinador")
+    : [existing.aluno_nome, existing.aluno_sobrenome].filter(Boolean).join(" ") || "Aluno";
+
+  if (destinatarioEmail && status === "RESPONDIDO") {
+    const link = `${env.appUrl.replace(/\/$/, "")}/chamados/${chamadoId}`;
+    try {
+      await sendChamadoRespondidoEmail({
+        to: destinatarioEmail,
+        nome: destinatarioNome,
+        assunto: existing.assunto,
+        resposta,
+        link,
+      });
+    } catch (err) {
+      console.error("[chamados] Falha ao enviar e-mail de resposta:", err);
+    }
+  }
 
   return obterChamadoAdmin(chamadoId);
 }

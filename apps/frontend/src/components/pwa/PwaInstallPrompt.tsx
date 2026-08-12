@@ -1,6 +1,7 @@
 import { Download, ExternalLink, Smartphone, X } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { usePwaInstall } from "@/lib/use-pwa-install";
+import { isAthlonMobileApp } from "@/lib/is-athlon-app";
 import { Button } from "@/components/ui/button";
 import { TutorialInstalacaoIOS } from "./TutorialInstalacaoIOS";
 import { AbrirNoSafariModal } from "./AbrirNoSafariModal";
@@ -42,7 +43,7 @@ export function PwaInstallPrompt() {
     dispensarTutorialIOS,
   } = usePwaInstall();
 
-  if (jaInstalado) return null;
+  if (jaInstalado || isAthlonMobileApp()) return null;
 
   const mostrarBanner = mostrarConviteAndroid || mostrarConviteIOS || mostrarAvisoAbrirSafari;
   const conviteIOS = mostrarConviteIOS || mostrarAvisoAbrirSafari;
