@@ -8,10 +8,14 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 - **Migração de infraestrutura:** Supabase → Railway (PostgreSQL) + Cloudflare R2 + API separada (`api.athlonsport.app.br`)
 - **Crons unificados:** `node-cron` no Railway (avisos horários, diário, mensal)
-- **Remoção TWA/APK:** canal único de instalação via PWA
+- **Três canais de acesso:** Web + PWA + app Play Store (`apps/mobile` — Expo + WebView apontando para o site)
 - **Domínio próprio:** `athlonsport.app.br` (frontend) + `api.athlonsport.app.br` (API)
-- Migrations consolidadas em `apps/backend/migrations/`
-- Guia de deploy: [DEPLOY.md](./DEPLOY.md)
+- **Verificação de e-mail do aluno:** cadastro sem código da turma → código 6 dígitos por e-mail → entrar na turma depois
+- **Resend em produção:** recuperação de senha, verificação de e-mail e resposta de chamado funcionando
+- **E-mail ao responder chamado:** ADM responde → aluno/professor recebe e-mail com a resposta
+- **App Play Store (shell):** `apps/mobile` com detecção `__ATHLON_APP__`; banner PWA oculto dentro do WebView
+- Migrations consolidadas em `apps/backend/migrations/` (inclui `003_email_verificacao.sql`)
+- Guias: [DEPLOY.md](./DEPLOY.md), [play-store-mobile.md](./play-store-mobile.md)
 
 ## Concluído recentemente (jul/2026)
 
@@ -49,23 +53,26 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - Ver regras em [DOCUMENTACAO.md §10 - Eventos de turma](./DOCUMENTACAO.md#eventos-de-turma).
 - **Status:** pendente (outro momento).
 
-### Instalação PWA
+### Instalação (Web / PWA / Play Store)
 
-- **Android / Chromium:** banner com `beforeinstallprompt` ("Instalar app").
-- **iOS:** tutorial Safari → Adicionar à Tela de Início.
-- Canal único de instalação: **PWA**.
+- **Web:** navegador em https://athlonsport.app.br
+- **PWA — Android / Chromium:** banner com `beforeinstallprompt` ("Instalar app").
+- **PWA — iOS:** tutorial Safari → Adicionar à Tela de Início.
+- **Play Store:** app nativo shell (`apps/mobile`) — WebView do mesmo frontend; guia em [play-store-mobile.md](./play-store-mobile.md).
+- Dentro do app da loja, o banner de instalar PWA **não** aparece (`is-athlon-app.ts`).
 
 ### Web Push em produção
 
 - Código e chaves VAPID: configuração documentada em [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md).
 - **Ajuste pendente:** com VAPID no Railway e permissão aceita pelo aluno, a notificação **ainda não aparece na barra do sistema** (só o fluxo in-app, se houver). Investigar subscription (`POST /dispositivos`), Service Worker (`push-handler.js`), envio `web-push` e diferença Android/iOS/PWA.
 
-### Recuperação de senha - Resend (e-mail)
+### E-mail transacional (Resend)
 
-- Fluxo implementado no código.
-- **Passo a passo de configuração:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte A)
-- **Status atual:** Resend **ainda precisa ser configurado** em produção no Railway (`RESEND_API_KEY`, `EMAIL_FROM`, domínio verificado, `APP_URL`).
-- **Contorno sem domínio:** `RECOVERY_SHOW_CODE=true` mostra o código na tela (ver [config-resend-web-push.md](./config-resend-web-push.md)).
+- **Status:** configurado e **funcionando em produção** (domínio verificado, `RESEND_API_KEY` no Railway).
+- Tipos enviados: recuperação de senha, verificação de e-mail do aluno, resposta de chamado.
+- **Configuração / troubleshooting:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte A)
+- **Contorno dev:** sem `RESEND_API_KEY`, o backend loga `[email:dev]` no terminal.
+- **Contorno legado:** `RECOVERY_SHOW_CODE=true` exibe código na tela (desligar em produção).
 
 ---
 

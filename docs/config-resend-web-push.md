@@ -1,6 +1,8 @@
 # Configurar Resend + Web Push (produção) - ATHLON
 
-Guia prático, na ordem recomendada. O código já está pronto; falta só ambiente.
+Guia prático, na ordem recomendada.
+
+**Resend:** configurado e **funcionando em produção** (recuperação de senha, verificação de e-mail, resposta de chamado). Use este guia para replicar em outro ambiente ou diagnosticar problemas.
 
 Referências extras:
 - Resend (detalhe técnico): [DOCUMENTACAO.md §12](./DOCUMENTACAO.md#recuperação-de-senha-esqueci-minha-senha)
@@ -8,7 +10,17 @@ Referências extras:
 
 ---
 
-## Parte A - Resend (e-mail de recuperação de senha)
+## Parte A - Resend (e-mail transacional)
+
+### Tipos de e-mail enviados
+
+| Tipo | Gatilho |
+|------|---------|
+| Recuperação de senha | `POST /auth/recuperar-senha/solicitar` |
+| Verificação de e-mail (aluno) | Cadastro de aluno |
+| Chamado respondido | ADM responde chamado (`status RESPONDIDO`) |
+
+Implementação: `apps/backend/src/lib/email.ts`
 
 ### O que você precisa
 
@@ -74,11 +86,25 @@ Salve as env vars e faça redeploy (ou reinicie o processo). Variáveis novas s�
 
 ### Passo 6 - Testar
 
+**Recuperação de senha:**
+
 1. Abra `/login/aluno/esqueci-senha` (ou professor)
 2. Informe um e-mail **cadastrado**
 3. Confira a caixa de entrada (e spam)
 4. Use o **código de 6 dígitos** ou o **link** do e-mail
 5. Defina a nova senha e faça login
+
+**Verificação de e-mail (aluno):**
+
+1. Cadastre um aluno novo em `/cadastro/aluno`
+2. Confira o e-mail com código de 6 dígitos
+3. Informe o código em `/verificar-email`
+
+**Chamado respondido:**
+
+1. Aluno ou professor abre um chamado em Perfil → Chamados
+2. ADM responde em Edição → Chamados
+3. O solicitante recebe e-mail com a resposta e link para o chamado
 
 ### Checklist Resend
 
@@ -87,7 +113,7 @@ Salve as env vars e faça redeploy (ou reinicie o processo). Variáveis novas s�
 - [ ] `EMAIL_FROM` com esse domínio
 - [ ] `APP_URL` apontando para o frontend HTTPS
 - [ ] Backend reiniciado / redeploy
-- [ ] Teste com e-mail real de aluno e professor
+- [ ] Teste com e-mail real: recuperação de senha, verificação de aluno e resposta de chamado
 
 ### Problemas comuns (Resend)
 

@@ -76,7 +76,7 @@ Além disso, o professor pode enviar **avisos** para a turma (imediato ou agenda
 | **Arquivos** | Cloudflare R2 (`comprovantes/`, `turmas-fotos/`) |
 | **E-mail** | Resend |
 | **Push** | Web Push (VAPID) |
-| **Instalação** | PWA (Android: prompt nativo; iOS: tutorial Safari) |
+| **Instalação** | Web, PWA (Android/iOS) e app Play Store (`apps/mobile` — WebView) |
 | **Testes** | Vitest (shared-types + frontend) |
 | **Monorepo** | pnpm workspaces |
 | **Tipos compartilhados** | `@athlon/shared-types` (Zod schemas + enums) |
@@ -118,6 +118,11 @@ Athlon/
 │       ├── migrations/          # Schema SQL (PostgreSQL)
 │       └── scripts/             # migrate, test-db, seed-admin, generate-vapid-keys
 │
+│   └── mobile/                  # App Play Store (@athlon/mobile — Expo + WebView)
+│       ├── App.tsx              # WebView → athlonsport.app.br
+│       ├── app.json             # package Android, ícones, permissões
+│       └── assets/              # ícones
+│
 ├── packages/
 │   └── shared-types/            # Contratos Zod + enums compartilhados
 │
@@ -126,6 +131,7 @@ Athlon/
     ├── DEPLOY.md                # Guia de deploy (Vercel + Railway)
     ├── Melhoria.md              # Pendências e melhorias
     ├── config-resend-web-push.md
+    ├── play-store-mobile.md     # App Android (Play Store)
     └── web-push-producao.md     # Guia de push em produção
 ```
 
@@ -266,27 +272,28 @@ Navegador (athlonsport.app.br)
 ```
 1. Acessa /login → escolhe "Aluno"
 2. Cadastro (/cadastro/aluno)
-   - Dados pessoais + código de convite da turma
-   - Matrícula automática na turma
-3. Login → Dashboard aluno
-   - Destaque da mensalidade em foco (mais urgente)
-   - Próximo evento (amistoso/campeonato mais próximo entre todas as turmas)
-   - Turmas, horários, PIX
-4. Mensalidades (/mensalidades)
+   - Dados pessoais (sem código da turma)
+   - E-mail de verificação com código de 6 dígitos
+3. Verificação (/verificar-email)
+   - Até confirmar: acesso limitado (verificar e-mail, perfil, chamados, sair)
+4. Após verificar → Dashboard aluno
+   - Se ainda sem turma: CTA "Entrar com código" em Minhas turmas
+5. Mensalidades (/mensalidades)
    - Lista com filtros por status
    - Detalhe: copiar PIX, enviar comprovante
-5. Upload de comprovante (fluxo em 2 passos)
-   a) POST upload-url → recebe URL assinada do Cloudflare R2
-   b) PUT arquivo direto no R2
-   c) POST confirmar comprovante → status EM_ANALISE
 6. Minhas turmas (/minhas-turmas)
+   - Entrar em turma com código de convite
    - Ver colegas, camisa, posição
    - Ver próximos eventos da turma (amistoso/campeonato)
-   - Entrar em nova turma com código (se não bloqueado)
 7. Se inadimplente (2+ meses atrasados na mesma turma):
    - Bloqueado em "Minhas turmas" e entrar turma
    - Ainda acessa home, mensalidades e perfil para regularizar
-8. Recebe notificações in-app e push (se habilitado)
+8. Upload de comprovante (fluxo em 2 passos)
+   a) POST upload-url → recebe URL assinada do Cloudflare R2
+   b) PUT arquivo direto no R2
+   c) POST confirmar comprovante → status EM_ANALISE
+9. Recebe notificações in-app e push (se habilitado)
+10. Chamados de suporte: abre em Perfil; recebe e-mail quando o ADM responde
 ```
 
 ### 6.3 Jornada do Administrador (ADM)
@@ -763,15 +770,21 @@ A resposta do passo 1 é sempre genérica (*"Se o e-mail estiver cadastrado, voc
 
 #### Envio de e-mail (Resend)
 
-O backend envia os e-mails via [Resend](https://resend.com) (`apps/backend/src/lib/email.ts`).
+O backend envia e-mails via [Resend](https://resend.com) (`apps/backend/src/lib/email.ts`).
+
+| Tipo | Quando |
+|------|--------|
+| Recuperação de senha | Usuário solicita "Esqueci minha senha" |
+| Verificação de e-mail | Aluno se cadastra (código 6 dígitos) |
+| Chamado respondido | ADM responde chamado de aluno ou professor |
 
 | Variável | Descrição |
 |----------|-----------|
 | `RESEND_API_KEY` | Chave da API Resend |
-| `EMAIL_FROM` | Remetente (ex.: `ATHLON <noreply@seudominio.com>`) |
-| `APP_URL` | URL do frontend para montar o link mágico (ex.: `http://localhost:5173` em dev) |
+| `EMAIL_FROM` | Remetente (ex.: `ATHLON <noreply@athlonsport.app.br>`) |
+| `APP_URL` | URL do frontend para montar links (ex.: chamado, redefinição de senha) |
 
-> **Status:** o código está pronto; falta configurar Resend em produção. **Passo a passo:** [config-resend-web-push.md](./config-resend-web-push.md).
+> **Status:** Resend **configurado e funcionando em produção**. Guia de setup: [config-resend-web-push.md](./config-resend-web-push.md).
 **Desenvolvimento local sem Resend:** se `RESEND_API_KEY` estiver vazio, o backend **não envia e-mail** e imprime no terminal do `pnpm dev:backend`:
 
 ```
@@ -784,9 +797,19 @@ Use esse log para testar o fluxo localmente.
 
 ---
 
-## 13. PWA e Web Push
+## 13. PWA, app Play Store e Web Push
 
-Web e PWA usam **o mesmo código** (`apps/frontend`). A diferença é que o PWA é instalável (Add to Home Screen) e registra push via Service Worker.
+Web, PWA e app da Play Store usam **o mesmo frontend** (`apps/frontend`). O app da loja é um shell nativo (`apps/mobile`) com WebView apontando para o site em produção.
+
+### Canais de instalação
+
+| Canal | Como acessa |
+|-------|-------------|
+| **Web** | Navegador → https://athlonsport.app.br |
+| **PWA** | Instalar pelo Chrome (Android) ou Safari (iOS) |
+| **Play Store** | App `apps/mobile` (Expo + WebView) |
+
+Guia Play Store: [play-store-mobile.md](./play-store-mobile.md)
 
 ### PWA e instalação
 
@@ -794,16 +817,18 @@ Web e PWA usam **o mesmo código** (`apps/frontend`). A diferença é que o PWA 
 - Service Worker com auto-update (`vite-plugin-pwa`); ícone maskable no manifest.
 - **Android / Chromium:** banner com botão "Instalar app" aciona o prompt nativo (`beforeinstallprompt`).
 - **iOS / Safari:** tutorial (Safari → Compartilhar → Adicionar à Tela de Início). Dispensa por 7 dias no `localStorage`.
-- Nenhum convite é exibido se o app já estiver em modo standalone (instalado).
+- Nenhum convite é exibido se o app já estiver em modo standalone (instalado) **ou** dentro do shell Play Store (`isAthlonMobileApp()`).
 
 **Arquivos:**
 
 | Arquivo | Papel |
 |---------|-------|
-| `apps/frontend/src/lib/use-pwa-install.ts` | Hook: detecção iOS/standalone, eventos de instalação, timing |
+| `apps/frontend/src/lib/is-athlon-app.ts` | Detecta WebView do app Play Store |
+| `apps/frontend/src/lib/use-pwa-install.ts` | Hook: detecção iOS/standalone/app nativo, eventos de instalação |
 | `apps/frontend/src/lib/pwa-install-storage.ts` | Persistência da dispensa do tutorial iOS |
 | `apps/frontend/src/components/pwa/PwaInstallPrompt.tsx` | Banner de convite (Android e iOS) |
 | `apps/frontend/src/components/pwa/TutorialInstalacaoIOS.tsx` | Modal passo a passo para iOS |
+| `apps/mobile/App.tsx` | WebView + injeção `window.__ATHLON_APP__` |
 
 ### Web Push (PWA no browser)
 
@@ -998,6 +1023,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `pnpm dev` | Frontend + backend em paralelo |
 | `pnpm dev:frontend` | Só frontend (Vite :5173) |
 | `pnpm dev:backend` | Só backend (Express + crons locais) |
+| `pnpm dev:mobile` | Expo dev server (`apps/mobile`) |
 | `pnpm build` | Build completo (shared-types + backend + frontend) |
 | `pnpm build:frontend` | Build só do frontend (Vercel) |
 | `pnpm build:backend` | Build só do backend (Railway) |
@@ -1035,7 +1061,8 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 | `apps/backend/src/lib/mensalidade-focus.ts` | Status efetivo e foco |
 | `apps/backend/src/jobs/cron.ts` | Jobs agendados |
 | `packages/shared-types/` | Schemas Zod compartilhados |
-| `apps/frontend/src/lib/use-pwa-install.ts` | Hook de instalação PWA (Android + iOS) |
+| `apps/frontend/src/lib/is-athlon-app.ts` | Detecção app Play Store (WebView) |
+| `apps/frontend/src/lib/use-pwa-install.ts` | Hook de instalação PWA (Android + iOS + app nativo) |
 | `apps/frontend/src/components/pwa/PwaInstallPrompt.tsx` | Banner de convite para instalar |
 | `apps/frontend/src/lib/push-notifications.ts` | Registro push VAPID (PWA) |
 | `apps/backend/migrations/` | Schema do banco |
@@ -1052,7 +1079,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 6. **Upload direto ao R2** — backend gera URL assinada; não proxya arquivos.
 7. **Bloqueio por turma** — inadimplência granular, não bloqueia o app inteiro.
 8. **Eventos de turma** — amistoso/campeonato informativos, sem presença/RSVP; tabela `Presenca` reservada para expansão futura.
-9. **PWA como canal único** — sem TWA/APK; instalação via prompt nativo (Android) ou tutorial Safari (iOS).
+9. **Três canais, um frontend** — Web + PWA + app Play Store (`apps/mobile` WebView); sem UI duplicada em nativo.
 
 ---
 
@@ -1183,7 +1210,7 @@ Migração completa de Supabase para **Railway + Cloudflare R2**. Detalhes em [D
 | Supabase Storage (comprovantes, fotos) | Cloudflare R2 |
 | API serverless na Vercel (`api/index.ts`) | API Express no Railway (`api.athlonsport.app.br`) |
 | Crons híbridos (Vercel + pg_cron) | `node-cron` no processo Railway |
-| TWA/APK Android | Apenas PWA instalável |
+| TWA/APK Android (legado) | App Play Store (`apps/mobile` WebView) + PWA |
 | Domínio `*.vercel.app` | `athlonsport.app.br` |
 
 ### Código
@@ -1224,7 +1251,8 @@ Roda, em sequência:
 |--------|------------|----------|
 | `frontend` | `push-notifications.test.ts` | Fluxo VAPID no browser |
 | `frontend` | `pwa-install-storage.test.ts` | Dispensa do tutorial iOS (localStorage) |
-| `frontend` | `use-pwa-install.test.ts` | Detecção iOS e modo standalone |
+| `frontend` | `is-athlon-app.test.ts` | Detecção do shell Play Store |
+| `frontend` | `use-pwa-install.test.ts` | Detecção iOS, standalone e app nativo |
 
 ### O que não é coberto (manual ou futuro)
 
