@@ -39,12 +39,12 @@ Este documento descreve o sistema por completo para facilitar onboarding em outr
 
 ## 1. O que é o ATHLON
 
-O **ATHLON** é uma plataforma **mobile-first** (PWA) de gestão esportiva voltada principalmente para **treinadores** que administram turmas/equipes e **alunos** que participam dessas turmas.
+O **ATHLON** é uma plataforma **mobile-first** de gestão esportiva voltada principalmente para **treinadores** que administram turmas/equipes e **alunos** que participam dessas turmas. Disponível na **web**, como **PWA** instalável e no **app da Play Store** (WebView do mesmo frontend).
 
 O núcleo do MVP é o **fluxo financeiro de mensalidades**:
 
 1. Administrador (ADM) cria a conta do treinador; o treinador cadastra turmas com valor de mensalidade e chave PIX.
-2. Aluno se cadastra com código de convite da turma.
+2. Aluno se cadastra (sem código da turma), confirma o e-mail com código de 6 dígitos e depois entra na turma com o código de convite.
 3. Aluno visualiza mensalidades, copia o PIX e envia comprovante de pagamento.
 4. Treinador valida comprovantes na fila (aprovar ou recusar).
 5. O sistema controla atrasos, bloqueios por inadimplência e notificações.
@@ -201,8 +201,10 @@ Navegador (athlonsport.app.br)
 
 | Guard | Uso |
 |-------|-----|
-| `GuestRoute` | Login/cadastro - redireciona logados para `/` (ADM vai para `/admin`) |
+| `GuestRoute` | Login/cadastro — redireciona logados (aluno não verificado → `/verificar-email`; ADM → `/admin`) |
 | `ProtectedRoute` | Exige usuário autenticado |
+| `AlunoEmailGate` | Aluno sem e-mail verificado só acessa `/verificar-email`, `/perfil` e `/chamados` |
+| `AlunoVerificacaoRoute` | Tela de verificação — apenas aluno com e-mail pendente |
 | `ProfessorRoute` | Apenas professor |
 | `AdminRoute` | Apenas ADM; sem login redireciona para `/login/professor` |
 | `AlunoRoute` | Apenas aluno |
@@ -366,7 +368,7 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/login/aluno/esqueci-senha` | EsqueciSenhaPage | Recuperar senha (aluno) |
 | `/login/professor/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (treinador/ADM) |
 | `/login/aluno/redefinir-senha/:token` | RedefinirSenhaTokenPage | Nova senha via link do e-mail (aluno) |
-| `/cadastro/aluno` | RegisterAlunoPage | Cadastro aluno |
+| `/cadastro/aluno` | RegisterAlunoPage | Cadastro aluno (sem matrícula; envia código por e-mail) |
 | `/termos` | TermosDeUsoPage | Termos de uso |
 | `/privacidade` | PoliticaPrivacidadePage | Política de privacidade |
 
@@ -374,6 +376,7 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 
 | Rota | Guard | Tela | Descrição |
 |------|-------|------|-----------|
+| `/verificar-email` | Protected + AlunoVerificacao | VerificarEmailPage | Confirma e-mail com código de 6 dígitos (aluno) |
 | `/` | Protected | DashboardProfessor ou DashboardAluno | Home por perfil |
 | `/mensalidades` | Protected | MensalidadesPage | Lista de mensalidades |
 | `/mensalidades/:id` | Protected | MensalidadeDetailPage | Detalhe, PIX, comprovante |
@@ -385,9 +388,11 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/alunos` | Professor | AlunosPage | Lista de alunos |
 | `/alunos/:id` | Professor | AlunoDetailPage | Perfil do aluno |
 | `/avisos` | Professor | AvisosProfessorPage | Criar/listar avisos |
-| `/eventos` | Professor | EventosProfessorPage | Lista agregada de eventos |
+| `/eventos` | Protected | EventosAlunoPage ou EventosProfessorPage | Eventos agregados por perfil |
 | `/minhas-turmas` | AlunoTurmas | TurmasAlunoPage | Turmas do aluno |
 | `/minhas-turmas/:id` | AlunoTurmas | TurmaAlunoDetailPage | Detalhe da turma e próximos eventos |
+| `/chamados` | Protected | AlunoChamadosPage | Lista de chamados (aluno/professor) |
+| `/chamados/:id` | Protected | AlunoChamadoDetailPage | Detalhe do chamado |
 | `/gerir-turmas` | Professor | GerirTurmasPage | Excluir turmas |
 | `/perfil` | Protected | PerfilPage | Dados, senha, logout |
 | `/perfil/gerir-turmas` | Professor | GerirTurmasPage | Gestão via perfil |
@@ -409,12 +414,15 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/admin/edicao/trocar` | AdminEdicaoTrocarPage | Trocar aluno de turma |
 | `/admin/edicao/desbloquear` | AdminEdicaoDesbloquearPage | Desbloquear inadimplência |
 | `/admin/edicao/professores` | AdminEdicaoProfessoresPage | Ativar/desativar professor |
+| `/admin/chamados` | AdminChamadosPage | Lista de chamados (ADM) |
+| `/admin/chamados/:id` | AdminChamadoDetailPage | Responder chamado |
 | `/admin/perfil` | AdminPerfilPage | Perfil do ADM |
 
 ### Navegação inferior (`BottomNav.tsx` / `AdminBottomNav.tsx`)
 
 **Professor:** Eventos | Mensal | Início (centro) | Turmas | Alunos  
-**Aluno:** Início | Mensal | Turmas (oculta se bloqueado) | Perfil  
+**Aluno (e-mail verificado):** Eventos | Mensal | Início (centro) | Turmas | Perfil (Turmas oculta se bloqueado)  
+**Aluno (e-mail pendente):** Verificar | Perfil  
 **ADM:** Profs | Alunos | Início (centro) | Edição | Perfil
 
 ---
@@ -431,8 +439,10 @@ Montagem: `apps/backend/src/app.ts`
 
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
-| POST | `/register/aluno` | Público | Cadastro aluno + matrícula |
+| POST | `/register/aluno` | Público | Cadastro aluno (conta + envio de código de verificação por e-mail) |
 | POST | `/login` | Público | Login (e-mail + senha + perfil). ADM pode entrar com `perfil: "PROFESSOR"` na tela de treinador |
+| POST | `/verificar-email/confirmar` | JWT (aluno) | Confirma e-mail com código de 6 dígitos |
+| POST | `/verificar-email/reenviar` | JWT (aluno) | Reenvia código de verificação por e-mail |
 | POST | `/recuperar-senha/solicitar` | Público | Envia código de 6 dígitos + link por e-mail |
 | POST | `/recuperar-senha/confirmar` | Público | Redefine senha com código ou token do link |
 | GET | `/me` | JWT | Perfil atual |
@@ -608,7 +618,7 @@ Usuario (1) ── (N) Chamado
 
 | Tabela | Descrição |
 |--------|-----------|
-| `Usuario` | Conta de acesso (e-mail, senha_hash, perfil) |
+| `Usuario` | Conta de acesso (e-mail, senha_hash, perfil, `email_verificado_em`) |
 | `Professor` | Extensão do usuário treinador (chave_pix) |
 | `Aluno` | Dados do atleta (usuario_id opcional) |
 | `Turma` | Turma/equipe com mensalidade, PIX, convite |
@@ -767,6 +777,19 @@ Fluxo em duas etapas, disponível nas telas de login de **treinador** (inclui AD
 A resposta do passo 1 é sempre genérica (*"Se o e-mail estiver cadastrado, você receberá um código"*) para não revelar se o e-mail existe.
 
 **Alterar senha no perfil** (`POST /auth/me/senha`) continua separado: exige estar logado e informar a senha atual.
+
+### Verificação de e-mail (aluno)
+
+Fluxo obrigatório após o cadastro (`POST /auth/register/aluno`):
+
+1. Sistema envia **código de 6 dígitos** por e-mail (válido por 30 minutos)
+2. Aluno informa o código em `/verificar-email` → `POST /auth/verificar-email/confirmar`
+3. Até confirmar, o app restringe navegação (`AlunoEmailGate`): apenas `/verificar-email`, `/perfil`, `/chamados` e logout
+4. Após verificar, o aluno entra na turma em **Minhas turmas** com o código de convite (`POST /alunos/entrar-turma`)
+
+Reenvio: `POST /auth/verificar-email/reenviar` (rate limit igual ao login).
+
+Migration: `apps/backend/migrations/003_email_verificacao.sql` (`Usuario.email_verificado_em`).
 
 #### Envio de e-mail (Resend)
 
@@ -1101,7 +1124,7 @@ O `.gitignore` já protege esses arquivos. Use `.env.example` como referência.
 [ ] pnpm dev
 [ ] (Produção) Configurar variáveis no Railway (ver DEPLOY.md)
 [ ] (Produção) Configurar VITE_API_URL na Vercel
-[ ] (Produção) Configurar Resend para recuperação de senha
+[ ] (Produção) Configurar Resend (recuperação de senha, verificação de e-mail, chamados)
 [ ] (Produção) Validar https://api.athlonsport.app.br/health e fluxo de upload
 ```
 
@@ -1132,11 +1155,9 @@ Documentadas em `docs/Melhoria.md`:
 
 - Presença/chamada com RSVP (tabela `Presenca` - eventos de turma já existem, mas sem confirmação de presença)
 - Histórico de eventos passados visível para o aluno
-- Exclusão do arquivo de comprovante no R2 após aprovação/recusa (já implementado)
 - Notificação ao professor quando aluno envia comprovante
 - Bloqueio mais rígido de inadimplência (redirecionar direto para mensalidades)
 - Exclusão definitiva de conta de professor (hoje só inativação)
-- BottomNav do aluno alinhado ao padrão do professor (Início no centro), se desejado
 
 ---
 
