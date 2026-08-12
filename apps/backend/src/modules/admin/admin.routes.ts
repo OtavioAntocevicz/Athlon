@@ -61,6 +61,16 @@ adminRouter.post(
   },
 );
 
+adminRouter.post("/professores/:id/reenviar-convite", async (req, res, next) => {
+  try {
+    const id = String(req.params.id);
+    const data = await adminService.reenviarConviteProfessor(id);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
 adminRouter.get("/professores/:id", async (req, res, next) => {
   try {
     const id = String(req.params.id);

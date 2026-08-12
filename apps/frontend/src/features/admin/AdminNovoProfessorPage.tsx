@@ -38,7 +38,12 @@ export function AdminNovoProfessorPage() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      navigate(`/admin/professores/${created.id}`);
+      navigate(`/admin/professores/${created.id}`, {
+        state: {
+          conviteEnviado: created.conviteEnviado,
+          conviteLink: created.conviteLink,
+        },
+      });
     } catch (e) {
       setError(getErrorMessage(e, "Erro ao criar professor"));
     }
@@ -57,7 +62,7 @@ export function AdminNovoProfessorPage() {
 
         <PageHeader
           title="Novo professor"
-          subtitle="O treinador usará estas credenciais para entrar no app"
+          subtitle="O treinador receberá um e-mail com link para criar a senha de acesso"
         />
 
         <Card className="mt-2 p-4">
@@ -77,15 +82,9 @@ export function AdminNovoProfessorPage() {
               {errors.email && (
                 <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
               )}
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">
-                Senha inicial <span className="text-destructive">*</span>
-              </label>
-              <Input type="password" placeholder="Mínimo 6 caracteres" {...register("senha")} />
-              {errors.senha && (
-                <p className="mt-1 text-sm text-destructive">{errors.senha.message}</p>
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enviaremos um convite para este e-mail com o link de criação de senha.
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium">

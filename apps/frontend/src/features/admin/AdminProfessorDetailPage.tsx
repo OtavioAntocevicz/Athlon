@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   GraduationCap,
@@ -8,11 +8,12 @@ import {
   Check,
   ChevronRight,
   Trash2,
+  Mail,
 } from "lucide-react";
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { api, getErrorMessage } from "@/lib/api";
 import { maskChavePix } from "@/lib/masks";
-import type { AdminProfessorDetalhe } from "@athlon/shared-types";
+import type { AdminProfessorConviteReenviado, AdminProfessorDetalhe } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { MetricCard } from "@/components/domain/MetricCard";
 import { Card } from "@/components/ui/card";
@@ -27,10 +28,45 @@ import type { StatusMensalidade } from "@athlon/shared-types";
 export function AdminProfessorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [excluirAberto, setExcluirAberto] = useState(false);
   const [erroExcluir, setErroExcluir] = useState("");
+  const [conviteFeedback, setConviteFeedback] = useState<{
+    tipo: "sucesso" | "aviso" | "erro";
+    mensagem: string;
+    link?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const state = location.state as
+      | { conviteEnviado?: boolean; conviteLink?: string }
+      | null
+      | undefined;
+
+    if (!state) return;
+
+    if (state.conviteEnviado) {
+      setConviteFeedback({
+        tipo: "sucesso",
+        mensagem: "Convite enviado por e-mail para o treinador criar a senha.",
+      });
+    } else if (state.conviteLink) {
+      setConviteFeedback({
+        tipo: "aviso",
+        mensagem: "E-mail indisponível. Use o link abaixo para o treinador criar a senha.",
+        link: state.conviteLink,
+      });
+    } else {
+      setConviteFeedback({
+        tipo: "aviso",
+        mensagem: "Professor criado, mas o convite não foi enviado. Use “Reenviar convite”.",
+      });
+    }
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin", "professor", id],
@@ -57,6 +93,32 @@ export function AdminProfessorDetailPage() {
       navigate("/admin/professores");
     },
     onError: (e) => setErroExcluir(getErrorMessage(e, "Erro ao excluir professor")),
+  });
+
+  const reenviarConviteMutation = useMutation({
+    mutationFn: () =>
+      api<AdminProfessorConviteReenviado>(`/admin/professores/${id}/reenviar-convite`, {
+        method: "POST",
+      }),
+    onSuccess: (result) => {
+      if (result.conviteLink) {
+        setConviteFeedback({
+          tipo: "aviso",
+          mensagem: result.message,
+          link: result.conviteLink,
+        });
+        return;
+      }
+      setConviteFeedback({
+        tipo: result.message.includes("Não foi possível") ? "erro" : "sucesso",
+        mensagem: result.message,
+      });
+    },
+    onError: (e) =>
+      setConviteFeedback({
+        tipo: "erro",
+        mensagem: getErrorMessage(e, "Erro ao reenviar convite"),
+      }),
   });
 
   const copyCodigo = async (e: MouseEvent, turmaId: string, codigo: string) => {
@@ -140,6 +202,18 @@ export function AdminProfessorDetailPage() {
               >
                 {data.ativo ? "Desativar" : "Reativar"}
               </Button>
+              {data.ativo && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={reenviarConviteMutation.isPending}
+                  onClick={() => reenviarConviteMutation.mutate()}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {reenviarConviteMutation.isPending ? "Enviando..." : "Reenviar convite"}
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"
@@ -155,6 +229,24 @@ export function AdminProfessorDetailPage() {
             </div>
           </div>
         </div>
+
+        {conviteFeedback && (
+          <Card
+            className={cn(
+              "mt-4 space-y-2 p-4 text-sm",
+              conviteFeedback.tipo === "sucesso" && "border-success/30 bg-success/5 text-success",
+              conviteFeedback.tipo === "aviso" && "border-accent/30 bg-accent/5 text-primary",
+              conviteFeedback.tipo === "erro" && "border-destructive/30 bg-destructive/5 text-destructive",
+            )}
+          >
+            <p>{conviteFeedback.mensagem}</p>
+            {conviteFeedback.link && (
+              <p className="break-all font-mono text-xs text-muted-foreground">
+                {conviteFeedback.link}
+              </p>
+            )}
+          </Card>
+        )}
 
         <Card className="mt-4 space-y-2 p-4">
           <div className="flex items-baseline justify-between gap-3">
