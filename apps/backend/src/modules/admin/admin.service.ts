@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import {
   countQuery,
   execute,
@@ -19,6 +20,9 @@ import { statusEfetivo } from "../../lib/mensalidade-focus.js";
 import { isMesFuturo } from "../../lib/utils.js";
 import { gerarMensalidadesParaAluno } from "../mensalidades/mensalidades.service.js";
 import { excluirTurmaCascade } from "../turmas/turmas.service.js";
+import { createProfessorPasswordInvite } from "../../lib/password-invite.js";
+import { sendProfessorWelcomeEmail } from "../../lib/email.js";
+import { env } from "../../config/env.js";
 
 const BCRYPT_ROUNDS = 12;
 
@@ -181,6 +185,29 @@ export async function listarProfessores(filtros?: { busca?: string; ativo?: bool
   return items;
 }
 
+async function enviarConviteProfessor(input: {
+  usuarioId: string;
+  nome: string;
+  email: string;
+}) {
+  const { link } = await createProfessorPasswordInvite(input.usuarioId);
+
+  try {
+    await sendProfessorWelcomeEmail({
+      to: input.email,
+      nome: input.nome,
+      link,
+    });
+    return { conviteEnviado: true, conviteLink: env.recoveryShowCode ? link : undefined };
+  } catch (err) {
+    console.error("[admin] Falha ao enviar convite de professor:", err);
+    if (env.recoveryShowCode) {
+      return { conviteEnviado: false, conviteLink: link };
+    }
+    return { conviteEnviado: false };
+  }
+}
+
 export async function criarProfessor(input: CreateProfessorAdminInput) {
   const exists = await queryMaybeOne<{ id: string }>(
     `SELECT id FROM "Usuario" WHERE email = $1`,
@@ -191,7 +218,8 @@ export async function criarProfessor(input: CreateProfessorAdminInput) {
     throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
   }
 
-  const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
+  const senhaTemporaria = randomBytes(32).toString("hex");
+  const senha_hash = await bcrypt.hash(senhaTemporaria, BCRYPT_ROUNDS);
   const usuarioId = generateId();
   const professorId = generateId();
   const ts = now();
@@ -210,11 +238,60 @@ export async function criarProfessor(input: CreateProfessorAdminInput) {
     [professorId, usuarioId, input.chavePix, ts],
   );
 
+  const convite = await enviarConviteProfessor({
+    usuarioId,
+    nome: input.nome,
+    email: input.email,
+  });
+
   return {
     id: professorId,
     usuarioId,
     nome: input.nome,
     email: input.email,
+    conviteEnviado: convite.conviteEnviado,
+    ...(convite.conviteLink ? { conviteLink: convite.conviteLink } : {}),
+  };
+}
+
+export async function reenviarConviteProfessor(professorId: string) {
+  const prof = await queryMaybeOne<{
+    id: string;
+    usuario_id: string;
+    usuario_nome: string;
+    usuario_email: string;
+    usuario_ativo: boolean;
+  }>(
+    `SELECT p.id, p.usuario_id,
+            u.nome AS usuario_nome, u.email AS usuario_email, u.ativo AS usuario_ativo
+     FROM "Professor" p
+     JOIN "Usuario" u ON u.id = p.usuario_id
+     WHERE p.id = $1`,
+    [professorId],
+  );
+
+  if (!prof) {
+    throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
+  }
+
+  if (!prof.usuario_ativo) {
+    throw new AppError(400, "PROFESSOR_INATIVO", "Reative o professor antes de reenviar o convite.");
+  }
+
+  const convite = await enviarConviteProfessor({
+    usuarioId: prof.usuario_id,
+    nome: prof.usuario_nome,
+    email: prof.usuario_email,
+  });
+
+  return {
+    ok: true as const,
+    message: convite.conviteEnviado
+      ? "Convite reenviado por e-mail."
+      : env.recoveryShowCode
+        ? "E-mail indisponível. Use o link abaixo (modo dev)."
+        : "Não foi possível enviar o e-mail. Tente novamente mais tarde.",
+    ...(convite.conviteLink ? { conviteLink: convite.conviteLink } : {}),
   };
 }
 

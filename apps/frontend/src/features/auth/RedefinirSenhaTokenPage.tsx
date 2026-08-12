@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmPasswordResetSchema, type ConfirmPasswordResetInput } from "@athlon/shared-types";
@@ -21,6 +21,8 @@ export function RedefinirSenhaTokenPage({
 }: RedefinirSenhaTokenPageProps) {
   const navigate = useNavigate();
   const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const isConvite = searchParams.get("convite") === "1";
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
@@ -67,9 +69,13 @@ export function RedefinirSenhaTokenPage({
         <PageEnter>
           <div className="flex flex-col items-center pt-12 text-center">
             <CheckCircle2 className="h-14 w-14 text-accent" strokeWidth={1.75} />
-            <h1 className="mt-6 text-2xl font-bold text-primary">Senha redefinida</h1>
+            <h1 className="mt-6 text-2xl font-bold text-primary">
+              {isConvite ? "Senha criada" : "Senha redefinida"}
+            </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sua nova senha foi salva. Agora você já pode entrar na sua conta.
+              {isConvite
+                ? "Sua senha foi salva. Agora você já pode entrar no ATHLON."
+                : "Sua nova senha foi salva. Agora você já pode entrar na sua conta."}
             </p>
             <Button size="lg" className="mt-8 w-full" onClick={() => navigate(loginPath)}>
               Ir para o login
@@ -87,9 +93,13 @@ export function RedefinirSenhaTokenPage({
       </PageEnter>
 
       <PageEnter delay={70}>
-        <h1 className="mt-8 text-2xl font-bold text-primary">Nova senha</h1>
+        <h1 className="mt-8 text-2xl font-bold text-primary">
+          {isConvite ? "Crie sua senha" : "Nova senha"}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Você acessou pelo link do e-mail. Defina sua nova senha abaixo.
+          {isConvite
+            ? "Bem-vindo ao ATHLON! Defina a senha que você usará para acessar o app."
+            : "Você acessou pelo link do e-mail. Defina sua nova senha abaixo."}
         </p>
       </PageEnter>
 
@@ -126,7 +136,7 @@ export function RedefinirSenhaTokenPage({
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           <Button type="submit" size="lg" disabled={isSubmitting} className="mt-2">
-            {isSubmitting ? "Salvando..." : "Salvar nova senha"}
+            {isSubmitting ? "Salvando..." : isConvite ? "Criar senha" : "Salvar nova senha"}
           </Button>
 
           <Button

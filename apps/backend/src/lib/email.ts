@@ -48,6 +48,53 @@ export async function sendPasswordResetEmail(input: SendPasswordResetEmailInput)
   }
 }
 
+type SendProfessorWelcomeEmailInput = {
+  to: string;
+  nome: string;
+  link: string;
+};
+
+export async function sendProfessorWelcomeEmail(
+  input: SendProfessorWelcomeEmailInput,
+): Promise<void> {
+  const subject = "Bem-vindo ao ATHLON — crie sua senha";
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      <h2 style="color: #5C3D2E;">ATHLON</h2>
+      <p>Olá, ${input.nome}!</p>
+      <p>Você foi convidado para o ATHLON como treinador. Para acessar o app, crie sua senha pelo link abaixo:</p>
+      <p><a href="${input.link}" style="display: inline-block; margin: 8px 0; padding: 12px 20px; background: #5C3D2E; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">Criar minha senha</a></p>
+      <p style="font-size: 13px; color: #666;">O link expira em 72 horas. Se você não esperava este convite, ignore este e-mail.</p>
+    </div>
+  `.trim();
+
+  if (!env.resendApiKey) {
+    console.info(
+      `[email:dev] Convite de professor para ${input.to}\n  Link: ${input.link}`,
+    );
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.emailFrom,
+      to: input.to,
+      subject,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Falha ao enviar e-mail: ${body}`);
+  }
+}
+
 type SendChamadoRespondidoEmailInput = {
   to: string;
   nome: string;

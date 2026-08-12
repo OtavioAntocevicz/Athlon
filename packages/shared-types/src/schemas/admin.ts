@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { registerProfessorSchema } from "./auth.js";
 
-export const createProfessorAdminSchema = registerProfessorSchema;
+export const createProfessorAdminSchema = z.object({
+  nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  email: z.string().email("E-mail inválido"),
+  chavePix: z.string().min(1, "Chave PIX é obrigatória"),
+});
 
 export const updateProfessorStatusSchema = z.object({
   ativo: z.boolean(),
@@ -149,6 +152,15 @@ export interface AdminProfessorCriado {
   usuarioId: string;
   nome: string;
   email: string;
+  conviteEnviado: boolean;
+  /** Modo dev (`RECOVERY_SHOW_CODE=true`): link do convite quando o e-mail não é enviado. */
+  conviteLink?: string;
+}
+
+export interface AdminProfessorConviteReenviado {
+  ok: true;
+  message: string;
+  conviteLink?: string;
 }
 
 export interface AdminTurmaListaItem {
