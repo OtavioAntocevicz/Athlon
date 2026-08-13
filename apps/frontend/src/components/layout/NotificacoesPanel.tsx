@@ -65,7 +65,7 @@ export function NotificacoesPanel() {
       if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         new Notification("ATHLON", {
           body: "Você tem novas notificações",
-          icon: "/icon-192.png",
+          icon: "/logo.png",
         });
       }
     }

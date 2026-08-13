@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       // Registro via virtual:pwa-register em main.tsx (reload ao ativar SW novo)
       injectRegister: null,
-      includeAssets: ["logo.png", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "push-handler.js"],
+      includeAssets: ["logo.png", "icon-192.png", "icon-512.png", "push-handler.js"],
       workbox: {
         importScripts: ["push-handler.js"],
         navigateFallback: "index.html",
@@ -28,6 +28,12 @@ export default defineConfig({
         orientation: "portrait",
         icons: [
           {
+            src: "/logo.png",
+            sizes: "1024x1024",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
             src: "/icon-192.png",
             sizes: "192x192",
             type: "image/png",
@@ -38,12 +44,6 @@ export default defineConfig({
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
-          },
-          {
-            src: "/icon-512-maskable.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
           },
         ],
       },
