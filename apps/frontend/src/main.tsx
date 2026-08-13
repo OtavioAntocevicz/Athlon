@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { registerPwa } from "./lib/register-pwa";
+import { hideBootSplash } from "./lib/hide-boot-splash";
 import "./styles/globals.css";
 
 registerPwa();
@@ -11,3 +12,5 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>,
 );
+
+hideBootSplash();

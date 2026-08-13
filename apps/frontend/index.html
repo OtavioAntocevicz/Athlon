@@ -4,15 +4,73 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="preload" as="image" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#5C3D2E" />
+    <meta name="theme-color" content="#FDF8F3" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <title>ATHLON</title>
+    <style>
+      html, body {
+        margin: 0;
+        background: #FDF8F3;
+      }
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #FDF8F3;
+        transition: opacity 0.35s ease;
+      }
+      #boot-splash.is-done {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .boot-logo {
+        position: relative;
+        width: min(44vw, 176px);
+        aspect-ratio: 1;
+      }
+      .boot-logo img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .boot-logo-ghost {
+        opacity: 0.16;
+      }
+      .boot-logo-fill {
+        position: absolute;
+        inset: 0;
+        clip-path: inset(0 100% 0 0);
+        animation: boot-logo-fill 1.15s cubic-bezier(0.4, 0, 0.15, 1) forwards;
+      }
+      @keyframes boot-logo-fill {
+        to { clip-path: inset(0 0 0 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-logo-fill {
+          animation: none;
+          clip-path: inset(0 0 0 0);
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-splash" role="status" aria-label="Carregando ATHLON">
+      <div class="boot-logo">
+        <img class="boot-logo-ghost" src="/logo.png" alt="" />
+        <div class="boot-logo-fill">
+          <img src="/logo.png" alt="" />
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

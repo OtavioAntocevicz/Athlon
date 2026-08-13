@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       // Registro via virtual:pwa-register em main.tsx (reload ao ativar SW novo)
       injectRegister: null,
-      includeAssets: ["logo.png", "icon-192.png", "icon-512.png", "push-handler.js"],
+      includeAssets: ["logo.png", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "push-handler.js"],
       workbox: {
         importScripts: ["push-handler.js"],
         navigateFallback: "index.html",
@@ -22,7 +22,7 @@ export default defineConfig({
         description: "Gestão esportiva para treinadores e atletas",
         start_url: "/",
         scope: "/",
-        theme_color: "#5C3D2E",
+        theme_color: "#FDF8F3",
         background_color: "#FDF8F3",
         display: "standalone",
         orientation: "portrait",
@@ -40,7 +40,7 @@ export default defineConfig({
             purpose: "any",
           },
           {
-            src: "/icon-512.png",
+            src: "/icon-512-maskable.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
 import {
-  ActivityIndicator,
   BackHandler,
+  Image,
   Platform,
   StatusBar,
   StyleSheet,
@@ -87,7 +87,12 @@ export default function App() {
       />
       {loading && (
         <View style={styles.loader} pointerEvents="none">
-          <ActivityIndicator size="large" color="#5C3D2E" />
+          <Image
+            source={require("./assets/splash-icon.png")}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Carregando ATHLON"
+          />
         </View>
       )}
     </View>
@@ -108,5 +113,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#FDF8F3",
+  },
+  logo: {
+    width: 176,
+    height: 176,
   },
 });

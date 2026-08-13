@@ -49,10 +49,22 @@ export default {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        "logo-fill": {
+          "0%": { clipPath: "inset(0 100% 0 0)" },
+          "58%": { clipPath: "inset(0 0 0 0)" },
+          "72%": { clipPath: "inset(0 0 0 0)" },
+          "100%": { clipPath: "inset(0 100% 0 0)" },
+        },
+        "logo-fill-once": {
+          "0%": { clipPath: "inset(0 100% 0 0)" },
+          "100%": { clipPath: "inset(0 0 0 0)" },
+        },
       },
       animation: {
         "fade-in-up": "fade-in-up 0.45s ease-out both",
         "fade-in": "fade-in 0.4s ease-out both",
+        "logo-fill": "logo-fill 1.8s cubic-bezier(0.45, 0, 0.2, 1) infinite both",
+        "logo-fill-once": "logo-fill-once 1.15s cubic-bezier(0.4, 0, 0.15, 1) both",
       },
     },
   },

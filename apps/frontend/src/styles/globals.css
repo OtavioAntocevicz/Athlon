@@ -17,13 +17,21 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
+
+  .animate-logo-fill,
+  .animate-logo-fill-once {
+    clip-path: inset(0 100% 0 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
-  .animate-fade-in {
+  .animate-fade-in,
+  .animate-logo-fill,
+  .animate-logo-fill-once {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+    clip-path: inset(0 0 0 0) !important;
   }
 }
