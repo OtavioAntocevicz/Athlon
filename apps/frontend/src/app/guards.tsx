@@ -7,11 +7,12 @@ import {
   destinoPosLogin,
 } from "@/lib/aluno-email";
 import type { ReactNode } from "react";
+import { LogoFill } from "@/components/layout/LogoFill";
 
 export function LoadingScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <LogoFill />
     </div>
   );
 }

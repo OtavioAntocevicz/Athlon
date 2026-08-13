@@ -98,15 +98,15 @@ export function ProfileSelectPage() {
         </PageEnter>
 
         <PageEnter variant="fade" delay={60} className="flex shrink-0 justify-center">
-          <div className="relative flex w-full max-w-[380px] items-center justify-center">
+          <div className="relative flex aspect-square w-full max-w-[280px] items-center justify-center">
             <div
               aria-hidden
-              className="absolute h-[85%] w-[85%] rounded-full bg-accent/25 blur-3xl"
+              className="absolute h-[78%] w-[78%] rounded-[2.5rem] bg-accent/25 blur-3xl"
             />
             <img
               src="/logo.png"
               alt="Athlon"
-              className="relative h-auto max-h-[280px] w-full object-contain drop-shadow-[0_16px_28px_rgba(92,61,46,0.26)]"
+              className="relative h-full w-full object-contain drop-shadow-[0_16px_28px_rgba(92,61,46,0.26)]"
               draggable={false}
             />
           </div>
