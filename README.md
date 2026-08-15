@@ -43,6 +43,7 @@ apps/backend               - API REST Express
 apps/backend/migrations/   - Schema SQL (PostgreSQL)
 packages/shared-types      - Zod schemas e tipos compartilhados
 docs/play-store-mobile.md  - Guia publicação Play Store
+docs/play-store-ficha.md   - Textos e Data safety para a Console
 ```
 
 ## Configuração local
