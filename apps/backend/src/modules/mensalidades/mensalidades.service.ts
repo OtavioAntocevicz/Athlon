@@ -267,6 +267,9 @@ export async function getMensalidade(
   if (user.perfil === "PROFESSOR" && p.professor_id !== user.professorId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
   }
+  if (user.perfil === "ADM") {
+    throw new AppError(403, "FORBIDDEN", "Use o painel administrativo");
+  }
 
   let inadimplencia: { bloqueado: boolean; desbloquearaAoPagar: boolean } | null = null;
   if (user.perfil === "PROFESSOR" && p.status !== "PAGO") {

@@ -6,7 +6,7 @@ describe("registerAlunoSchema", () => {
     nome: "João",
     sobrenome: "Silva",
     email: "joao@email.com",
-    senha: "senha12",
+    senha: "senha123",
     whatsapp: "41912345678",
     anoNascimento: 2000,
     rg: "1234567",

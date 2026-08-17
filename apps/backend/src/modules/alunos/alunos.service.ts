@@ -299,6 +299,21 @@ export async function desbloquearInadimplenciaAluno(
   return desbloquearInadimplencia(alunoId, turmaId, professorId);
 }
 
+async function assertProfessorPodeAcessarAluno(professorId: string, alunoId: string) {
+  const matricula = await queryMaybeOne<{ professor_id: string }>(
+    `SELECT t.professor_id
+     FROM "MatriculaTurma" m
+     JOIN "Turma" t ON t.id = m.turma_id
+     WHERE m.aluno_id = $1 AND m.afastado = false AND t.professor_id = $2
+     LIMIT 1`,
+    [alunoId, professorId],
+  );
+
+  if (!matricula) {
+    throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  }
+}
+
 export async function atualizarAluno(
   id: string,
   user: { perfil: string; professorId?: string; alunoId?: string },
@@ -306,6 +321,10 @@ export async function atualizarAluno(
 ) {
   if (user.perfil === "ALUNO" && id !== user.alunoId) {
     throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  }
+
+  if (user.perfil === "PROFESSOR") {
+    await assertProfessorPodeAcessarAluno(user.professorId!, id);
   }
 
   const fields: string[] = [];

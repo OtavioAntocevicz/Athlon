@@ -1,12 +1,18 @@
 import { Router } from "express";
 import { query } from "../../lib/db.js";
-import { authenticate, requireProfessor, requireAlunoEmailVerificado } from "../../middleware/auth.js";
+import {
+  authenticate,
+  requireProfessor,
+  requireAlunoEmailVerificado,
+  requireProfessorOuAluno,
+} from "../../middleware/auth.js";
+import { AppError } from "../../middleware/error-handler.js";
 import * as mensalidadesService from "./mensalidades.service.js";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
 export const mensalidadesRouter = Router();
 
-mensalidadesRouter.use(authenticate);
+mensalidadesRouter.use(authenticate, requireProfessorOuAluno);
 
 mensalidadesRouter.get("/", requireAlunoEmailVerificado, async (req, res, next) => {
   try {
@@ -50,6 +56,15 @@ mensalidadesRouter.post("/gerar", requireProfessor, async (req, res, next) => {
   try {
     const { turmaId } = req.body;
     if (turmaId) {
+      const turma = await query<{ id: string }>(
+        `SELECT id FROM "Turma" WHERE id = $1 AND professor_id = $2`,
+        [turmaId, req.user!.professorId!],
+      );
+
+      if (turma.length === 0) {
+        throw new AppError(403, "FORBIDDEN", "Turma não encontrada");
+      }
+
       await mensalidadesService.gerarMensalidadesParaTurma(turmaId);
     } else {
       const turmas = await query<{ id: string }>(

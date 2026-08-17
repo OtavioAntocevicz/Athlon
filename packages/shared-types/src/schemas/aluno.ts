@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { codigoConviteSchema } from "./auth.js";
+import { codigoConviteSchema, passwordSchema } from "./auth.js";
 
 export const createAlunoSchema = z.object({
   nome: z.string().min(2),
   email: z.string().email().optional(),
   telefone: z.string().optional(),
-  senha: z.string().min(6).optional(),
+  senha: passwordSchema.optional(),
 });
 
 export const entrarTurmaSchema = z.object({

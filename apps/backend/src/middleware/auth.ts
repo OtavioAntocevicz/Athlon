@@ -81,3 +81,10 @@ export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   }
   next();
 }
+
+export function requireProfessorOuAluno(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.perfil !== "PROFESSOR" && req.user?.perfil !== "ALUNO") {
+    return next(new AppError(403, "FORBIDDEN", "Acesso negado"));
+  }
+  next();
+}

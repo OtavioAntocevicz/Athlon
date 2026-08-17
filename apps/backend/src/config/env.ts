@@ -6,7 +6,18 @@ function required(key: string): string {
   return value;
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+
+if (isProduction && !process.env.CRON_SECRET) {
+  throw new Error("CRON_SECRET é obrigatório em produção");
+}
+
+if (isProduction && process.env.RECOVERY_SHOW_CODE === "true") {
+  throw new Error("RECOVERY_SHOW_CODE deve ser false em produção");
+}
+
 export const env = {
+  isProduction,
   port: parseInt(process.env.PORT ?? "3001", 10),
   databaseUrl: required("DATABASE_URL"),
   databaseSsl: process.env.DATABASE_SSL === "true",

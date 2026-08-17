@@ -182,11 +182,12 @@ type AuthUsuarioRow = {
   professor_id: string | null;
   aluno_id: string | null;
   email_verificado_em: string | null;
+  ativo: boolean;
 };
 
 async function buildAuthResponse(usuarioId: string) {
   const usuario = await queryOne<AuthUsuarioRow>(
-    `SELECT u.id, u.email, u.nome, u.perfil, u.email_verificado_em,
+    `SELECT u.id, u.email, u.nome, u.perfil, u.ativo, u.email_verificado_em,
             p.id AS professor_id,
             a.id AS aluno_id
      FROM "Usuario" u
@@ -196,6 +197,10 @@ async function buildAuthResponse(usuarioId: string) {
     [usuarioId],
     { message: "Usuário não encontrado" },
   );
+
+  if (!usuario.ativo) {
+    throw new AppError(401, "ACCOUNT_DISABLED", "Conta desativada");
+  }
 
   const payload: JwtPayload = {
     sub: usuario.id,

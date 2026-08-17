@@ -7,7 +7,6 @@ import {
 import { authenticate, requireProfessor, requireAluno, requireAlunoEmailVerificado } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import * as comprovantesService from "./comprovantes.service.js";
-import { criarUploadUrl } from "../../lib/storage/index.js";
 import rateLimit from "express-rate-limit";
 
 const uploadLimiter = rateLimit({
@@ -80,7 +79,11 @@ mensalidadeComprovanteRouter.post(
   async (req, res, next) => {
     try {
       const { contentType } = req.body;
-      const data = await criarUploadUrl(String(req.params.id), contentType ?? "image/jpeg");
+      const data = await comprovantesService.criarUploadUrlComprovante(
+        String(req.params.id),
+        req.user!.alunoId!,
+        contentType ?? "image/jpeg",
+      );
       res.json({ data });
     } catch (e) {
       next(e);

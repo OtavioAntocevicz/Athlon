@@ -1,8 +1,10 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
+import { globalApiLimiter } from "./middleware/rate-limit.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { turmasRouter } from "./modules/turmas/turmas.routes.js";
 import { alunosRouter } from "./modules/alunos/alunos.routes.js";
@@ -21,6 +23,15 @@ import { eventosRouter } from "./modules/eventos/eventos.routes.js";
 import { chamadosRouter, adminChamadosRouter } from "./modules/chamados/chamados.routes.js";
 
 const app = express();
+
+app.set("trust proxy", 1);
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 
 // Na Vercel o invoke path pode vir separado da URL interna do Express.
 app.use((req, _res, next) => {
@@ -51,6 +62,7 @@ app.use(cookieParser());
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 const api = express.Router();
+api.use(globalApiLimiter);
 api.use("/auth", authRouter);
 api.use("/turmas", turmasRouter);
 api.use("/alunos", alunosRouter);

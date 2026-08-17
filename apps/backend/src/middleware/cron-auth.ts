@@ -3,7 +3,9 @@ import { env } from "../config/env.js";
 
 export function requireCronAuth(req: Request, res: Response, next: NextFunction) {
   if (!env.cronSecret) {
-    next();
+    res.status(503).json({
+      error: { code: "CRON_DISABLED", message: "Endpoints de cron não configurados" },
+    });
     return;
   }
 
