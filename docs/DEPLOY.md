@@ -97,7 +97,9 @@ Após autenticar no Railway CLI (`railway login`), execute na raiz do repositór
 railway redeploy --yes
 ```
 
-O script define `CRON_SECRET` (gerado automaticamente), `RECOVERY_SHOW_CODE=false` e `NODE_ENV=production`.
+O script define `CRON_SECRET` (gerado automaticamente) e `RECOVERY_SHOW_CODE=false`.
+Não defina `NODE_ENV` manualmente no Railway — isso quebra o build (pnpm ignora devDependencies).
+O Railway já injeta `RAILWAY_ENVIRONMENT=production` em runtime.
 
 ## Vercel — passos
 

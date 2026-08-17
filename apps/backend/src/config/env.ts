@@ -6,7 +6,10 @@ function required(key: string): string {
   return value;
 }
 
-const isProduction = process.env.NODE_ENV === "production";
+/** Produção: NODE_ENV ou ambiente Railway (evita setar NODE_ENV no build — quebra install do TypeScript). */
+const isProduction =
+  process.env.NODE_ENV === "production" ||
+  process.env.RAILWAY_ENVIRONMENT === "production";
 
 if (isProduction && !process.env.CRON_SECRET) {
   throw new Error("CRON_SECRET é obrigatório em produção");
