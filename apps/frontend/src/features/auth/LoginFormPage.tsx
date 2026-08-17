@@ -74,7 +74,7 @@ export function LoginFormPage({
         setMfaStep(true);
         return;
       }
-      login(result);
+      await login(result);
     } catch (e) {
       setError(getErrorMessage(e, "Erro ao entrar"));
     }
@@ -87,7 +87,7 @@ export function LoginFormPage({
         method: "POST",
         body: JSON.stringify(data),
       });
-      login(result);
+      await login(result);
     } catch (e) {
       setError(getErrorMessage(e, "Código inválido"));
     }

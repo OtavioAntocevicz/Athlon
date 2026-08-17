@@ -6,14 +6,16 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser, AuthSession } from "@athlon/shared-types";
-import { api, clearSession, getStoredUser, logoutApi, storeUser } from "./api";
+import { api, clearSession, logoutApi, storeUser } from "./api";
 import { track } from "./analytics/analytics";
 import { preloadPostLoginDestination } from "./preload-post-login";
+import { markAppBootReady } from "./hide-boot-splash";
+import { setSessionLostHandler } from "./session-events";
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (session: AuthSession) => void;
+  login: (session: AuthSession) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -21,8 +23,13 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(getStoredUser);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    setSessionLostHandler(() => setUser(null));
+    return () => setSessionLostHandler(null);
+  }, []);
 
   useEffect(() => {
     api<AuthUser>("/auth/me")
@@ -34,14 +41,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearSession();
         setUser(null);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        setIsLoading(false);
+        markAppBootReady();
+      });
   }, []);
 
-  const login = (session: AuthSession) => {
+  const login = async (session: AuthSession) => {
+    if (session.requiresMfa) return;
+
     storeUser(session.user);
     setUser(session.user);
-    preloadPostLoginDestination(session.user);
-    track("login", { perfil: session.user.perfil });
+
+    try {
+      const me = await api<AuthUser>("/auth/me");
+      setUser(me);
+      storeUser(me);
+      preloadPostLoginDestination(me);
+      track("login", { perfil: me.perfil });
+    } catch {
+      clearSession();
+      setUser(null);
+      throw new Error("Não foi possível validar a sessão. Tente novamente.");
+    }
   };
 
   const logout = async () => {
