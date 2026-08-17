@@ -30,8 +30,10 @@ Este documento resume a arquitetura após a remoção do Supabase.
 | `R2_PUBLIC_BASE_URL` | Sim* | URL pública do bucket (fotos de turma) |
 | `RESEND_API_KEY` | Prod | E-mail transacional |
 | `EMAIL_FROM` | Prod | Ex: `ATHLON <noreply@athlonsport.app.br>` |
-| `CRON_SECRET` | Não | Protege endpoints `/api/cron/*` manuais |
+| `CRON_SECRET` | **Sim (prod)** | Protege endpoints `/api/cron/*`; obrigatório com `NODE_ENV=production` |
 | `CRON_ENABLED` | Não | Default `true` |
+| `NODE_ENV` | **Sim (prod)** | Deve ser `production` no Railway |
+| `RECOVERY_SHOW_CODE` | **Não em prod** | Deve ser `false` ou ausente em produção |
 | `VAPID_*` | Opcional | Web Push |
 
 \* Obrigatório para upload de arquivos.
@@ -85,6 +87,17 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 6. Configurar variáveis listadas acima
 7. Deploy e verificar `GET /health`
 8. Configurar domínio customizado `api.athlonsport.app.br`
+
+### Variáveis de segurança (produção)
+
+Após autenticar no Railway CLI (`railway login`), execute na raiz do repositório:
+
+```bash
+./scripts/configure-railway-production-security.sh
+railway redeploy --yes
+```
+
+O script define `CRON_SECRET` (gerado automaticamente), `RECOVERY_SHOW_CODE=false` e `NODE_ENV=production`.
 
 ## Vercel — passos
 
