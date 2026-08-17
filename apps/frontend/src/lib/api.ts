@@ -51,6 +51,22 @@ function isPublicAuthPath(path: string): boolean {
   );
 }
 
+/** Rotas em que 401 é esperado e não deve disparar redirect (evita loop em /login). */
+function isSilentAuthPath(path: string): boolean {
+  return path === "/auth/me" || path === "/auth/logout";
+}
+
+function isGuestAppPath(): boolean {
+  const path = window.location.pathname;
+  return (
+    path === "/login" ||
+    path.startsWith("/login/") ||
+    path.startsWith("/cadastro/") ||
+    path === "/termos" ||
+    path === "/privacidade"
+  );
+}
+
 async function readJsonBody(res: Response): Promise<unknown | null> {
   const text = await res.text();
   if (!text.trim()) return null;
@@ -133,13 +149,19 @@ export async function api<T>(
     throw new Error("Sem conexão com o servidor. Verifique sua internet e tente novamente.");
   }
 
-  if (res.status === 401 && !isPublicAuthPath(path) && path !== "/auth/logout") {
+  if (
+    res.status === 401 &&
+    !isPublicAuthPath(path) &&
+    !isSilentAuthPath(path)
+  ) {
     const refreshed = await tryRefreshSession();
     if (refreshed) {
       return api(path, options);
     }
     clearSession();
-    window.location.href = "/login";
+    if (!isGuestAppPath()) {
+      window.location.href = "/login";
+    }
     throw new Error("Sessão expirada. Faça login novamente.");
   }
 
