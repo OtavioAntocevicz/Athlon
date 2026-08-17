@@ -73,8 +73,8 @@ export function PerfilPage() {
     onError: (e: Error) => setSaveError(e.message),
   });
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 

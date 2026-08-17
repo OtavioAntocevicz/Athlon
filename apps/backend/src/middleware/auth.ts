@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { getAccessTokenFromRequest } from "../lib/auth-cookies.js";
 import { AppError } from "./error-handler.js";
 import type { PerfilUsuario } from "@athlon/shared-types";
 
@@ -22,13 +23,12 @@ declare global {
 }
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) {
+  const token = getAccessTokenFromRequest(req);
+  if (!token) {
     return next(new AppError(401, "UNAUTHORIZED", "Token não informado"));
   }
 
   try {
-    const token = header.slice(7);
     req.user = jwt.verify(token, env.jwtSecret) as JwtPayload;
     next();
   } catch {

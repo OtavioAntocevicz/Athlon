@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { globalApiLimiter } from "./middleware/rate-limit.js";
+import { validateOrigin } from "./middleware/validate-origin.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { turmasRouter } from "./modules/turmas/turmas.routes.js";
 import { alunosRouter } from "./modules/alunos/alunos.routes.js";
@@ -63,6 +64,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 const api = express.Router();
 api.use(globalApiLimiter);
+api.use(validateOrigin);
 api.use("/auth", authRouter);
 api.use("/turmas", turmasRouter);
 api.use("/alunos", alunosRouter);

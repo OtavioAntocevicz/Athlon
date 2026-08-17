@@ -34,6 +34,7 @@ Este documento resume a arquitetura após a remoção do Supabase.
 | `CRON_ENABLED` | Não | Default `true` |
 | `NODE_ENV` | **Sim (prod)** | Deve ser `production` no Railway |
 | `RECOVERY_SHOW_CODE` | **Não em prod** | Deve ser `false` ou ausente em produção |
+| `COOKIE_DOMAIN` | Prod | Default `.athlonsport.app.br` (sessão httpOnly cross-subdomínio) |
 | `VAPID_*` | Opcional | Web Push |
 
 \* Obrigatório para upload de arquivos.
