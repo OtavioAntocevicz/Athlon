@@ -24,6 +24,14 @@ const cpfOpcionalSchema = z
   )
   .transform((v) => (v?.trim() ? v.trim() : undefined));
 
+export const passwordSchema = z
+  .string()
+  .min(8, "Senha deve ter no mínimo 8 caracteres")
+  .refine(
+    (v) => /[a-zA-Z]/.test(v) && /\d/.test(v),
+    "Senha deve conter letras e números",
+  );
+
 /** Código de convite da turma — obrigatório e normalizado (trim + maiúsculas). */
 export const codigoConviteSchema = z
   .string({ required_error: "Código da turma é obrigatório" })
@@ -38,14 +46,14 @@ export const codigoConviteSchema = z
 
 export const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
-  senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  senha: passwordSchema,
   perfil: z.enum([PerfilUsuario.ADM, PerfilUsuario.PROFESSOR, PerfilUsuario.ALUNO]),
 });
 
 export const registerProfessorSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   email: z.string().email("E-mail inválido"),
-  senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  senha: passwordSchema,
   chavePix: z.string().min(1, "Chave PIX é obrigatória"),
 });
 
@@ -53,7 +61,7 @@ export const registerAlunoSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   sobrenome: z.string().min(2, "Sobrenome deve ter no mínimo 2 caracteres"),
   email: z.string().email("E-mail inválido"),
-  senha: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+  senha: passwordSchema,
   whatsapp: whatsappSchema,
   anoNascimento: z
     .number({ invalid_type_error: "Informe o ano de nascimento" })
@@ -91,7 +99,7 @@ export const updateAlunoPerfilSchema = z.object({
 export const changePasswordSchema = z
   .object({
     senhaAtual: z.string().min(1, "Senha atual é obrigatória"),
-    senhaNova: z.string().min(6, "Nova senha deve ter no mínimo 6 caracteres"),
+    senhaNova: passwordSchema,
     confirmarSenha: z.string().min(1, "Confirme a nova senha"),
   })
   .refine((data) => data.senhaNova === data.confirmarSenha, {
@@ -113,7 +121,7 @@ export const confirmPasswordResetSchema = z
       .regex(/^\d{6}$/, "Código deve ter 6 dígitos")
       .optional(),
     token: z.string().min(20, "Link inválido").optional(),
-    senhaNova: z.string().min(6, "Nova senha deve ter no mínimo 6 caracteres"),
+    senhaNova: passwordSchema,
     confirmarSenha: z.string().min(1, "Confirme a nova senha"),
   })
   .refine((data) => data.senhaNova === data.confirmarSenha, {

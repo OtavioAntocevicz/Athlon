@@ -10,8 +10,10 @@ import {
   getSignedReadUrl,
   removerArquivoStorage,
   uploadComprovanteStorage,
+  criarUploadUrl,
 } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
+import { assertArquivoUrlDoPagamento } from "../../lib/security.js";
 import type { UploadComprovanteInput } from "@athlon/shared-types";
 
 const STATUS_ENVIAVEL = ["PENDENTE", "RECUSADO", "ATRASADO"] as const;
@@ -71,6 +73,8 @@ export async function confirmarComprovante(
     throw new AppError(400, "INVALID_STATUS", "Mensalidade não pode receber comprovante");
   }
 
+  assertArquivoUrlDoPagamento(pagamentoId, arquivoUrl);
+
   await execute(`UPDATE "Comprovante" SET ativo = false WHERE pagamento_id = $1`, [pagamentoId]);
 
   const comprovanteId = generateId();
@@ -86,6 +90,24 @@ export async function confirmarComprovante(
   await execute(`UPDATE "Pagamento" SET status = 'EM_ANALISE' WHERE id = $1`, [pagamentoId]);
 
   return comprovante;
+}
+
+export async function criarUploadUrlComprovante(
+  pagamentoId: string,
+  alunoId: string,
+  contentType: string,
+) {
+  const pagamento = await queryOne<{ aluno_id: string }>(
+    `SELECT aluno_id FROM "Pagamento" WHERE id = $1`,
+    [pagamentoId],
+    { message: "Mensalidade não encontrada" },
+  );
+
+  if (pagamento.aluno_id !== alunoId) {
+    throw new AppError(403, "FORBIDDEN", "Acesso negado");
+  }
+
+  return criarUploadUrl(pagamentoId, contentType);
 }
 
 export async function filaAprovacao(professorId: string) {

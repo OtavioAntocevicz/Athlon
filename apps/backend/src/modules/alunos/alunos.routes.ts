@@ -14,6 +14,7 @@ import { listarBloqueiosAluno } from "../../lib/inadimplencia.js";
 import { validate } from "../../middleware/validate.js";
 import * as alunosService from "./alunos.service.js";
 import * as eventosService from "../eventos/eventos.service.js";
+import { inviteCodeLimiter } from "../../middleware/rate-limit.js";
 
 export const alunosRouter = Router();
 
@@ -122,6 +123,7 @@ alunosRouter.patch("/:id", validate(updateAlunoSchema), async (req, res, next) =
 
 alunosRouter.post(
   "/preview-turma",
+  inviteCodeLimiter,
   requireAluno,
   requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,
@@ -141,6 +143,7 @@ alunosRouter.post(
 
 alunosRouter.post(
   "/entrar-turma",
+  inviteCodeLimiter,
   requireAluno,
   requireAlunoEmailVerificado,
   requireAlunoSemBloqueio,

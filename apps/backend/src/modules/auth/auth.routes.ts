@@ -12,6 +12,7 @@ import {
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import { authenticate } from "../../middleware/auth.js";
+import { refreshTokenLimiter } from "../../middleware/rate-limit.js";
 import { AppError } from "../../middleware/error-handler.js";
 import * as authService from "./auth.service.js";
 
@@ -132,7 +133,7 @@ authRouter.post(
   },
 );
 
-authRouter.post("/refresh", async (req, res, next) => {
+authRouter.post("/refresh", refreshTokenLimiter, async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {
