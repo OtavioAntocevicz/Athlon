@@ -30,8 +30,7 @@ echo "==> Definindo variáveis de segurança no serviço da API..."
 
 railway variable set \
   "CRON_SECRET=${CRON_SECRET_VALUE}" \
-  "RECOVERY_SHOW_CODE=false" \
-  "NODE_ENV=production"
+  "RECOVERY_SHOW_CODE=false"
 
 echo ""
 echo "==> Variáveis configuradas:"
