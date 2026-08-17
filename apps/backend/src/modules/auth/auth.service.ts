@@ -20,7 +20,11 @@ import type {
   ConfirmPasswordResetInput,
   ConfirmEmailVerificationInput,
 } from "@athlon/shared-types";
-import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../../lib/email.js";
+import {
+  sendAccountExistsEmail,
+  sendEmailVerificationEmail,
+  sendPasswordResetEmail,
+} from "../../lib/email.js";
 import { env } from "../../config/env.js";
 import { createHash, randomInt } from "node:crypto";
 import {
@@ -239,14 +243,41 @@ async function buildAuthResponse(usuarioId: string, refreshTokenOverride?: strin
   };
 }
 
+const REGISTER_ALUNO_OK = {
+  ok: true as const,
+  message:
+    "Se este e-mail puder ser usado, enviamos as próximas instruções. Confira sua caixa de entrada.",
+};
+
+async function notificarCadastroComEmailExistente(usuario: {
+  email: string;
+  nome: string;
+  perfil: string;
+}) {
+  const loginPath = perfilLoginPath(usuario.perfil) === "professor" ? "professor" : "aluno";
+  try {
+    await sendAccountExistsEmail({
+      to: usuario.email,
+      nome: usuario.nome,
+      loginPath,
+    });
+  } catch (err) {
+    console.error("[auth] Falha ao avisar e-mail já cadastrado:", err);
+  }
+}
+
 export async function registerAluno(input: RegisterAlunoInput) {
-  const exists = await queryMaybeOne<{ id: string }>(
-    `SELECT id FROM "Usuario" WHERE email = $1`,
-    [input.email],
-  );
+  const exists = await queryMaybeOne<{
+    id: string;
+    email: string;
+    nome: string;
+    perfil: string;
+  }>(`SELECT id, email, nome, perfil FROM "Usuario" WHERE email = $1`, [input.email]);
 
   if (exists) {
-    throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+    await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
+    await notificarCadastroComEmailExistente(exists);
+    return REGISTER_ALUNO_OK;
   }
 
   const senha_hash = await bcrypt.hash(input.senha, BCRYPT_ROUNDS);
@@ -287,7 +318,15 @@ export async function registerAluno(input: RegisterAlunoInput) {
       /* ignore cleanup */
     }
     if (err instanceof AppError && err.code === "CONFLICT") {
-      throw new AppError(409, "EMAIL_EXISTS", "E-mail já cadastrado");
+      const conflito = await queryMaybeOne<{
+        email: string;
+        nome: string;
+        perfil: string;
+      }>(`SELECT email, nome, perfil FROM "Usuario" WHERE email = $1`, [input.email]);
+      if (conflito) {
+        await notificarCadastroComEmailExistente(conflito);
+      }
+      return REGISTER_ALUNO_OK;
     }
     throw err;
   }
@@ -298,10 +337,8 @@ export async function registerAluno(input: RegisterAlunoInput) {
     nome: nomeCompleto,
   });
 
-  const auth = await buildAuthResponse(usuarioId);
-
   return {
-    ...auth,
+    ...REGISTER_ALUNO_OK,
     ...(codigoExposto ? { codigoVerificacao: codigoExposto } : {}),
   };
 }

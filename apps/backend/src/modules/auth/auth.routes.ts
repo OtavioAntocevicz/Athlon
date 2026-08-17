@@ -44,10 +44,7 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const data = await authService.registerAluno(req.body);
-      const { codigoVerificacao, ...auth } = data as typeof data & {
-        codigoVerificacao?: string;
-      };
-      sendAuthResponse(res, auth, codigoVerificacao ? { codigoVerificacao } : undefined, 201);
+      res.status(201).json({ data });
     } catch (e) {
       next(e);
     }

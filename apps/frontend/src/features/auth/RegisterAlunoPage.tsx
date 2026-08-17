@@ -5,10 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   registerAlunoSchema,
   type RegisterAlunoInput,
-  type AuthTokens,
+  type RegisterAlunoResult,
 } from "@athlon/shared-types";
 import { api } from "@/lib/api";
-import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MaskedInput } from "@/components/ui/masked-input";
@@ -42,8 +41,8 @@ function Field({
 
 export function RegisterAlunoPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
   const [error, setError] = useState("");
+  const [sucesso, setSucesso] = useState("");
   const [codigoDev, setCodigoDev] = useState("");
 
   const {
@@ -62,18 +61,15 @@ export function RegisterAlunoPage() {
 
   const onSubmit = async (data: RegisterAlunoInput) => {
     setError("");
+    setSucesso("");
     setCodigoDev("");
     try {
-      const result = await api<AuthTokens & { codigoVerificacao?: string }>(
-        "/auth/register/aluno",
-        {
-          method: "POST",
-          body: JSON.stringify(data),
-        },
-      );
-      const { codigoVerificacao, ...tokens } = result;
-      if (codigoVerificacao) setCodigoDev(codigoVerificacao);
-      await login(tokens);
+      const result = await api<RegisterAlunoResult>("/auth/register/aluno", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      if (result.codigoVerificacao) setCodigoDev(result.codigoVerificacao);
+      setSucesso(result.message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao cadastrar");
     }
@@ -90,7 +86,7 @@ export function RegisterAlunoPage() {
 
       <h1 className="text-2xl font-bold text-primary">Criar conta de Aluno</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Depois de criar a conta, confirme seu e-mail para entrar na turma do treinador.
+        Depois do cadastro, entre com seu e-mail e senha e confirme o e-mail para entrar na turma.
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
@@ -178,6 +174,7 @@ export function RegisterAlunoPage() {
           </p>
         )}
 
+        {sucesso && <p className="text-sm text-green-700">{sucesso}</p>}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <Button type="submit" size="lg" disabled={isSubmitting}>
