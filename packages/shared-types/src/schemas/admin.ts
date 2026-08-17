@@ -180,3 +180,24 @@ export interface AdminBloqueioItem {
   turmaNome: string;
   professorNome: string;
 }
+
+export interface AuditoriaAdminItem {
+  id: string;
+  adminUsuarioId: string;
+  adminNome: string;
+  adminEmail: string;
+  acao: string;
+  entidade: string | null;
+  entidadeId: string | null;
+  detalhes: Record<string, unknown> | null;
+  ip: string | null;
+  userAgent: string | null;
+  criadoEm: string;
+}
+
+export interface AuditoriaAdminLista {
+  items: AuditoriaAdminItem[];
+  total: number;
+  page: number;
+  limit: number;
+}

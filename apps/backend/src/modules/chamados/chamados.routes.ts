@@ -4,6 +4,11 @@ import { validate } from "../../middleware/validate.js";
 import { authenticate, requireAdmin } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error-handler.js";
 import type { NextFunction, Request, Response } from "express";
+import {
+  AcoesAuditoria,
+  auditoriaFromRequest,
+  registrarAuditoriaAdmin,
+} from "../../lib/auditoria.js";
 import * as chamadosService from "./chamados.service.js";
 
 export const chamadosRouter = Router();
@@ -88,9 +93,14 @@ adminChamadosRouter.patch(
   validate(responderChamadoSchema),
   async (req, res, next) => {
     try {
-      const data = await chamadosService.responderChamadoAdmin(
-        String(req.params.id),
-        req.body,
+      const id = String(req.params.id);
+      const data = await chamadosService.responderChamadoAdmin(id, req.body);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.RESPONDER_CHAMADO,
+        "chamado",
+        id,
+        { status: req.body.status },
       );
       res.json({ data });
     } catch (e) {

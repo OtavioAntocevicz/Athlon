@@ -142,3 +142,35 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchema>;
 export type ConfirmPasswordResetInput = z.infer<typeof confirmPasswordResetSchema>;
 export type ConfirmEmailVerificationInput = z.infer<typeof confirmEmailVerificationSchema>;
+
+const mfaCodeSchema = z
+  .string()
+  .min(6, "Informe o código")
+  .max(9, "Código inválido")
+  .transform((v) => v.replace(/\s/g, ""));
+
+export const confirmMfaSchema = z.object({
+  codigo: mfaCodeSchema.refine(
+    (v) => /^\d{6}$/.test(v),
+    "Código deve ter 6 dígitos",
+  ),
+});
+
+export const loginMfaSchema = z.object({
+  codigo: mfaCodeSchema.refine(
+    (v) => /^\d{6}$/.test(v) || /^[A-F0-9]{8}$/i.test(v),
+    "Informe o código de 6 dígitos ou código de backup",
+  ),
+});
+
+export const disableMfaSchema = z.object({
+  senha: z.string().min(1, "Senha é obrigatória"),
+  codigo: mfaCodeSchema.refine(
+    (v) => /^\d{6}$/.test(v) || /^[A-F0-9]{8}$/i.test(v),
+    "Informe o código de 6 dígitos ou código de backup",
+  ),
+});
+
+export type ConfirmMfaInput = z.infer<typeof confirmMfaSchema>;
+export type LoginMfaInput = z.infer<typeof loginMfaSchema>;
+export type DisableMfaInput = z.infer<typeof disableMfaSchema>;

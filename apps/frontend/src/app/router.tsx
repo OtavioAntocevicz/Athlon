@@ -156,6 +156,10 @@ const AdminEdicaoPage = lazyNamed(
   () => import("@/features/admin/AdminEdicaoPage"),
   "AdminEdicaoPage",
 );
+const AdminAuditoriaPage = lazyNamed(
+  () => import("@/features/admin/AdminAuditoriaPage"),
+  "AdminAuditoriaPage",
+);
 const AdminEdicaoMatricularPage = lazyNamed(
   () => import("@/features/admin/AdminEdicaoMatricularPage"),
   "AdminEdicaoMatricularPage",
@@ -406,6 +410,16 @@ export function AppRouter() {
           <AdminRoute>
             <LazyRoute>
               <AdminEdicaoPage />
+            </LazyRoute>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/auditoria"
+        element={
+          <AdminRoute>
+            <LazyRoute>
+              <AdminAuditoriaPage />
             </LazyRoute>
           </AdminRoute>
         }

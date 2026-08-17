@@ -9,12 +9,23 @@ import {
   requestPasswordResetSchema,
   confirmPasswordResetSchema,
   confirmEmailVerificationSchema,
+  confirmMfaSchema,
+  disableMfaSchema,
+  loginMfaSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
-import { authenticate } from "../../middleware/auth.js";
+import { authenticate, requireAdmin } from "../../middleware/auth.js";
 import { refreshTokenLimiter } from "../../middleware/rate-limit.js";
 import { AppError } from "../../middleware/error-handler.js";
-import { clearAuthCookies, getRefreshTokenFromRequest } from "../../lib/auth-cookies.js";
+import {
+  clearAuthCookies,
+  clearMfaPendingCookie,
+  getMfaPendingFromRequest,
+  getRefreshTokenFromRequest,
+  setMfaPendingCookie,
+} from "../../lib/auth-cookies.js";
+import { signMfaPendingToken, verifyMfaPendingToken } from "../../lib/jwt.js";
+import { AcoesAuditoria, auditoriaFromRequest, registrarAuditoriaAdmin } from "../../lib/auditoria.js";
 import { sendAuthResponse } from "./auth-response.js";
 import * as authService from "./auth.service.js";
 
@@ -46,11 +57,102 @@ authRouter.post(
 authRouter.post("/login", loginLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const data = await authService.login(req.body);
+    if ("requiresMfa" in data && data.requiresMfa) {
+      const token = signMfaPendingToken(data.usuarioId);
+      setMfaPendingCookie(res, token);
+      return res.json({ data: { requiresMfa: true } });
+    }
+    sendAuthResponse(res, data as Parameters<typeof sendAuthResponse>[1]);
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post("/login/mfa", loginLimiter, validate(loginMfaSchema), async (req, res, next) => {
+  try {
+    const pending = getMfaPendingFromRequest(req);
+    if (!pending) {
+      throw new AppError(401, "MFA_SESSION_EXPIRED", "Sessão MFA expirada. Faça login novamente.");
+    }
+
+    let usuarioId: string;
+    try {
+      usuarioId = verifyMfaPendingToken(pending).sub;
+    } catch {
+      throw new AppError(401, "MFA_SESSION_EXPIRED", "Sessão MFA expirada. Faça login novamente.");
+    }
+
+    const data = await authService.loginMfa(usuarioId, req.body.codigo);
+    clearMfaPendingCookie(res);
     sendAuthResponse(res, data);
   } catch (e) {
     next(e);
   }
 });
+
+authRouter.get("/mfa/status", authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const data = await authService.getMfaStatus(req.user!.sub);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post("/mfa/setup", authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const data = await authService.iniciarMfaSetup(req.user!.sub, req.user!.email);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.post(
+  "/mfa/confirm",
+  authenticate,
+  requireAdmin,
+  validate(confirmMfaSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.confirmarMfaSetup(req.user!.sub, req.body.codigo);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.MFA_HABILITAR,
+        "usuario",
+        req.user!.sub,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
+  "/mfa/disable",
+  authenticate,
+  requireAdmin,
+  validate(disableMfaSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.desabilitarMfaAdmin(
+        req.user!.sub,
+        req.body.senha,
+        req.body.codigo,
+      );
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.MFA_DESABILITAR,
+        "usuario",
+        req.user!.sub,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 authRouter.post(
   "/recuperar-senha/solicitar",

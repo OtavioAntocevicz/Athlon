@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Pencil,
   MessageSquare,
+  ScrollText,
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Card } from "@/components/ui/card";
@@ -16,6 +17,12 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageEnter } from "@/components/ui/page-enter";
 
 const acoes = [
+  {
+    to: "/admin/auditoria",
+    icon: ScrollText,
+    title: "Log de auditoria",
+    desc: "Histórico de ações administrativas",
+  },
   {
     to: "/admin/chamados",
     icon: MessageSquare,

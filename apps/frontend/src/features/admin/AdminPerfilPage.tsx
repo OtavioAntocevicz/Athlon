@@ -4,6 +4,7 @@ import { AdminShell } from "@/components/layout/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AlterarSenhaModal } from "@/features/perfil/AlterarSenhaModal";
+import { AdminMfaSection } from "@/features/admin/AdminMfaSection";
 import { KeyRound, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageEnter } from "@/components/ui/page-enter";
@@ -34,6 +35,8 @@ export function AdminPerfilPage() {
             <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
           </div>
         </Card>
+
+        <AdminMfaSection />
 
         <div className="mt-6 space-y-2">
           <Button
