@@ -2,7 +2,7 @@
   "buildCommand": "VITE_API_URL=/api/v1 pnpm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
   "rewrites": [
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/|sw\\.js|workbox-|manifest\\.webmanifest|logo\\.png|icon-).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
