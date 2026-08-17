@@ -162,6 +162,57 @@ type SendEmailVerificationInput = {
   codigo: string;
 };
 
+type SendAccountExistsEmailInput = {
+  to: string;
+  nome: string;
+  loginPath: "aluno" | "professor";
+};
+
+/** Avisa o dono do e-mail sem confirmar existência na API de cadastro. */
+export async function sendAccountExistsEmail(
+  input: SendAccountExistsEmailInput,
+): Promise<void> {
+  const subject = "Você já tem uma conta no ATHLON";
+  const nome = escapeHtml(input.nome);
+  const loginUrl = `${env.appUrl.replace(/\/$/, "")}/login/${input.loginPath}`;
+  const resetUrl = `${env.appUrl.replace(/\/$/, "")}/login/${input.loginPath}/esqueci-senha`;
+  const html = `
+    <div style="font-family: Inter, Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #1a1a1a;">
+      <h2 style="color: #5C3D2E;">ATHLON</h2>
+      <p>Olá, ${nome}!</p>
+      <p>Recebemos um pedido de cadastro com este e-mail, mas ele já está associado a uma conta.</p>
+      <p>Se foi você, entre com sua senha ou recupere o acesso:</p>
+      <p><a href="${escapeHtml(loginUrl)}" style="display: inline-block; margin: 8px 0; padding: 12px 20px; background: #5C3D2E; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">Entrar</a></p>
+      <p style="font-size: 13px; color: #666;"><a href="${escapeHtml(resetUrl)}" style="color: #5C3D2E;">Esqueci minha senha</a></p>
+      <p style="font-size: 13px; color: #666;">Se você não tentou se cadastrar, ignore este e-mail.</p>
+    </div>
+  `.trim();
+
+  if (!env.resendApiKey) {
+    console.info(`[email:dev] Conta já existente para ${input.to}\n  Login: ${loginUrl}`);
+    return;
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.emailFrom,
+      to: input.to,
+      subject,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Falha ao enviar e-mail: ${body}`);
+  }
+}
+
 export async function sendEmailVerificationEmail(
   input: SendEmailVerificationInput,
 ): Promise<void> {

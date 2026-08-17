@@ -39,6 +39,14 @@ export interface AuthSession {
   requiresMfa?: boolean;
 }
 
+/** Cadastro público: mesma resposta exista ou não o e-mail (anti-enumeração). */
+export interface RegisterAlunoResult {
+  ok: true;
+  message: string;
+  /** Só em modo dev (`RECOVERY_SHOW_CODE=true`). */
+  codigoVerificacao?: string;
+}
+
 export interface MfaStatus {
   habilitado: boolean;
   backupCodesRestantes: number;
