@@ -2,7 +2,18 @@
   "buildCommand": "VITE_API_URL=/api/v1 pnpm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
   "rewrites": [
-    { "source": "/((?!api/|assets/|sw\\.js|workbox-|manifest\\.webmanifest|logo\\.png|icon-).*)", "destination": "/index.html" }
+    {
+      "source": "/api/v1/:path*",
+      "destination": "https://athlonbackend-production.up.railway.app/api/v1/:path*"
+    },
+    {
+      "source": "/api/cron/:path*",
+      "destination": "https://athlonbackend-production.up.railway.app/api/cron/:path*"
+    },
+    {
+      "source": "/((?!api/|assets/|sw\\.js|workbox-|manifest\\.webmanifest|logo\\.png|icon-).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
