@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider } from "@/lib/auth-context";
+import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
 import { AppRouter } from "./router";
 import { AlunoEmailGate } from "./guards";
@@ -15,14 +16,23 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Enquanto a sessão inicial carrega, o boot splash do index.html cobre a tela. */
+function AuthGate({ children }: { children: ReactNode }) {
+  const { isLoading } = useAuth();
+  if (isLoading) return null;
+  return <>{children}</>;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <AlunoEmailGate>
-            <AppRouter />
-          </AlunoEmailGate>
+          <AuthGate>
+            <AlunoEmailGate>
+              <AppRouter />
+            </AlunoEmailGate>
+          </AuthGate>
           <PwaInstallPrompt />
         </BrowserRouter>
       </AuthProvider>

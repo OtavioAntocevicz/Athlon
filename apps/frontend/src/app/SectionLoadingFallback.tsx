@@ -15,7 +15,7 @@ function ContentSpinner() {
 export function SectionLoadingFallback() {
   const { user, isLoading } = useAuth();
 
-  if (isLoading && !user) return <LoadingScreen />;
+  if (isLoading && !user) return null;
 
   if (user?.perfil === "ADM") {
     return (

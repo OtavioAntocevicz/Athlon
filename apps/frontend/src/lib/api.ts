@@ -1,3 +1,5 @@
+import { notifySessionLost } from "./session-events";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
 
 const USER_STORAGE_KEY = "athlon_user";
@@ -54,17 +56,6 @@ function isPublicAuthPath(path: string): boolean {
 /** Rotas em que 401 é esperado e não deve disparar redirect (evita loop em /login). */
 function isSilentAuthPath(path: string): boolean {
   return path === "/auth/me" || path === "/auth/logout";
-}
-
-function isGuestAppPath(): boolean {
-  const path = window.location.pathname;
-  return (
-    path === "/login" ||
-    path.startsWith("/login/") ||
-    path.startsWith("/cadastro/") ||
-    path === "/termos" ||
-    path === "/privacidade"
-  );
 }
 
 async function readJsonBody(res: Response): Promise<unknown | null> {
@@ -159,9 +150,7 @@ export async function api<T>(
       return api(path, options);
     }
     clearSession();
-    if (!isGuestAppPath()) {
-      window.location.href = "/login";
-    }
+    notifySessionLost();
     throw new Error("Sessão expirada. Faça login novamente.");
   }
 

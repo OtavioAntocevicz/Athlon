@@ -73,7 +73,7 @@ export function RegisterAlunoPage() {
       );
       const { codigoVerificacao, ...tokens } = result;
       if (codigoVerificacao) setCodigoDev(codigoVerificacao);
-      login(tokens);
+      await login(tokens);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao cadastrar");
     }

@@ -43,7 +43,7 @@ export function VerificarEmailPage() {
         method: "POST",
         body: JSON.stringify(data),
       });
-      login(tokens);
+      await login(tokens);
       setConfirmado(true);
     } catch (e) {
       setError(getErrorMessage(e, "Código inválido ou expirado"));

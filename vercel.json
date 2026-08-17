@@ -1,7 +1,15 @@
 {
-  "buildCommand": "pnpm run build:frontend",
+  "buildCommand": "VITE_API_URL=/api/v1 pnpm run build:frontend",
   "outputDirectory": "apps/frontend/dist",
   "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "https://api.athlonsport.app.br/api/v1/:path*"
+    },
+    {
+      "source": "/api/cron/:path*",
+      "destination": "https://api.athlonsport.app.br/api/cron/:path*"
+    },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "headers": [

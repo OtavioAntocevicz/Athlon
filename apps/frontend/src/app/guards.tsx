@@ -49,15 +49,9 @@ export function AlunoVerificacaoRoute({ children }: { children: ReactNode }) {
 
 export function GuestRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return null;
   if (user) {
-    const target = destinoPosLogin(user);
-    return (
-      <>
-        <LoadingScreen />
-        <Navigate to={target} replace />
-      </>
-    );
+    return <Navigate to={destinoPosLogin(user)} replace />;
   }
   return <>{children}</>;
 }
