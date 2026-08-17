@@ -23,6 +23,15 @@ import type {
 import { sendEmailVerificationEmail, sendPasswordResetEmail } from "../../lib/email.js";
 import { env } from "../../config/env.js";
 import { createHash, randomInt } from "node:crypto";
+import {
+  confirmarMfaSetup,
+  desabilitarMfa,
+  getMfaStatus,
+  iniciarMfaSetup,
+  obterMfaSecret,
+  usuarioRequerMfa,
+  validarMfaCodigo,
+} from "../../lib/mfa.js";
 
 const BCRYPT_ROUNDS = 12;
 const RESET_CODE_TTL_MS = 15 * 60 * 1000;
@@ -299,9 +308,10 @@ export async function registerAluno(input: RegisterAlunoInput) {
 
 export async function login(input: LoginInput) {
   const usuario = await queryMaybeOne<
-    AuthUsuarioRow & { senha_hash: string; ativo: boolean }
+    AuthUsuarioRow & { senha_hash: string; ativo: boolean; mfa_habilitado_em: string | null }
   >(
     `SELECT u.id, u.email, u.nome, u.senha_hash, u.perfil, u.ativo, u.email_verificado_em,
+            u.mfa_habilitado_em,
             p.id AS professor_id,
             a.id AS aluno_id
      FROM "Usuario" u
@@ -324,7 +334,47 @@ export async function login(input: LoginInput) {
     throw new AppError(401, "INVALID_CREDENTIALS", "E-mail ou senha incorretos");
   }
 
+  if (usuario.perfil === "ADM" && usuario.mfa_habilitado_em) {
+    return { requiresMfa: true as const, usuarioId: usuario.id };
+  }
+
   return buildAuthResponse(usuario.id);
+}
+
+export async function loginMfa(usuarioId: string, codigo: string) {
+  const secret = await obterMfaSecret(usuarioId);
+  if (!secret) {
+    throw new AppError(400, "MFA_NOT_ENABLED", "MFA não configurado");
+  }
+
+  const requer = await usuarioRequerMfa(usuarioId);
+  if (!requer) {
+    throw new AppError(400, "MFA_NOT_ENABLED", "MFA não está ativo");
+  }
+
+  const ok = await validarMfaCodigo(usuarioId, secret, codigo);
+  if (!ok) {
+    throw new AppError(401, "INVALID_MFA_CODE", "Código inválido ou expirado");
+  }
+
+  return buildAuthResponse(usuarioId);
+}
+
+export { getMfaStatus, iniciarMfaSetup, confirmarMfaSetup };
+
+export async function desabilitarMfaAdmin(
+  usuarioId: string,
+  senha: string,
+  codigo: string,
+) {
+  return desabilitarMfa(usuarioId, senha, codigo, async () => {
+    const row = await queryOne<{ senha_hash: string }>(
+      `SELECT senha_hash FROM "Usuario" WHERE id = $1`,
+      [usuarioId],
+      { message: "Usuário não encontrado" },
+    );
+    return row.senha_hash;
+  });
 }
 
 type MeUsuarioRow = {

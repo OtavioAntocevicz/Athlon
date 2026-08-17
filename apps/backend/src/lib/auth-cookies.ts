@@ -3,9 +3,11 @@ import { env } from "../config/env.js";
 
 export const ACCESS_COOKIE = "athlon_access";
 export const REFRESH_COOKIE = "athlon_refresh";
+export const MFA_PENDING_COOKIE = "athlon_mfa_pending";
 
 const ACCESS_MAX_AGE_MS = 15 * 60 * 1000;
 const REFRESH_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MFA_PENDING_MAX_AGE_MS = 5 * 60 * 1000;
 
 function baseCookieOptions(): CookieOptions {
   return {
@@ -27,6 +29,23 @@ export function clearAuthCookies(res: Response): void {
   const base = baseCookieOptions();
   res.clearCookie(ACCESS_COOKIE, base);
   res.clearCookie(REFRESH_COOKIE, base);
+  res.clearCookie(MFA_PENDING_COOKIE, base);
+}
+
+export function setMfaPendingCookie(res: Response, token: string): void {
+  const base = baseCookieOptions();
+  res.cookie(MFA_PENDING_COOKIE, token, { ...base, maxAge: MFA_PENDING_MAX_AGE_MS });
+}
+
+export function clearMfaPendingCookie(res: Response): void {
+  const base = baseCookieOptions();
+  res.clearCookie(MFA_PENDING_COOKIE, base);
+}
+
+export function getMfaPendingFromRequest(req: Request): string | null {
+  const fromCookie = req.cookies?.[MFA_PENDING_COOKIE];
+  if (typeof fromCookie === "string" && fromCookie.length > 0) return fromCookie;
+  return null;
 }
 
 export function getAccessTokenFromRequest(req: Request): string | null {

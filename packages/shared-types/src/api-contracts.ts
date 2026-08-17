@@ -36,6 +36,22 @@ export interface AuthUser {
 export interface AuthSession {
   user: AuthUser;
   codigoVerificacao?: string;
+  requiresMfa?: boolean;
+}
+
+export interface MfaStatus {
+  habilitado: boolean;
+  backupCodesRestantes: number;
+}
+
+export interface MfaSetupResponse {
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+}
+
+export interface MfaConfirmResponse {
+  backupCodes: string[];
 }
 
 /** Resposta de login/cadastro — tokens ficam em cookies httpOnly (não vêm no JSON). */

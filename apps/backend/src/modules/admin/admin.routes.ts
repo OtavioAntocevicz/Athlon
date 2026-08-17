@@ -9,6 +9,12 @@ import {
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import { authenticate, requireAdmin } from "../../middleware/auth.js";
+import {
+  AcoesAuditoria,
+  auditoriaFromRequest,
+  listarAuditoriaAdmin,
+  registrarAuditoriaAdmin,
+} from "../../lib/auditoria.js";
 import * as adminService from "./admin.service.js";
 
 export const adminRouter = Router();
@@ -54,6 +60,13 @@ adminRouter.post(
   async (req, res, next) => {
     try {
       const data = await adminService.criarProfessor(req.body);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.CRIAR_PROFESSOR,
+        "professor",
+        data.id,
+        { email: data.email, nome: data.nome },
+      );
       res.status(201).json({ data });
     } catch (e) {
       next(e);
@@ -65,6 +78,12 @@ adminRouter.post("/professores/:id/reenviar-convite", async (req, res, next) => 
   try {
     const id = String(req.params.id);
     const data = await adminService.reenviarConviteProfessor(id);
+    await registrarAuditoriaAdmin(
+      auditoriaFromRequest(req),
+      AcoesAuditoria.REENVIAR_CONVITE_PROFESSOR,
+      "professor",
+      id,
+    );
     res.json({ data });
   } catch (e) {
     next(e);
@@ -88,6 +107,13 @@ adminRouter.patch(
     try {
       const id = String(req.params.id);
       const data = await adminService.atualizarStatusProfessor(id, req.body);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.ATUALIZAR_STATUS_PROFESSOR,
+        "professor",
+        id,
+        { ativo: req.body.ativo },
+      );
       res.json({ data });
     } catch (e) {
       next(e);
@@ -99,6 +125,13 @@ adminRouter.delete("/professores/:id", async (req, res, next) => {
   try {
     const id = String(req.params.id);
     const data = await adminService.excluirProfessorAdmin(id);
+    await registrarAuditoriaAdmin(
+      auditoriaFromRequest(req),
+      AcoesAuditoria.EXCLUIR_PROFESSOR,
+      "professor",
+      id,
+      { nome: data.nome, turmasExcluidas: data.turmasExcluidas },
+    );
     res.json({ data });
   } catch (e) {
     next(e);
@@ -186,6 +219,13 @@ adminRouter.post(
     try {
       const id = String(req.params.id);
       const data = await adminService.matricularAlunoAdmin(id, req.body.turmaId);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.MATRICULAR_ALUNO,
+        "aluno",
+        id,
+        { turmaId: req.body.turmaId },
+      );
       res.json({ data });
     } catch (e) {
       next(e);
@@ -200,6 +240,13 @@ adminRouter.post(
     try {
       const id = String(req.params.id);
       const data = await adminService.afastarAlunoAdmin(id, req.body.turmaId);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.AFASTAR_ALUNO,
+        "aluno",
+        id,
+        { turmaId: req.body.turmaId },
+      );
       res.json({ data });
     } catch (e) {
       next(e);
@@ -218,6 +265,16 @@ adminRouter.post(
         req.body.turmaOrigemId,
         req.body.turmaDestinoId,
       );
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.TROCAR_TURMA,
+        "aluno",
+        id,
+        {
+          turmaOrigemId: req.body.turmaOrigemId,
+          turmaDestinoId: req.body.turmaDestinoId,
+        },
+      );
       res.json({ data });
     } catch (e) {
       next(e);
@@ -232,6 +289,13 @@ adminRouter.post(
     try {
       const id = String(req.params.id);
       const data = await adminService.desbloquearAlunoAdmin(id, req.body.turmaId);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.DESBLOQUEAR_ALUNO,
+        "aluno",
+        id,
+        { turmaId: req.body.turmaId },
+      );
       res.json({ data });
     } catch (e) {
       next(e);
@@ -243,6 +307,25 @@ adminRouter.delete("/alunos/:id", async (req, res, next) => {
   try {
     const id = String(req.params.id);
     const data = await adminService.excluirAlunoAdmin(id);
+    await registrarAuditoriaAdmin(
+      auditoriaFromRequest(req),
+      AcoesAuditoria.EXCLUIR_ALUNO,
+      "aluno",
+      id,
+      { nome: data.nome },
+    );
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+adminRouter.get("/auditoria", async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? "30"), 10) || 30));
+    const acao = typeof req.query.acao === "string" ? req.query.acao : undefined;
+    const data = await listarAuditoriaAdmin({ page, limit, acao });
     res.json({ data });
   } catch (e) {
     next(e);
