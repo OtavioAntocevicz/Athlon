@@ -7,7 +7,8 @@ import {
   queryOne,
 } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
-import { signAccessToken, signRefreshToken } from "../../lib/jwt.js";
+import { signAccessToken } from "../../lib/jwt.js";
+import { criarSessao, revogarSessaoPorToken, revogarTodasSessoes, rotacionarSessao } from "../../lib/sessao.js";
 import type { JwtPayload } from "../../middleware/auth.js";
 import type {
   LoginInput,
@@ -185,7 +186,7 @@ type AuthUsuarioRow = {
   ativo: boolean;
 };
 
-async function buildAuthResponse(usuarioId: string) {
+async function buildAuthResponse(usuarioId: string, refreshTokenOverride?: string) {
   const usuario = await queryOne<AuthUsuarioRow>(
     `SELECT u.id, u.email, u.nome, u.perfil, u.ativo, u.email_verificado_em,
             p.id AS professor_id,
@@ -212,10 +213,11 @@ async function buildAuthResponse(usuarioId: string) {
   };
 
   const emailVerificado = isEmailVerificado(usuario.perfil, usuario.email_verificado_em);
+  const refreshToken = refreshTokenOverride ?? (await criarSessao(usuarioId));
 
   return {
     accessToken: signAccessToken(payload),
-    refreshToken: signRefreshToken(payload),
+    refreshToken,
     user: {
       id: usuario.id,
       email: usuario.email,
@@ -377,9 +379,15 @@ export async function getMe(userId: string) {
 }
 
 export async function refreshToken(token: string) {
-  const { verifyRefreshToken } = await import("../../lib/jwt.js");
-  const payload = verifyRefreshToken(token);
-  return buildAuthResponse(payload.sub);
+  const { usuarioId, newRefreshToken } = await rotacionarSessao(token);
+  return buildAuthResponse(usuarioId, newRefreshToken);
+}
+
+export async function logout(refreshToken: string | null) {
+  if (refreshToken) {
+    await revogarSessaoPorToken(refreshToken);
+  }
+  return { ok: true };
 }
 
 export async function updateProfessorPerfil(
@@ -480,7 +488,8 @@ export async function alterarSenha(userId: string, input: ChangePasswordInput) {
     [senha_hash, now(), userId],
   );
 
-  return { ok: true };
+  await revogarTodasSessoes(userId);
+  return buildAuthResponse(userId);
 }
 
 export async function solicitarRecuperacaoSenha(input: RequestPasswordResetInput) {
@@ -593,6 +602,7 @@ export async function confirmarRecuperacaoSenha(input: ConfirmPasswordResetInput
   );
 
   await invalidateRecuperacoesPendentes(usuarioId!);
+  await revogarTodasSessoes(usuarioId!);
 
   return { ok: true };
 }

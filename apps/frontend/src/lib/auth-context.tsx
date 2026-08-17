@@ -5,72 +5,55 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { AuthUser, AuthTokens } from "@athlon/shared-types";
-import { api, setTokens, clearTokens } from "./api";
+import type { AuthUser, AuthSession } from "@athlon/shared-types";
+import { api, clearSession, getStoredUser, logoutApi, storeUser } from "./api";
 import { track } from "./analytics/analytics";
 import { preloadPostLoginDestination } from "./preload-post-login";
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (tokens: AuthTokens) => void;
-  logout: () => void;
+  login: (session: AuthSession) => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function readStoredUser(): AuthUser | null {
-  try {
-    const stored = localStorage.getItem("athlon_user");
-    const token = localStorage.getItem("athlon_token");
-    if (stored && token) {
-      return JSON.parse(stored) as AuthUser;
-    }
-  } catch {
-    clearTokens();
-  }
-  return null;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(readStoredUser);
-  const isLoading = false;
+  const [user, setUser] = useState<AuthUser | null>(getStoredUser);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("athlon_token");
-    const stored = localStorage.getItem("athlon_user");
-    if (!stored || !token) return;
-
     api<AuthUser>("/auth/me")
       .then((me) => {
         setUser(me);
-        localStorage.setItem("athlon_user", JSON.stringify(me));
+        storeUser(me);
       })
       .catch(() => {
-        clearTokens();
+        clearSession();
         setUser(null);
-      });
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
-  const login = (tokens: AuthTokens) => {
-    setTokens(tokens.accessToken, tokens.refreshToken);
-    localStorage.setItem("athlon_user", JSON.stringify(tokens.user));
-    setUser(tokens.user);
-    preloadPostLoginDestination(tokens.user);
-    track("login", { perfil: tokens.user.perfil });
+  const login = (session: AuthSession) => {
+    storeUser(session.user);
+    setUser(session.user);
+    preloadPostLoginDestination(session.user);
+    track("login", { perfil: session.user.perfil });
   };
 
-  const logout = () => {
+  const logout = async () => {
     track("logout");
-    clearTokens();
+    await logoutApi();
     setUser(null);
   };
 
   const refreshUser = async () => {
     const me = await api<AuthUser>("/auth/me");
     setUser(me);
-    localStorage.setItem("athlon_user", JSON.stringify(me));
+    storeUser(me);
   };
 
   return (

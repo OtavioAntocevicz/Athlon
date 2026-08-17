@@ -14,6 +14,8 @@ import { validate } from "../../middleware/validate.js";
 import { authenticate } from "../../middleware/auth.js";
 import { refreshTokenLimiter } from "../../middleware/rate-limit.js";
 import { AppError } from "../../middleware/error-handler.js";
+import { clearAuthCookies, getRefreshTokenFromRequest } from "../../lib/auth-cookies.js";
+import { sendAuthResponse } from "./auth-response.js";
 import * as authService from "./auth.service.js";
 
 const loginLimiter = rateLimit({
@@ -31,7 +33,10 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const data = await authService.registerAluno(req.body);
-      res.status(201).json({ data });
+      const { codigoVerificacao, ...auth } = data as typeof data & {
+        codigoVerificacao?: string;
+      };
+      sendAuthResponse(res, auth, codigoVerificacao ? { codigoVerificacao } : undefined, 201);
     } catch (e) {
       next(e);
     }
@@ -41,7 +46,7 @@ authRouter.post(
 authRouter.post("/login", loginLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const data = await authService.login(req.body);
-    res.json({ data });
+    sendAuthResponse(res, data);
   } catch (e) {
     next(e);
   }
@@ -74,6 +79,17 @@ authRouter.post(
     }
   },
 );
+
+authRouter.post("/logout", async (req, res, next) => {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    const data = await authService.logout(refreshToken);
+    clearAuthCookies(res);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
 
 authRouter.get("/me", authenticate, async (req, res, next) => {
   try {
@@ -126,7 +142,7 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const data = await authService.alterarSenha(req.user!.sub, req.body);
-      res.json({ data });
+      sendAuthResponse(res, data);
     } catch (e) {
       next(e);
     }
@@ -135,14 +151,14 @@ authRouter.post(
 
 authRouter.post("/refresh", refreshTokenLimiter, async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = getRefreshTokenFromRequest(req);
     if (!refreshToken) {
       return res.status(400).json({
-        error: { code: "MISSING_TOKEN", message: "Refresh token obrigatório" },
+        error: { code: "MISSING_TOKEN", message: "Sessão não encontrada" },
       });
     }
     const data = await authService.refreshToken(refreshToken);
-    res.json({ data });
+    sendAuthResponse(res, data);
   } catch (e) {
     next(e);
   }
@@ -156,7 +172,7 @@ authRouter.post(
   async (req, res, next) => {
     try {
       const data = await authService.confirmarVerificacaoEmail(req.user!.sub, req.body);
-      res.json({ data });
+      sendAuthResponse(res, data);
     } catch (e) {
       next(e);
     }

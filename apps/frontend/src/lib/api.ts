@@ -1,18 +1,32 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "/api/v1";
 
-function getToken(): string | null {
-  return localStorage.getItem("athlon_token");
-}
+const USER_STORAGE_KEY = "athlon_user";
 
-export function setTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem("athlon_token", accessToken);
-  localStorage.setItem("athlon_refresh", refreshToken);
-}
-
-export function clearTokens() {
+/** Remove tokens legados do localStorage (migração para cookies httpOnly). */
+function clearLegacyTokens() {
   localStorage.removeItem("athlon_token");
   localStorage.removeItem("athlon_refresh");
-  localStorage.removeItem("athlon_user");
+}
+
+clearLegacyTokens();
+
+export function clearSession() {
+  clearLegacyTokens();
+  localStorage.removeItem(USER_STORAGE_KEY);
+}
+
+export function getStoredUser(): import("@athlon/shared-types").AuthUser | null {
+  try {
+    const stored = localStorage.getItem(USER_STORAGE_KEY);
+    if (stored) return JSON.parse(stored) as import("@athlon/shared-types").AuthUser;
+  } catch {
+    clearSession();
+  }
+  return null;
+}
+
+export function storeUser(user: import("@athlon/shared-types").AuthUser) {
+  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
 }
 
 export function getErrorMessage(error: unknown, fallback = "Erro na requisição"): string {
@@ -32,7 +46,8 @@ function isPublicAuthPath(path: string): boolean {
   return (
     path.startsWith("/auth/login") ||
     path.startsWith("/auth/register") ||
-    path === "/auth/refresh"
+    path === "/auth/refresh" ||
+    path.startsWith("/auth/recuperar-senha")
   );
 }
 
@@ -75,55 +90,63 @@ async function parseErrorMessage(res: Response): Promise<string> {
   return "Não foi possível conectar ao servidor. Tente novamente.";
 }
 
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshSession(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, headers });
+    res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
   } catch {
     throw new Error("Sem conexão com o servidor. Verifique sua internet e tente novamente.");
   }
 
-  if (res.status === 401 && !isPublicAuthPath(path)) {
-    const refresh = localStorage.getItem("athlon_refresh");
-    if (refresh) {
-      try {
-        const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken: refresh }),
-        });
-        if (refreshRes.ok) {
-          const refreshJson = await readJsonBody(refreshRes);
-          const data = (refreshJson as { data?: { accessToken: string; refreshToken: string } })
-            ?.data;
-          if (data?.accessToken && data.refreshToken) {
-            setTokens(data.accessToken, data.refreshToken);
-            return api(path, options);
-          }
-        }
-      } catch {
-        // segue para limpar sessão abaixo
-      }
-      clearTokens();
-      window.location.href = "/login";
-      throw new Error("Sessão expirada. Faça login novamente.");
+  if (res.status === 401 && !isPublicAuthPath(path) && path !== "/auth/logout") {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      return api(path, options);
     }
+    clearSession();
+    window.location.href = "/login";
+    throw new Error("Sessão expirada. Faça login novamente.");
   }
 
   if (!res.ok) {
     const message = await parseErrorMessage(res);
     if (path.startsWith("/auth/login") && res.status === 401) {
-      clearTokens();
+      clearSession();
     }
     throw new Error(message);
   }
@@ -134,4 +157,18 @@ export async function api<T>(
   }
 
   return (json as { data: T }).data;
+}
+
+export async function logoutApi(): Promise<void> {
+  try {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    // encerra sessão local mesmo se a API falhar
+  } finally {
+    clearSession();
+  }
 }

@@ -14,8 +14,8 @@ export function AdminPerfilPage() {
   const navigate = useNavigate();
   const [senhaModalOpen, setSenhaModalOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/login/professor");
   };
 

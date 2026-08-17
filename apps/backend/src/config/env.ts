@@ -48,6 +48,10 @@ export const env = {
   appUrl: process.env.APP_URL ?? process.env.CORS_ORIGIN ?? "http://localhost:5173",
   /** Temporário: devolve código/link na API e mostra na tela (sem e-mail). Desligar em produção real. */
   recoveryShowCode: process.env.RECOVERY_SHOW_CODE === "true",
+  /** Domínio dos cookies de sessão (ex.: .athlonsport.app.br). Vazio em dev local. */
+  cookieDomain:
+    process.env.COOKIE_DOMAIN?.trim() ||
+    (isProduction ? ".athlonsport.app.br" : undefined),
   /** Desabilita node-cron (útil em testes ou múltiplas instâncias com cron externo). */
   cronEnabled: process.env.CRON_ENABLED !== "false",
 };

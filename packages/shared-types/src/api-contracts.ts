@@ -33,11 +33,13 @@ export interface AuthUser {
   aluno?: AlunoPerfilDados | null;
 }
 
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+export interface AuthSession {
   user: AuthUser;
+  codigoVerificacao?: string;
 }
+
+/** Resposta de login/cadastro — tokens ficam em cookies httpOnly (não vêm no JSON). */
+export type AuthTokens = AuthSession;
 
 export interface DashboardProfessor {
   totalTurmas: number;
