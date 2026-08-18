@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   confirmMfaSchema,
@@ -74,6 +74,8 @@ export function AdminMfaSection() {
     return <div className="mt-6 h-24 animate-pulse rounded-xl bg-muted" />;
   }
 
+  const setupPendente = Boolean(status?.setupPendente);
+
   return (
     <Card className="mt-6 p-4">
       <div className="flex items-center gap-2">
@@ -88,7 +90,9 @@ export function AdminMfaSection() {
       <p className="mt-2 text-sm text-muted-foreground">
         {status?.habilitado
           ? `MFA ativo. Códigos de backup restantes: ${status.backupCodesRestantes}.`
-          : "Obrigatório para administradores. Escaneie o QR no autenticador para liberar o painel."}
+          : setupPendente
+            ? "Você já gerou um QR. Use o código de 6 dígitos da conta ATHLON no autenticador — não adicione outra conta."
+            : "Obrigatório para administradores. Escaneie o QR no autenticador uma única vez para liberar o painel."}
       </p>
 
       {message && <p className="mt-3 text-sm text-green-700">{message}</p>}
@@ -118,7 +122,22 @@ export function AdminMfaSection() {
         </div>
       )}
 
-      {!status?.habilitado && !setupData && (
+      {!status?.habilitado && !setupData && setupPendente && (
+        <div className="mt-4 space-y-3">
+          <ConfirmMfaForm confirmForm={confirmForm} confirmMutation={confirmMutation} />
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => setupMutation.mutate()}
+            disabled={setupMutation.isPending}
+          >
+            {setupMutation.isPending ? "Carregando..." : "Mostrar QR outra vez (mesma conta)"}
+          </Button>
+        </div>
+      )}
+
+      {!status?.habilitado && !setupData && !setupPendente && (
         <Button
           className="mt-4 w-full"
           onClick={() => setupMutation.mutate()}
@@ -138,32 +157,53 @@ export function AdminMfaSection() {
             />
           </div>
           <p className="text-center text-xs text-muted-foreground">
-            Escaneie com Google Authenticator, Authy ou similar
+            {setupPendente
+              ? "Este QR é o mesmo de antes. Se a conta ATHLON já está no autenticador, não adicione de novo — só digite o código."
+              : "Escaneie uma vez com Google Authenticator, Authy ou similar. Depois use só o código de 6 dígitos."}
           </p>
-          <form
-            onSubmit={confirmForm.handleSubmit((data) => confirmMutation.mutate(data))}
-            className="space-y-3"
-          >
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Código de verificação</label>
-              <Input
-                placeholder="000000"
-                inputMode="numeric"
-                maxLength={6}
-                {...confirmForm.register("codigo")}
-              />
-              {confirmForm.formState.errors.codigo && (
-                <p className="mt-1 text-sm text-destructive">
-                  {confirmForm.formState.errors.codigo.message}
-                </p>
-              )}
-            </div>
-            <Button type="submit" className="w-full" disabled={confirmMutation.isPending}>
-              {confirmMutation.isPending ? "Ativando..." : "Ativar MFA"}
-            </Button>
-          </form>
+          <ConfirmMfaForm confirmForm={confirmForm} confirmMutation={confirmMutation} />
         </div>
       )}
     </Card>
+  );
+}
+
+function ConfirmMfaForm({
+  confirmForm,
+  confirmMutation,
+}: {
+  confirmForm: UseFormReturn<ConfirmMfaInput>;
+  confirmMutation: {
+    mutate: (input: ConfirmMfaInput) => void;
+    isPending: boolean;
+  };
+}) {
+  return (
+    <form
+      onSubmit={confirmForm.handleSubmit((data) => confirmMutation.mutate(data))}
+      className="space-y-3"
+    >
+      <div>
+        <label htmlFor="mfa-codigo" className="mb-1.5 block text-sm font-medium">
+          Código de verificação
+        </label>
+        <Input
+          id="mfa-codigo"
+          placeholder="000000"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          {...confirmForm.register("codigo")}
+        />
+        {confirmForm.formState.errors.codigo && (
+          <p className="mt-1 text-sm text-destructive">
+            {confirmForm.formState.errors.codigo.message}
+          </p>
+        )}
+      </div>
+      <Button type="submit" className="w-full" disabled={confirmMutation.isPending}>
+        {confirmMutation.isPending ? "Ativando..." : "Ativar MFA"}
+      </Button>
+    </form>
   );
 }
