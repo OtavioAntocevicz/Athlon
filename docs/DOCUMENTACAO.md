@@ -132,6 +132,7 @@ Athlon/
     ├── Melhoria.md              # Pendências e melhorias
     ├── config-resend-web-push.md
     ├── play-store-mobile.md     # App Android (Play Store)
+    ├── play-store-ficha.md      # Textos da ficha + Data safety
     └── web-push-producao.md     # Guia de push em produção
 ```
 
@@ -832,7 +833,7 @@ Web, PWA e app da Play Store usam **o mesmo frontend** (`apps/frontend`). O app 
 | **PWA** | Instalar pelo Chrome (Android) ou Safari (iOS) |
 | **Play Store** | App `apps/mobile` (Expo + WebView) |
 
-Guia Play Store: [play-store-mobile.md](./play-store-mobile.md)
+Guia Play Store: [play-store-mobile.md](./play-store-mobile.md). Textos da ficha: [play-store-ficha.md](./play-store-ficha.md).
 
 ### PWA e instalação
 

@@ -58,7 +58,7 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 - **Web:** navegador em https://athlonsport.app.br
 - **PWA — Android / Chromium:** banner com `beforeinstallprompt` ("Instalar app").
 - **PWA — iOS:** tutorial Safari → Adicionar à Tela de Início.
-- **Play Store:** app nativo shell (`apps/mobile`) — WebView do mesmo frontend; guia em [play-store-mobile.md](./play-store-mobile.md).
+- **Play Store:** app nativo shell (`apps/mobile`) — WebView do mesmo frontend; guia em [play-store-mobile.md](./play-store-mobile.md) e textos da ficha em [play-store-ficha.md](./play-store-ficha.md).
 - Dentro do app da loja, o banner de instalar PWA **não** aparece (`is-athlon-app.ts`).
 
 ### Web Push em produção

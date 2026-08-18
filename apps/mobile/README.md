@@ -23,14 +23,17 @@ Produção usa `https://athlonsport.app.br` por padrão.
 
 ## Build para Play Store
 
-Guia completo: [docs/play-store-mobile.md](../../docs/play-store-mobile.md)
+Guia completo: [docs/play-store-mobile.md](../../docs/play-store-mobile.md)  
+Textos da ficha: [docs/play-store-ficha.md](../../docs/play-store-ficha.md)  
+Assets da loja: [store-assets/](./store-assets/)
 
 Resumo:
 
-1. Conta [Google Play Console](https://play.google.com/console) (taxa única)
-2. `npx eas-cli login` e `eas build:configure` (primeira vez)
-3. `eas build -p android --profile production`
-4. Enviar o `.aab` gerado para teste interno → produção
+1. Conta [Google Play Console](https://play.google.com/console) (taxa única) + verificação de identidade
+2. `npx eas-cli login` e `eas build:configure` (primeira vez — grava o `projectId`)
+3. `npx eas-cli build -p android --profile production` (gera o `.aab`)
+4. Teste fechado com 12 testers por 14 dias (conta pessoal nova)
+5. Solicitar acesso à produção
 
 ## Identificação no frontend
 
