@@ -1,11 +1,39 @@
-import { createHash, randomBytes } from "node:crypto";
-import { generateSecret, generateURI, verifySync } from "otplib";
+import { createHash, randomBytes, webcrypto } from "node:crypto";
+import { generateURI, verifySync } from "otplib";
 import QRCode from "qrcode";
-import { execute, generateId, now, query, queryMaybeOne } from "./db.js";
+import { execute, generateId, now, queryMaybeOne } from "./db.js";
 import { AppError } from "../middleware/error-handler.js";
+
+/** otplib/noble espera Web Crypto; no Node do Railway o global pode não existir. */
+if (typeof globalThis.crypto?.getRandomValues !== "function") {
+  Object.defineProperty(globalThis, "crypto", {
+    value: webcrypto,
+    configurable: true,
+  });
+}
 
 const MFA_ISSUER = "ATHLON";
 const BACKUP_CODE_COUNT = 8;
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+function generateTotpSecret(): string {
+  const bytes = randomBytes(20);
+  let bits = 0;
+  let value = 0;
+  let output = "";
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    output += BASE32[(value << (5 - bits)) & 31];
+  }
+  return output;
+}
 
 function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -68,7 +96,7 @@ export async function iniciarMfaSetup(usuarioId: string, email: string) {
     throw new AppError(400, "MFA_ALREADY_ENABLED", "MFA já está ativo");
   }
 
-  const secret = generateSecret();
+  const secret = generateTotpSecret();
   const otpauthUrl = generateURI({ issuer: MFA_ISSUER, label: email, secret });
   const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
