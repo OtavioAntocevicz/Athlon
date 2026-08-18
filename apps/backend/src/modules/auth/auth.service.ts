@@ -29,7 +29,6 @@ import { env } from "../../config/env.js";
 import { createHash, randomInt } from "node:crypto";
 import {
   confirmarMfaSetup,
-  desabilitarMfa,
   getMfaStatus,
   iniciarMfaSetup,
   obterMfaSecret,
@@ -196,12 +195,13 @@ type AuthUsuarioRow = {
   professor_id: string | null;
   aluno_id: string | null;
   email_verificado_em: string | null;
+  mfa_habilitado_em: string | null;
   ativo: boolean;
 };
 
 async function buildAuthResponse(usuarioId: string, refreshTokenOverride?: string) {
   const usuario = await queryOne<AuthUsuarioRow>(
-    `SELECT u.id, u.email, u.nome, u.perfil, u.ativo, u.email_verificado_em,
+    `SELECT u.id, u.email, u.nome, u.perfil, u.ativo, u.email_verificado_em, u.mfa_habilitado_em,
             p.id AS professor_id,
             a.id AS aluno_id
      FROM "Usuario" u
@@ -239,6 +239,7 @@ async function buildAuthResponse(usuarioId: string, refreshTokenOverride?: strin
       professorId: usuario.professor_id ?? undefined,
       alunoId: usuario.aluno_id ?? undefined,
       emailVerificado,
+      mfaHabilitado: usuario.perfil === "ADM" ? !!usuario.mfa_habilitado_em : undefined,
     },
   };
 }
@@ -401,17 +402,14 @@ export { getMfaStatus, iniciarMfaSetup, confirmarMfaSetup };
 
 export async function desabilitarMfaAdmin(
   usuarioId: string,
-  senha: string,
-  codigo: string,
+  _senha: string,
+  _codigo: string,
 ) {
-  return desabilitarMfa(usuarioId, senha, codigo, async () => {
-    const row = await queryOne<{ senha_hash: string }>(
-      `SELECT senha_hash FROM "Usuario" WHERE id = $1`,
-      [usuarioId],
-      { message: "Usuário não encontrado" },
-    );
-    return row.senha_hash;
-  });
+  throw new AppError(
+    403,
+    "MFA_OBRIGATORIO",
+    "O MFA é obrigatório para administradores e não pode ser desativado.",
+  );
 }
 
 type MeUsuarioRow = {
@@ -420,6 +418,7 @@ type MeUsuarioRow = {
   nome: string;
   perfil: string;
   email_verificado_em: string | null;
+  mfa_habilitado_em: string | null;
   professor_id: string | null;
   chave_pix: string | null;
   aluno_id: string | null;
@@ -432,7 +431,7 @@ type MeUsuarioRow = {
 
 export async function getMe(userId: string) {
   const usuario = await queryOne<MeUsuarioRow>(
-    `SELECT u.id, u.email, u.nome, u.perfil, u.email_verificado_em,
+    `SELECT u.id, u.email, u.nome, u.perfil, u.email_verificado_em, u.mfa_habilitado_em,
             p.id AS professor_id, p.chave_pix,
             a.id AS aluno_id, a.nome AS aluno_nome, a.sobrenome AS aluno_sobrenome,
             a.telefone AS aluno_telefone, a.rg AS aluno_rg, a.cpf AS aluno_cpf
@@ -450,6 +449,7 @@ export async function getMe(userId: string) {
     nome: usuario.nome,
     perfil: usuario.perfil,
     emailVerificado: isEmailVerificado(usuario.perfil, usuario.email_verificado_em),
+    mfaHabilitado: usuario.perfil === "ADM" ? !!usuario.mfa_habilitado_em : undefined,
     professorId: usuario.professor_id ?? undefined,
     alunoId: usuario.aluno_id ?? undefined,
     chavePix: usuario.chave_pix ?? null,

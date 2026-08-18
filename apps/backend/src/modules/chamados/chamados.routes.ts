@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { criarChamadoSchema, responderChamadoSchema } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
-import { authenticate, requireAdmin } from "../../middleware/auth.js";
+import { authenticate, requireAdmin, requireAdminMfa } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error-handler.js";
 import type { NextFunction, Request, Response } from "express";
 import {
@@ -67,7 +67,7 @@ chamadosRouter.get("/:id", async (req, res, next) => {
   }
 });
 
-adminChamadosRouter.use(authenticate, requireAdmin);
+adminChamadosRouter.use(authenticate, requireAdmin, requireAdminMfa);
 
 adminChamadosRouter.get("/", async (req, res, next) => {
   try {

@@ -8,7 +8,7 @@ import {
   adminDesbloquearSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
-import { authenticate, requireAdmin } from "../../middleware/auth.js";
+import { authenticate, requireAdmin, requireAdminMfa } from "../../middleware/auth.js";
 import {
   AcoesAuditoria,
   auditoriaFromRequest,
@@ -19,7 +19,7 @@ import * as adminService from "./admin.service.js";
 
 export const adminRouter = Router();
 
-adminRouter.use(authenticate, requireAdmin);
+adminRouter.use(authenticate, requireAdmin, requireAdminMfa);
 
 adminRouter.get("/dashboard", async (req, res, next) => {
   try {
