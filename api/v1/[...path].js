@@ -1,6 +1,6 @@
 const BACKEND =
   process.env.BACKEND_URL?.replace(/\/$/, "") ||
-  "https://athlonbackend-production.up.railway.app";
+  "https://api.athlonsport.app.br";
 
 export const config = {
   api: {

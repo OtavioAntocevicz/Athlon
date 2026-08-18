@@ -147,7 +147,11 @@ export async function confirmarMfaSetup(usuarioId: string, codigo: string) {
   }
 
   if (!verifyTotp(row.mfa_secret, codigo)) {
-    throw new AppError(400, "INVALID_MFA_CODE", "Código inválido. Tente novamente.");
+    throw new AppError(
+      400,
+      "INVALID_MFA_CODE",
+      "Código inválido. Se houver várias contas ATHLON no autenticador, use a mais recente.",
+    );
   }
 
   const backupCodes: string[] = [];

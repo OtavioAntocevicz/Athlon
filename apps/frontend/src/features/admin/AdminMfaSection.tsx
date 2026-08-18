@@ -91,7 +91,7 @@ export function AdminMfaSection() {
         {status?.habilitado
           ? `MFA ativo. Códigos de backup restantes: ${status.backupCodesRestantes}.`
           : setupPendente
-            ? "Você já gerou um QR. Use o código de 6 dígitos da conta ATHLON no autenticador — não adicione outra conta."
+            ? "Você já gerou um QR. Use o código de 6 dígitos da conta ATHLON no autenticador — não adicione outra conta. Se houver várias, use a mais recente."
             : "Obrigatório para administradores. Escaneie o QR no autenticador uma única vez para liberar o painel."}
       </p>
 
@@ -158,8 +158,8 @@ export function AdminMfaSection() {
           </div>
           <p className="text-center text-xs text-muted-foreground">
             {setupPendente
-              ? "Este QR é o mesmo de antes. Se a conta ATHLON já está no autenticador, não adicione de novo — só digite o código."
-              : "Escaneie uma vez com Google Authenticator, Authy ou similar. Depois use só o código de 6 dígitos."}
+              ? "Este QR é o mesmo de antes. Se a conta ATHLON já está no autenticador, não adicione de novo — só digite o código. Se houver várias contas ATHLON, use a mais recente."
+              : "Escaneie uma vez com Google Authenticator, Authy ou similar. Depois use só o código de 6 dígitos. Se você já adicionou várias contas ATHLON, use a mais recente."}
           </p>
           <ConfirmMfaForm confirmForm={confirmForm} confirmMutation={confirmMutation} />
         </div>

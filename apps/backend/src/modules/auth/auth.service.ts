@@ -392,7 +392,11 @@ export async function loginMfa(usuarioId: string, codigo: string) {
 
   const ok = await validarMfaCodigo(usuarioId, secret, codigo);
   if (!ok) {
-    throw new AppError(401, "INVALID_MFA_CODE", "Código inválido ou expirado");
+    throw new AppError(
+      401,
+      "INVALID_MFA_CODE",
+      "Código inválido ou expirado. Se houver várias contas ATHLON no autenticador, use a mais recente.",
+    );
   }
 
   return buildAuthResponse(usuarioId);

@@ -173,7 +173,7 @@ export function LoginFormPage({
                     </p>
                   )}
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Use o código de 6 dígitos do app autenticador ou um código de backup.
+                    Use o código de 6 dígitos da conta ATHLON no autenticador (a mais recente, se houver várias) ou um código de backup.
                   </p>
                 </div>
 
