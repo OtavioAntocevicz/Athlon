@@ -62,7 +62,8 @@ EXPO_PUBLIC_APP_URL=http://10.0.2.2:5173
 
 - [ ] Conta Google Play Developer (~US$ 25, taxa única)
 - [ ] Ícone 512×512 (já em `apps/mobile/assets/`)
-- [ ] Screenshots do app (capturas do WebView em dispositivo real)
+- [x] Telas públicas 1080×1920 em `apps/mobile/store-assets/screenshots/` (escolha de perfil, logins, cadastro)
+- [ ] Prints logados no celular: dashboard, turma, mensalidades, comprovante, eventos
 - [ ] URL da política de privacidade: `https://athlonsport.app.br/politica-privacidade`
 - [ ] URL dos termos: `https://athlonsport.app.br/termos`
 

@@ -36,3 +36,7 @@ Resumo:
 
 O app injeta `window.__ATHLON_APP__ = true` e User-Agent `AthlonMobile/1.0`.  
 O PWA oculta o banner "Instalar app" quando detecta o shell nativo.
+
+## Screenshots da loja
+
+PNGs 1080×1920 em [`store-assets/screenshots/`](./store-assets/screenshots/).
