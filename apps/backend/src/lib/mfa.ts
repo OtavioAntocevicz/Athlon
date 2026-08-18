@@ -53,12 +53,19 @@ export function verifyTotp(secret: string, token: string): boolean {
   return result.valid;
 }
 
+async function buildSetupPayload(email: string, secret: string) {
+  const otpauthUrl = generateURI({ issuer: MFA_ISSUER, label: email, secret });
+  const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+  return { secret, otpauthUrl, qrCodeDataUrl };
+}
+
 export async function getMfaStatus(usuarioId: string) {
   const row = await queryMaybeOne<{
     mfa_habilitado_em: string | null;
+    mfa_secret: string | null;
     perfil: string;
   }>(
-    `SELECT mfa_habilitado_em, perfil FROM "Usuario" WHERE id = $1`,
+    `SELECT mfa_habilitado_em, mfa_secret, perfil FROM "Usuario" WHERE id = $1`,
     [usuarioId],
   );
 
@@ -78,13 +85,19 @@ export async function getMfaStatus(usuarioId: string) {
 
   return {
     habilitado: !!row.mfa_habilitado_em,
+    /** Secret já gerado, MFA ainda não confirmado. Não expõe o secret. */
+    setupPendente: !!row.mfa_secret && !row.mfa_habilitado_em,
     backupCodesRestantes: parseInt(backupRestantes, 10),
   };
 }
 
 export async function iniciarMfaSetup(usuarioId: string, email: string) {
-  const row = await queryMaybeOne<{ perfil: string; mfa_habilitado_em: string | null }>(
-    `SELECT perfil, mfa_habilitado_em FROM "Usuario" WHERE id = $1`,
+  const row = await queryMaybeOne<{
+    perfil: string;
+    mfa_habilitado_em: string | null;
+    mfa_secret: string | null;
+  }>(
+    `SELECT perfil, mfa_habilitado_em, mfa_secret FROM "Usuario" WHERE id = $1`,
     [usuarioId],
   );
 
@@ -96,16 +109,19 @@ export async function iniciarMfaSetup(usuarioId: string, email: string) {
     throw new AppError(400, "MFA_ALREADY_ENABLED", "MFA já está ativo");
   }
 
+  if (row.mfa_secret) {
+    return buildSetupPayload(email, row.mfa_secret);
+  }
+
   const secret = generateTotpSecret();
-  const otpauthUrl = generateURI({ issuer: MFA_ISSUER, label: email, secret });
-  const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+  const payload = await buildSetupPayload(email, secret);
 
   await execute(
     `UPDATE "Usuario" SET mfa_secret = $1, atualizado_em = $2 WHERE id = $3`,
     [secret, now(), usuarioId],
   );
 
-  return { secret, otpauthUrl, qrCodeDataUrl };
+  return payload;
 }
 
 export async function confirmarMfaSetup(usuarioId: string, codigo: string) {

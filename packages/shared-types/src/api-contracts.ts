@@ -51,6 +51,8 @@ export interface RegisterAlunoResult {
 
 export interface MfaStatus {
   habilitado: boolean;
+  /** Secret já gerado e ainda não confirmado — use o autenticador existente, sem nova conta. */
+  setupPendente: boolean;
   backupCodesRestantes: number;
 }
 
