@@ -2,6 +2,8 @@
 
 Itens fora do escopo do MVP atual, organizados por prioridade.
 
+**Pendências que só o dono consegue concluir** (Play Store, testers, prints logados, Expo): [WHITELIST.md](./WHITELIST.md).
+
 ---
 
 ## Concluído recentemente (ago/2026)
@@ -15,7 +17,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 - **E-mail ao responder chamado:** ADM responde → aluno/professor recebe e-mail com a resposta
 - **App Play Store (shell):** `apps/mobile` com detecção `__ATHLON_APP__`; banner PWA oculto dentro do WebView
 - Migrations consolidadas em `apps/backend/migrations/` (inclui `003_email_verificacao.sql`)
-- Guias: [DEPLOY.md](./DEPLOY.md), [play-store-mobile.md](./play-store-mobile.md)
+- Guias: [DEPLOY.md](./DEPLOY.md), [play-store-mobile.md](./play-store-mobile.md), [WHITELIST.md](./WHITELIST.md), [play-store-ficha.md](./play-store-ficha.md)
+- **Web Push:** VAPID no Railway; subscription no login; notificação na barra do sistema (PWA / HTTPS)
+- **Exclusão definitiva de professor:** detalhe do professor e Edição → Professores (`DELETE /admin/professores/:id`)
+- **MFA obrigatório no ADM:** um QR só até confirmar; códigos de backup consultáveis na tabela `"MfaBackupCode"`; regenerar códigos em `/admin/perfil`
+- **API:** proxy da Vercel em `https://api.athlonsport.app.br`
 
 ## Concluído recentemente (jul/2026)
 

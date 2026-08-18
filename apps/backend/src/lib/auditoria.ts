@@ -119,4 +119,5 @@ export const AcoesAuditoria = {
   RESPONDER_CHAMADO: "responder_chamado",
   MFA_HABILITAR: "mfa_habilitar",
   MFA_DESABILITAR: "mfa_desabilitar",
+  MFA_BACKUP_CODES_REGENERAR: "mfa_backup_codes_regenerar",
 } as const;

@@ -45,6 +45,10 @@ export function AdminMfaSection() {
     resolver: zodResolver(confirmMfaSchema),
   });
 
+  const regenerateForm = useForm<ConfirmMfaInput>({
+    resolver: zodResolver(confirmMfaSchema),
+  });
+
   const confirmMutation = useMutation({
     mutationFn: (input: ConfirmMfaInput) =>
       api<MfaConfirmResponse>("/auth/mfa/confirm", {
@@ -59,6 +63,22 @@ export function AdminMfaSection() {
       setError("");
       queryClient.invalidateQueries({ queryKey: ["mfa", "status"] });
       await refreshUser();
+    },
+    onError: (e) => setError(getErrorMessage(e)),
+  });
+
+  const regenerateMutation = useMutation({
+    mutationFn: (input: ConfirmMfaInput) =>
+      api<MfaConfirmResponse>("/auth/mfa/backup-codes", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (data) => {
+      setBackupCodes(data.backupCodes);
+      regenerateForm.reset();
+      setMessage("Novos códigos gerados. Os anteriores deixaram de funcionar. Guarde esta lista agora.");
+      setError("");
+      queryClient.invalidateQueries({ queryKey: ["mfa", "status"] });
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -102,7 +122,7 @@ export function AdminMfaSection() {
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <p className="text-sm font-medium text-amber-900">Códigos de backup (guarde agora)</p>
           <p className="mt-1 text-xs text-amber-800">
-            Cada código só pode ser usado uma vez. Não serão exibidos novamente.
+            Cada código só pode ser usado uma vez. Esta lista não volta a aparecer nesta tela.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-1 font-mono text-sm">
             {backupCodes.map((code) => (
@@ -120,6 +140,40 @@ export function AdminMfaSection() {
             {copied ? "Copiado" : "Copiar códigos"}
           </Button>
         </div>
+      )}
+
+      {status?.habilitado && (
+        <form
+          className="mt-4 space-y-3 rounded-lg border p-3"
+          onSubmit={regenerateForm.handleSubmit((data) => regenerateMutation.mutate(data))}
+        >
+          <p className="text-sm font-medium text-primary">Gerar novos códigos de backup</p>
+          <p className="text-xs text-muted-foreground">
+            Os códigos atuais deixam de funcionar na hora. Digite os 6 dígitos do autenticador (conta
+            ATHLON mais recente).
+          </p>
+          <div>
+            <label htmlFor="mfa-codigo-regenerate" className="mb-1.5 block text-sm font-medium">
+              Código de verificação
+            </label>
+            <Input
+              id="mfa-codigo-regenerate"
+              placeholder="000000"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              {...regenerateForm.register("codigo")}
+            />
+            {regenerateForm.formState.errors.codigo && (
+              <p className="mt-1 text-sm text-destructive">
+                {regenerateForm.formState.errors.codigo.message}
+              </p>
+            )}
+          </div>
+          <Button type="submit" variant="outline" className="w-full" disabled={regenerateMutation.isPending}>
+            {regenerateMutation.isPending ? "Gerando..." : "Gerar novos códigos"}
+          </Button>
+        </form>
       )}
 
       {!status?.habilitado && !setupData && setupPendente && (

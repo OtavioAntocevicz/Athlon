@@ -8,6 +8,8 @@
 
 Este documento descreve o sistema por completo para facilitar onboarding em outro computador, manutenção e deploy. Use junto com `README.md` (início rápido) e `.env.example` (variáveis).
 
+Pendências operacionais do dono (Play Store, testers, Expo): [WHITELIST.md](./WHITELIST.md).
+
 ---
 
 ## Índice
@@ -129,9 +131,11 @@ Athlon/
 └── docs/
     ├── DOCUMENTACAO.md          # Este arquivo
     ├── DEPLOY.md                # Guia de deploy (Vercel + Railway)
+    ├── WHITELIST.md             # Pendências do dono (Play Store, testers, Expo)
     ├── Melhoria.md              # Pendências e melhorias
     ├── config-resend-web-push.md
     ├── play-store-mobile.md     # App Android (Play Store)
+    ├── play-store-ficha.md      # Textos para colar na Play Console
     └── web-push-producao.md     # Guia de push em produção
 ```
 
@@ -206,7 +210,7 @@ Navegador (athlonsport.app.br)
 | `AlunoEmailGate` | Aluno sem e-mail verificado só acessa `/verificar-email`, `/perfil` e `/chamados` |
 | `AlunoVerificacaoRoute` | Tela de verificação — apenas aluno com e-mail pendente |
 | `ProfessorRoute` | Apenas professor |
-| `AdminRoute` | Apenas ADM; sem login redireciona para `/login/professor` |
+| `AdminRoute` | Apenas ADM; sem login redireciona para `/login/professor`. Sem MFA ativo, o painel fica limitado ao perfil para configurar o autenticador |
 | `AlunoRoute` | Apenas aluno |
 | `AlunoTurmasRoute` | Aluno sem bloqueio por inadimplência |
 
@@ -309,7 +313,7 @@ Navegador (athlonsport.app.br)
 4. Professores (/admin/professores)
    - Lista, busca, filtro ativos/inativos, criar professor
 5. Detalhe do professor (/admin/professores/:id)
-   - Dados, PIX, ativar/desativar
+   - Dados, PIX, ativar/desativar, **excluir conta** (definitivo)
    - Turmas clicáveis → /admin/turmas/:id
    - Alunos clicáveis → /admin/alunos/:id
 6. Jornada de leitura:
@@ -320,14 +324,15 @@ Navegador (athlonsport.app.br)
 8. Perfil do aluno (/admin/alunos/:id)
    - Dados, data de criação da conta, data de entrada em cada turma
    - Atalhos de edição (matricular, remover, trocar, desbloquear)
+   - Excluir conta do aluno (definitivo)
 9. Edição (/admin/edicao)
    - Matricular aluno em turma
    - Remover aluno da turma
    - Trocar aluno de turma
    - Desbloquear inadimplência
-   - Ativar/desativar professor
+   - Professores: ativar, desativar **ou excluir** a conta
    - Atalho para alunos sem turma
-10. Perfil (/admin/perfil) - alterar senha, logout
+10. Perfil (/admin/perfil) - MFA obrigatório, alterar senha, logout
 11. BottomNav: Profs | Alunos | Início | Edição | Perfil
 ```
 
@@ -413,7 +418,7 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/admin/edicao/remover` | AdminEdicaoRemoverPage | Remover aluno da turma |
 | `/admin/edicao/trocar` | AdminEdicaoTrocarPage | Trocar aluno de turma |
 | `/admin/edicao/desbloquear` | AdminEdicaoDesbloquearPage | Desbloquear inadimplência |
-| `/admin/edicao/professores` | AdminEdicaoProfessoresPage | Ativar/desativar professor |
+| `/admin/edicao/professores` | AdminEdicaoProfessoresPage | Ativar, desativar ou excluir professor |
 | `/admin/chamados` | AdminChamadosPage | Lista de chamados (ADM) |
 | `/admin/chamados/:id` | AdminChamadoDetailPage | Responder chamado |
 | `/admin/perfil` | AdminPerfilPage | Perfil do ADM |
@@ -440,7 +445,12 @@ Montagem: `apps/backend/src/app.ts`
 | Método | Rota | Auth | Descrição |
 |--------|------|------|-----------|
 | POST | `/register/aluno` | Público | Cadastro aluno (conta + envio de código de verificação por e-mail) |
-| POST | `/login` | Público | Login (e-mail + senha + perfil). ADM pode entrar com `perfil: "PROFESSOR"` na tela de treinador |
+| POST | `/login` | Público | Login (e-mail + senha + perfil). ADM pode entrar com `perfil: "PROFESSOR"` na tela de treinador. Se o ADM tem MFA, a resposta traz `requiresMfa: true` |
+| POST | `/login/mfa` | Cookie MFA pendente | Confirma login do ADM com código TOTP (6 dígitos) ou código de backup |
+| GET | `/mfa/status` | JWT ADM | `{ habilitado, setupPendente, backupCodesRestantes }` |
+| POST | `/mfa/setup` | JWT ADM | Gera ou **reutiliza** o secret pendente e devolve QR (`otpauthUrl`, `qrCodeDataUrl`) |
+| POST | `/mfa/confirm` | JWT ADM | Ativa MFA com código de 6 dígitos; devolve 8 códigos de backup |
+| POST | `/mfa/backup-codes` | JWT ADM | Regenera 8 códigos (invalida os antigos). Corpo: `{ codigo }` TOTP de 6 dígitos |
 | POST | `/verificar-email/confirmar` | JWT (aluno) | Confirma e-mail com código de 6 dígitos |
 | POST | `/verificar-email/reenviar` | JWT (aluno) | Reenvia código de verificação por e-mail |
 | POST | `/recuperar-senha/solicitar` | Público | Envia código de 6 dígitos + link por e-mail |
@@ -461,12 +471,14 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | POST | `/professores` | Criar professor |
 | GET | `/professores/:id` | Detalhe + turmas + alunos |
 | PATCH | `/professores/:id/status` | `{ ativo: boolean }` desativar/reativar |
+| DELETE | `/professores/:id` | Exclusão definitiva (login + turmas; alunos do sistema são preservados) |
 | GET | `/professores/:id/turmas` | Turmas do professor |
 | GET | `/professores/:id/alunos` | Alunos do professor (`?turmaId`) |
 | GET | `/turmas` | Lista turmas da plataforma (`?busca`) |
 | GET | `/turmas/:id` | Detalhe da turma (dados + alunos) |
 | GET | `/alunos` | Lista alunos (`?busca`, `?semTurma=true`) |
 | GET | `/alunos/:id` | Perfil admin (conta, matrículas com datas, mensalidades) |
+| DELETE | `/alunos/:id` | Exclusão definitiva do cadastro do aluno |
 | GET | `/bloqueios` | Alunos bloqueados por inadimplência |
 | POST | `/alunos/:id/matricular` | `{ turmaId }` matricular e gerar mensalidades |
 | POST | `/alunos/:id/afastar` | `{ turmaId }` remover da turma |
@@ -712,7 +724,9 @@ Usuario (1) ── (N) Chamado
 | Comprovante recusado | Aluno | `COMPROVANTE_RECUSADO` | Ação do professor |
 | Pagamento confirmado | Aluno | `PAGAMENTO_CONFIRMADO` | Marcar pago manual |
 
-Toda notificação in-app também dispara **Web Push** (PWA), conforme dispositivos registrados.
+Toda notificação in-app também dispara **Web Push** (barra do sistema / PWA), se o usuário tiver um dispositivo `WEB` registrado.
+
+Em produção as chaves **VAPID já estão no Railway**. O frontend pede permissão e grava a subscription **no login** (aluno e professor), não só ao abrir o sino.
 
 ### Arquitetura de notificações
 
@@ -762,6 +776,7 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 - `CRON_SECRET` protege endpoints de cron manuais.
 - **Nunca** commitar `.env` (está no `.gitignore`).
 - Secrets (`JWT_*`, `DATABASE_URL`, `R2_*`, `VAPID_PRIVATE_KEY`) **somente** no Railway.
+- **MFA TOTP obrigatório para ADM** (`/admin/perfil`). O secret pendente é reutilizado (não gera conta nova no autenticador a cada clique). Login: `POST /auth/login` + `POST /auth/login/mfa`.
 
 ### Recuperação de senha ("Esqueci minha senha")
 
@@ -855,19 +870,21 @@ Guia Play Store: [play-store-mobile.md](./play-store-mobile.md)
 
 ### Web Push (PWA no browser)
 
-1. Após login de **aluno**, o painel de notificações solicita permissão.
-2. Frontend obtém chave VAPID pública da API (`GET /notificacoes/vapid-public-key`).
-3. Registra subscription no Service Worker e envia para `POST /api/v1/dispositivos` (`pushProvider: WEB`).
-4. `public/push-handler.js` exibe notificações no service worker.
+**Status produção (ago/2026):** VAPID configurado no Railway. Push da barra do sistema ativo para quem concedeu permissão.
+
+1. Após login de **aluno** ou **professor**, o app solicita permissão de notificação (`registrarPushNotifications` no `AuthProvider`).
+2. Frontend obtém a chave VAPID pública (`GET /notificacoes/vapid-public-key`). Sem essa chave a subscription não é criada.
+3. Cria/atualiza a subscription no Service Worker e envia para `POST /api/v1/dispositivos` (`pushProvider: WEB`, `pushToken` = JSON da subscription).
+4. `public/push-handler.js` (importado pelo SW do `vite-plugin-pwa`) chama `showNotification` na barra do sistema, mesmo com o app fechado.
+5. `WebPushProvider` envia com TTL 24h e `urgency: high`. Subscriptions 404/410/403 são removidas.
+
+**Requisitos no aparelho:** HTTPS; permissão concedida; no **iOS**, PWA instalado na Tela de Início (16.4+). Dentro do WebView da Play Store o push web é limitado.
 
 O endpoint legado `POST /notificacoes/push-token` ainda funciona (delega ao `DeviceService`).
 
-**Guia detalhado (VAPID em produção):** [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md)
+**Guia:** [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md)
 
-**Gerar chaves VAPID:**
-```bash
-pnpm --filter @athlon/backend generate-vapid-keys
-```
+Chaves já estão no Railway de produção. Só regenere com `pnpm --filter @athlon/backend generate-vapid-keys` se houver comprometimento — todos os aparelhos precisarão se inscrever de novo.
 
 ---
 
@@ -891,9 +908,9 @@ pnpm --filter @athlon/backend generate-vapid-keys
 | `R2_PUBLIC_BASE_URL` | Upload* | URL pública do bucket (fotos de turma) |
 | `CRON_SECRET` | Não | Proteção dos endpoints `/api/cron/*` manuais |
 | `CRON_ENABLED` | Não | Default `true`; desabilita `node-cron` |
-| `VAPID_PUBLIC_KEY` | Opcional | Web Push |
-| `VAPID_PRIVATE_KEY` | Opcional | Web Push |
-| `VAPID_SUBJECT` | Opcional | Ex: `mailto:suporte@athlonsport.app.br` |
+| `VAPID_PUBLIC_KEY` | Produção | Web Push (já configurado no Railway) |
+| `VAPID_PRIVATE_KEY` | Produção | Web Push (já configurado no Railway) |
+| `VAPID_SUBJECT` | Produção | `mailto:suporte@athlonsport.app.br` |
 | `RESEND_API_KEY` | Recuperação de senha | Chave Resend |
 | `EMAIL_FROM` | Recuperação de senha | Remetente (ex.: `ATHLON <noreply@athlonsport.app.br>`) |
 | `RECOVERY_SHOW_CODE` | Dev | `true` exibe código na tela sem e-mail (desligar em produção) |
@@ -1193,7 +1210,7 @@ Documentadas em `docs/Melhoria.md`:
 - Jornada Professor → Turma → Aluno
 - Aba Alunos global (busca nome/e-mail/CPF/RG; filtro sem turma)
 - Perfil do aluno com data de conta e data de matrícula por turma
-- Aba **Edição**: chamados, matricular, remover, trocar turma, desbloquear, ativar/desativar professor
+- Aba **Edição**: chamados, matricular, remover, trocar turma, desbloquear, **ativar/desativar/excluir professor**
 - BottomNav: Profs | Alunos | Início | Edição | Perfil
 
 ### Padronização de texto
@@ -1248,6 +1265,13 @@ Migração completa de Supabase para **Railway + Cloudflare R2**. Detalhes em [D
 - API: `https://api.athlonsport.app.br` (Railway)
 - CORS aceita apex e `www` (configurável via `CORS_ORIGIN`)
 
+### 21.3 Segurança, MFA, Web Push e exclusão de professor (ago/2026)
+
+- **MFA obrigatório no ADM:** login em duas etapas; o QR é gerado **uma vez** (secret reutilizado até confirmar). Códigos de backup de 8 caracteres; coluna `codigo` em `"MfaBackupCode"` para consulta no banco. Em `/admin/perfil` dá para **gerar novos códigos** (TOTP de 6 dígitos; os antigos deixam de valer). Se houver várias contas ATHLON no autenticador, use a **mais recente**.
+- **Proxy da API:** Vercel `/api/v1` e `/api/cron` apontam para `https://api.athlonsport.app.br` (DNS e certificado Railway ativos).
+- **Web Push:** `VAPID_*` no Railway; registro da subscription no login; notificação na barra do sistema via `push-handler.js`.
+- **Exclusão definitiva de professor:** `DELETE /admin/professores/:id` no detalhe e em **Edição → Professores** (transação; turmas somem, alunos permanecem).
+
 ---
 
 ## 22. Testes automatizados
@@ -1297,5 +1321,7 @@ Software proprietário de **Otávio Morais Antocevicz**. Consulte `LICENSE` para
 Para dúvidas técnicas sobre deploy, consulte também:
 - `README.md` - início rápido
 - `docs/DEPLOY.md` - deploy Vercel + Railway
+- `docs/WHITELIST.md` - pendências operacionais (Play Store)
+- `docs/play-store-mobile.md` - lançamento Android
 - `docs/web-push-producao.md` - push em produção
 - `docs/Melhoria.md` - backlog de melhorias

@@ -154,8 +154,50 @@ export async function confirmarMfaSetup(usuarioId: string, codigo: string) {
     );
   }
 
-  const backupCodes: string[] = [];
   const ts = now();
+  const backupCodes = await persistBackupCodes(usuarioId, ts);
+
+  await execute(
+    `UPDATE "Usuario" SET mfa_habilitado_em = $1::timestamptz, atualizado_em = $2::timestamp WHERE id = $3`,
+    [ts, ts, usuarioId],
+  );
+
+  return { backupCodes };
+}
+
+/** Invalida os códigos atuais e grava 8 novos. Exige TOTP de 6 dígitos (não aceita backup). */
+export async function regenerarBackupCodes(usuarioId: string, codigo: string) {
+  const row = await queryMaybeOne<{
+    perfil: string;
+    mfa_secret: string | null;
+    mfa_habilitado_em: string | null;
+  }>(
+    `SELECT perfil, mfa_secret, mfa_habilitado_em FROM "Usuario" WHERE id = $1`,
+    [usuarioId],
+  );
+
+  if (!row || row.perfil !== "ADM") {
+    throw new AppError(403, "FORBIDDEN", "MFA disponível apenas para administradores");
+  }
+
+  if (!row.mfa_habilitado_em || !row.mfa_secret) {
+    throw new AppError(400, "MFA_NOT_ENABLED", "Ative o MFA antes de gerar novos códigos de backup");
+  }
+
+  if (!verifyTotp(row.mfa_secret, codigo)) {
+    throw new AppError(
+      400,
+      "INVALID_MFA_CODE",
+      "Código inválido. Use os 6 dígitos do autenticador (conta ATHLON mais recente).",
+    );
+  }
+
+  const backupCodes = await persistBackupCodes(usuarioId, now());
+  return { backupCodes };
+}
+
+async function persistBackupCodes(usuarioId: string, ts: string): Promise<string[]> {
+  const backupCodes: string[] = [];
 
   await execute(`DELETE FROM "MfaBackupCode" WHERE usuario_id = $1`, [usuarioId]);
 
@@ -170,12 +212,7 @@ export async function confirmarMfaSetup(usuarioId: string, codigo: string) {
     );
   }
 
-  await execute(
-    `UPDATE "Usuario" SET mfa_habilitado_em = $1::timestamptz, atualizado_em = $2::timestamp WHERE id = $3`,
-    [ts, ts, usuarioId],
-  );
-
-  return { backupCodes };
+  return backupCodes;
 }
 
 export async function desabilitarMfa(

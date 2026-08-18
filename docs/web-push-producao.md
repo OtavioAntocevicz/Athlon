@@ -1,6 +1,8 @@
 # Web Push em Produção - ATHLON
 
-Este guia explica como ativar notificações push (barra do sistema / PWA) no ambiente de produção.
+Este guia explica as notificações push (barra do sistema / PWA).
+
+**Status produção (ago/2026):** chaves VAPID no Railway, registro no login, envio `web-push` ativo. Falta só o aluno/professor aceitar a permissão no aparelho (iOS: PWA na Tela de Início).
 
 ## Pré-requisitos
 
@@ -49,13 +51,13 @@ O PWA inclui:
 
 Publique a pasta `apps/frontend/dist` em um host estático com fallback para `index.html` (SPA).
 
-## 4. Fluxo no app (aluno)
+## 4. Fluxo no app (aluno e professor)
 
-1. Aluno faz login
-2. O componente de notificações pede permissão ao navegador
+1. Usuário faz login
+2. O `AuthProvider` chama `registrarPushNotifications()` (também há um fallback no sino de notificações do aluno)
 3. O frontend busca a chave pública em `GET /api/v1/notificacoes/vapid-public-key`
 4. Cria a subscription via `PushManager` e envia para `POST /api/v1/dispositivos` (`pushProvider: WEB`). O endpoint legado `POST /notificacoes/push-token` ainda funciona.
-5. Quando o backend cria uma notificação in-app, também dispara push via `web-push`
+5. Quando o backend cria uma notificação in-app, também dispara push via `web-push` (`TTL` 24h, `urgency: high`)
 
 ## 5. Testar em produção
 

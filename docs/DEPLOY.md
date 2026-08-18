@@ -35,7 +35,7 @@ Este documento resume a arquitetura após a remoção do Supabase.
 | `NODE_ENV` | **Sim (prod)** | Deve ser `production` no Railway |
 | `RECOVERY_SHOW_CODE` | **Não em prod** | Deve ser `false` ou ausente em produção |
 | `COOKIE_DOMAIN` | Prod | Default `.athlonsport.app.br` (sessão httpOnly cross-subdomínio) |
-| `VAPID_*` | Opcional | Web Push |
+| `VAPID_*` | Produção | Web Push — já configurado no Railway (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) |
 
 \* Obrigatório para upload de arquivos.
 
