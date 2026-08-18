@@ -142,10 +142,11 @@ export async function confirmarMfaSetup(usuarioId: string, codigo: string) {
   for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
     const code = generateBackupCode();
     backupCodes.push(code);
+    const normalized = normalizeBackupCode(code);
     await execute(
-      `INSERT INTO "MfaBackupCode" (id, usuario_id, codigo_hash, criado_em)
-       VALUES ($1, $2, $3, $4)`,
-      [generateId(), usuarioId, hashValue(normalizeBackupCode(code)), ts],
+      `INSERT INTO "MfaBackupCode" (id, usuario_id, codigo, codigo_hash, criado_em)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [generateId(), usuarioId, normalized, hashValue(normalized), ts],
     );
   }
 
