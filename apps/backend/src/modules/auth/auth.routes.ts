@@ -127,6 +127,28 @@ authRouter.post(
 );
 
 authRouter.post(
+  "/mfa/backup-codes",
+  authenticate,
+  requireAdmin,
+  loginLimiter,
+  validate(confirmMfaSchema),
+  async (req, res, next) => {
+    try {
+      const data = await authService.regenerarBackupCodes(req.user!.sub, req.body.codigo);
+      await registrarAuditoriaAdmin(
+        auditoriaFromRequest(req),
+        AcoesAuditoria.MFA_BACKUP_CODES_REGENERAR,
+        "usuario",
+        req.user!.sub,
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
+
+authRouter.post(
   "/mfa/disable",
   authenticate,
   requireAdmin,

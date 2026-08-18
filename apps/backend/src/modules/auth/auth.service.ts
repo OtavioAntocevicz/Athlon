@@ -31,6 +31,7 @@ import {
   confirmarMfaSetup,
   getMfaStatus,
   iniciarMfaSetup,
+  regenerarBackupCodes,
   obterMfaSecret,
   usuarioRequerMfa,
   validarMfaCodigo,
@@ -402,7 +403,7 @@ export async function loginMfa(usuarioId: string, codigo: string) {
   return buildAuthResponse(usuarioId);
 }
 
-export { getMfaStatus, iniciarMfaSetup, confirmarMfaSetup };
+export { getMfaStatus, iniciarMfaSetup, confirmarMfaSetup, regenerarBackupCodes };
 
 export async function desabilitarMfaAdmin(
   usuarioId: string,
