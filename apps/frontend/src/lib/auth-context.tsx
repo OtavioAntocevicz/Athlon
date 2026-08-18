@@ -11,6 +11,7 @@ import { track } from "./analytics/analytics";
 import { preloadPostLoginDestination } from "./preload-post-login";
 import { markAppBootReady } from "./hide-boot-splash";
 import { setSessionLostHandler } from "./session-events";
+import { registrarPushNotifications } from "./push-notifications";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -46,6 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         markAppBootReady();
       });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.perfil !== "ALUNO" && user.perfil !== "PROFESSOR") return;
+    registrarPushNotifications().catch(() => {
+      /* permissão negada ou push indisponível */
+    });
+  }, [user]);
 
   const login = async (session: AuthSession) => {
     if (session.requiresMfa) return;

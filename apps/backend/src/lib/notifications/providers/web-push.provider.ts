@@ -18,6 +18,21 @@ function ensureVapid(): boolean {
   return true;
 }
 
+function parseWebSubscription(token: string): webpush.PushSubscription | null {
+  try {
+    const parsed = JSON.parse(token) as {
+      endpoint?: string;
+      keys?: { p256dh?: string; auth?: string };
+    };
+    if (!parsed?.endpoint || !parsed.keys?.p256dh || !parsed.keys?.auth) {
+      return null;
+    }
+    return parsed as webpush.PushSubscription;
+  } catch {
+    return null;
+  }
+}
+
 export const webPushProvider: NotificationProvider = {
   name: "web-push",
 
@@ -37,14 +52,24 @@ export const webPushProvider: NotificationProvider = {
 
     await Promise.all(
       webDevices.map(async (device) => {
+        const subscription = parseWebSubscription(device.push_token);
+        if (!subscription) {
+          await invalidarDispositivo(device.id);
+          return;
+        }
+
         try {
-          const subscription = JSON.parse(device.push_token) as import("web-push").PushSubscription;
-          await webpush.sendNotification(subscription, body);
+          await webpush.sendNotification(subscription, body, {
+            TTL: 60 * 60 * 24,
+            urgency: "high",
+          });
         } catch (err: unknown) {
           const status = (err as { statusCode?: number })?.statusCode;
-          if (status === 404 || status === 410) {
+          if (status === 404 || status === 410 || status === 403) {
             await invalidarDispositivo(device.id);
+            return;
           }
+          console.error("[web-push] falha ao enviar", status ?? err);
         }
       }),
     );

@@ -42,6 +42,10 @@ describe("push-notifications", () => {
       configurable: true,
       value: class {},
     });
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: { permission: "granted", requestPermission: vi.fn() },
+    });
 
     vi.mocked(api).mockResolvedValue({ publicKey: null });
 

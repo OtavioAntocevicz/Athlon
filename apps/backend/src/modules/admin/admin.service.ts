@@ -8,6 +8,7 @@ import {
   now,
   query,
   queryMaybeOne,
+  withTransaction,
 } from "../../lib/db.js";
 import { removerArquivoStorage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error-handler.js";
@@ -408,21 +409,23 @@ export async function excluirProfessorAdmin(professorId: string) {
     throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
   }
 
-  const turmas = await query<{ id: string }>(
-    `SELECT id FROM "Turma" WHERE professor_id = $1`,
-    [professorId],
-  );
+  return withTransaction(async () => {
+    const turmas = await query<{ id: string }>(
+      `SELECT id FROM "Turma" WHERE professor_id = $1`,
+      [professorId],
+    );
 
-  for (const turma of turmas) {
-    await excluirTurmaCascade(turma.id);
-  }
+    for (const turma of turmas) {
+      await excluirTurmaCascade(turma.id);
+    }
 
-  await execute(`DELETE FROM "Professor" WHERE id = $1`, [professorId]);
-  await execute(`DELETE FROM "Usuario" WHERE id = $1 AND perfil = 'PROFESSOR'`, [
-    prof.usuario_id,
-  ]);
+    await execute(`DELETE FROM "Professor" WHERE id = $1`, [professorId]);
+    await execute(`DELETE FROM "Usuario" WHERE id = $1 AND perfil = 'PROFESSOR'`, [
+      prof.usuario_id,
+    ]);
 
-  return { ok: true as const, nome: prof.nome, turmasExcluidas: turmas.length };
+    return { ok: true as const, nome: prof.nome, turmasExcluidas: turmas.length };
+  });
 }
 
 /**

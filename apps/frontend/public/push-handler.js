@@ -9,9 +9,11 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/logo.png",
-      badge: "/logo.png",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
       data: { url: payload.url || "/" },
+      tag: payload.url || "athlon",
+      renotify: true,
     }),
   );
 });
@@ -24,7 +26,9 @@ self.addEventListener("notificationclick", (event) => {
       const aberta = clients.find((c) => c.url.includes(self.location.origin));
       if (aberta) {
         aberta.focus();
-        aberta.navigate(url);
+        if ("navigate" in aberta) {
+          return aberta.navigate(url);
+        }
         return;
       }
       return self.clients.openWindow(url);

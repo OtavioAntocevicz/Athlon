@@ -64,7 +64,7 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 ### Web Push em produção
 
 - Código e chaves VAPID: configuração documentada em [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md).
-- **Ajuste pendente:** com VAPID no Railway e permissão aceita pelo aluno, a notificação **ainda não aparece na barra do sistema** (só o fluxo in-app, se houver). Investigar subscription (`POST /dispositivos`), Service Worker (`push-handler.js`), envio `web-push` e diferença Android/iOS/PWA.
+- **Status (ago/2026):** chaves VAPID no Railway, registro da subscription no login (aluno/professor) e envio `web-push` com TTL. A notificação da barra do sistema exige HTTPS, permissão concedida e, no iOS, PWA na Tela de Início.
 
 ### E-mail transacional (Resend)
 
@@ -125,5 +125,5 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 ### Painel ADM - exclusão de professores
 
-- Hoje o ADM pode **inativar** a conta (`PATCH /admin/professores/:id/status`) e também pela área **Edição**.
-- Melhoria ainda pendente: **exclusão definitiva** da conta (com confirmação e regras claras sobre turmas, alunos e dados vinculados).
+- O ADM pode **inativar** a conta (`PATCH /admin/professores/:id/status`) e **excluir definitivamente** (`DELETE /admin/professores/:id`) no detalhe do professor e em **Edição → Professores**.
+- A exclusão remove login, turmas e dados das turmas; alunos do sistema são preservados.

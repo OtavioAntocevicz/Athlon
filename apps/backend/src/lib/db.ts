@@ -1,7 +1,34 @@
-import type { DatabaseError } from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { DatabaseError, PoolClient } from "pg";
 import { nanoid } from "nanoid";
 import { pool } from "../config/database.js";
 import { AppError } from "../middleware/error-handler.js";
+
+const tx = new AsyncLocalStorage<PoolClient>();
+
+function db() {
+  return tx.getStore() ?? pool;
+}
+
+export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await tx.run(client, fn);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* ignore */
+    }
+    if (err instanceof AppError) throw err;
+    handleDbError(err);
+  } finally {
+    client.release();
+  }
+}
 
 export function generateId(): string {
   return nanoid();
@@ -36,7 +63,7 @@ export async function query<T = Record<string, unknown>>(
   params: unknown[] = [],
 ): Promise<T[]> {
   try {
-    const result = await pool.query(text, params);
+    const result = await db().query(text, params);
     return result.rows as T[];
   } catch (err) {
     handleDbError(err);
@@ -68,7 +95,7 @@ export async function queryMaybeOne<T = Record<string, unknown>>(
 
 export async function execute(text: string, params: unknown[] = []): Promise<number> {
   try {
-    const result = await pool.query(text, params);
+    const result = await db().query(text, params);
     return result.rowCount ?? 0;
   } catch (err) {
     handleDbError(err);

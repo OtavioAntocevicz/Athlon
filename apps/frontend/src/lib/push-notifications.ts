@@ -15,7 +15,7 @@ async function registrarDispositivoWeb(subscription: PushSubscription) {
     body: JSON.stringify({
       platform: PlatformDispositivo.WEB,
       pushProvider: PushProvider.WEB,
-      pushToken: JSON.stringify(subscription),
+      pushToken: JSON.stringify(subscription.toJSON()),
       language: navigator.language,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       notificationPermission: Notification.permission,
@@ -24,30 +24,50 @@ async function registrarDispositivoWeb(subscription: PushSubscription) {
 }
 
 export async function registrarPushNotifications(): Promise<void> {
-  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  if (
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window) ||
+    !("Notification" in window)
+  ) {
+    return;
+  }
 
   const { publicKey } = await api<{ publicKey: string | null }>(
     "/notificacoes/vapid-public-key",
   );
   if (!publicKey) return;
 
-  const permission = await Notification.requestPermission();
+  let permission = Notification.permission;
+  if (permission === "default") {
+    permission = await Notification.requestPermission();
+  }
+
   if (permission === "granted") {
     track("push_permission_granted");
-  } else if (permission === "denied") {
-    track("push_permission_denied");
+  } else {
+    if (permission === "denied") track("push_permission_denied");
     return;
   }
 
   const registration = await navigator.serviceWorker.ready;
-  let subscription = await registration.pushManager.getSubscription();
+  const applicationServerKey = urlBase64ToUint8Array(publicKey);
 
+  let subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey,
     });
   }
 
-  await registrarDispositivoWeb(subscription);
+  try {
+    await registrarDispositivoWeb(subscription);
+  } catch {
+    await subscription.unsubscribe().catch(() => undefined);
+    const nova = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey,
+    });
+    await registrarDispositivoWeb(nova);
+  }
 }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft, Search, Trash2 } from "lucide-react";
 import { api, getErrorMessage } from "@/lib/api";
 import type { AdminProfessorResumo } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageEnter } from "@/components/ui/page-enter";
+import { ConfirmExcluirModal } from "@/components/ui/confirm-excluir-modal";
 import { getInitials } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
@@ -18,6 +19,8 @@ export function AdminEdicaoProfessoresPage() {
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [erro, setErro] = useState("");
+  const [excluirAlvo, setExcluirAlvo] = useState<AdminProfessorResumo | null>(null);
+  const [erroExcluir, setErroExcluir] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "professores", busca],
@@ -40,6 +43,16 @@ export function AdminEdicaoProfessoresPage() {
     onError: (e) => setErro(getErrorMessage(e, "Erro ao atualizar status")),
   });
 
+  const excluirMutation = useMutation({
+    mutationFn: (id: string) => api(`/admin/professores/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setExcluirAlvo(null);
+      setErroExcluir("");
+      queryClient.invalidateQueries({ queryKey: ["admin"] });
+    },
+    onError: (e) => setErroExcluir(getErrorMessage(e, "Erro ao excluir professor")),
+  });
+
   return (
     <AdminShell>
       <PageEnter variant="fade">
@@ -52,8 +65,8 @@ export function AdminEdicaoProfessoresPage() {
         </button>
 
         <PageHeader
-          title="Ativar / desativar professor"
-          subtitle="Controla se o treinador pode entrar no app"
+          title="Professores"
+          subtitle="Ativar, desativar ou excluir a conta do treinador"
         />
 
         <div className="relative mb-4">
@@ -94,27 +107,71 @@ export function AdminEdicaoProfessoresPage() {
                   {p.ativo ? "Ativo" : "Inativo"}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={mutation.isPending}
-                onClick={() => {
-                  const next = !p.ativo;
-                  const msg = next
-                    ? `Reativar ${p.nome}?`
-                    : `Desativar ${p.nome}? Ele não poderá mais entrar no app.`;
-                  if (!window.confirm(msg)) return;
-                  mutation.mutate({ id: p.id, ativo: next });
-                }}
-              >
-                {p.ativo ? "Desativar" : "Reativar"}
-              </Button>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={mutation.isPending}
+                  onClick={() => {
+                    const next = !p.ativo;
+                    const msg = next
+                      ? `Reativar ${p.nome}?`
+                      : `Desativar ${p.nome}? Ele não poderá mais entrar no app.`;
+                    if (!window.confirm(msg)) return;
+                    mutation.mutate({ id: p.id, ativo: next });
+                  }}
+                >
+                  {p.ativo ? "Desativar" : "Reativar"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setErroExcluir("");
+                    setExcluirAlvo(p);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Excluir
+                </Button>
+              </div>
             </Card>
           ))}
         </div>
 
         {erro && <p className="mt-3 text-sm text-destructive">{erro}</p>}
       </PageEnter>
+
+      <ConfirmExcluirModal
+        open={!!excluirAlvo}
+        onClose={() => {
+          if (excluirMutation.isPending) return;
+          setExcluirAlvo(null);
+          setErroExcluir("");
+        }}
+        title="Excluir professor"
+        description={
+          excluirAlvo ? (
+            <>
+              <p>
+                Excluir <strong>{excluirAlvo.nome}</strong> remove permanentemente a conta
+                de login e todas as turmas deste professor.
+              </p>
+              <p className="mt-1">
+                Os alunos <strong>não</strong> são excluídos do sistema — apenas saem
+                dessas turmas.
+              </p>
+            </>
+          ) : null
+        }
+        confirmLabel="Excluir professor permanentemente"
+        isPending={excluirMutation.isPending}
+        error={erroExcluir}
+        onConfirm={() => {
+          if (excluirAlvo) excluirMutation.mutate(excluirAlvo.id);
+        }}
+      />
     </AdminShell>
   );
 }

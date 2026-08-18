@@ -56,8 +56,8 @@ const acoes = [
   {
     to: "/admin/edicao/professores",
     icon: UserCog,
-    title: "Ativar / desativar professor",
-    desc: "Controlar acesso dos treinadores",
+    title: "Professores",
+    desc: "Ativar, desativar ou excluir treinadores",
   },
   {
     to: "/admin/alunos?semTurma=true",

@@ -11,6 +11,9 @@ if (env.cronEnabled) {
 
 const server = app.listen(env.port, () => {
   console.log(`ATHLON API rodando em http://localhost:${env.port}`);
+  if (!env.vapidPublicKey || !env.vapidPrivateKey) {
+    console.warn("[web-push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY ausentes — push da barra do sistema desligado");
+  }
 });
 
 server.on("error", (err: NodeJS.ErrnoException) => {
