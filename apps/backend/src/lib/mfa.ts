@@ -150,8 +150,8 @@ export async function confirmarMfaSetup(usuarioId: string, codigo: string) {
   }
 
   await execute(
-    `UPDATE "Usuario" SET mfa_habilitado_em = $1, atualizado_em = $1 WHERE id = $2`,
-    [ts, usuarioId],
+    `UPDATE "Usuario" SET mfa_habilitado_em = $1::timestamptz, atualizado_em = $2::timestamp WHERE id = $3`,
+    [ts, ts, usuarioId],
   );
 
   return { backupCodes };
