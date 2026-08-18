@@ -9,6 +9,7 @@ import { KeyRound, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageEnter } from "@/components/ui/page-enter";
 import { getInitials } from "@/lib/format";
+import { adminPrecisaConfigurarMfa } from "@/lib/aluno-email";
 
 export function AdminPerfilPage() {
   const { user, logout } = useAuth();
@@ -25,6 +26,14 @@ export function AdminPerfilPage() {
       <PageEnter variant="fade">
         <h1 className="pt-2 text-2xl font-bold text-primary">Perfil</h1>
         <p className="text-sm text-muted-foreground">Administrador da plataforma</p>
+
+        {adminPrecisaConfigurarMfa(user) && (
+          <Card className="mt-4 border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-900">
+              Ative o MFA abaixo para acessar o restante do painel.
+            </p>
+          </Card>
+        )}
 
         <Card className="mt-6 flex items-center gap-3.5 p-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white shadow-brand-card">

@@ -82,6 +82,30 @@ export function requireAdmin(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
+/** Bloqueia rotas administrativas até o MFA estar ativo. Setup em /auth/mfa/* continua liberado. */
+export async function requireAdminMfa(req: Request, _res: Response, next: NextFunction) {
+  if (req.user?.perfil !== "ADM") {
+    return next(new AppError(403, "FORBIDDEN", "Acesso restrito a administradores"));
+  }
+
+  const { queryMaybeOne } = await import("../lib/db.js");
+  const usuario = await queryMaybeOne<{ mfa_habilitado_em: string | null }>(
+    `SELECT mfa_habilitado_em FROM "Usuario" WHERE id = $1`,
+    [req.user.sub],
+  );
+
+  if (!usuario?.mfa_habilitado_em) {
+    return next(
+      new AppError(
+        403,
+        "MFA_OBRIGATORIO",
+        "Ative a autenticação em duas etapas no perfil para usar o painel.",
+      ),
+    );
+  }
+  next();
+}
+
 export function requireProfessorOuAluno(req: Request, _res: Response, next: NextFunction) {
   if (req.user?.perfil !== "PROFESSOR" && req.user?.perfil !== "ALUNO") {
     return next(new AppError(403, "FORBIDDEN", "Acesso negado"));

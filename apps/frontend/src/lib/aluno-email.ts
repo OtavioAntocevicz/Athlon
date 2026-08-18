@@ -5,9 +5,15 @@ export function alunoPrecisaVerificarEmail(user: AuthUser | null | undefined): b
 }
 
 export function destinoPosLogin(user: AuthUser): string {
-  if (user.perfil === "ADM") return "/admin";
+  if (user.perfil === "ADM") {
+    return adminPrecisaConfigurarMfa(user) ? "/admin/perfil" : "/admin";
+  }
   if (alunoPrecisaVerificarEmail(user)) return "/verificar-email";
   return "/";
+}
+
+export function adminPrecisaConfigurarMfa(user: AuthUser | null | undefined): boolean {
+  return user?.perfil === "ADM" && user.mfaHabilitado !== true;
 }
 
 /** Rotas acessíveis ao aluno antes de confirmar o e-mail. */

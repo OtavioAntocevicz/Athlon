@@ -4,6 +4,7 @@ import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
 import {
   alunoPrecisaVerificarEmail,
   alunoPodeAcessarSemVerificacao,
+  adminPrecisaConfigurarMfa,
   destinoPosLogin,
 } from "@/lib/aluno-email";
 import type { ReactNode } from "react";
@@ -58,9 +59,13 @@ export function GuestRoute({ children }: { children: ReactNode }) {
 
 export function AdminRoute({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login/professor" replace />;
   if (user.perfil !== "ADM") return <Navigate to="/" replace />;
+  if (adminPrecisaConfigurarMfa(user) && location.pathname !== "/admin/perfil") {
+    return <Navigate to="/admin/perfil" replace />;
+  }
   return <>{children}</>;
 }
 

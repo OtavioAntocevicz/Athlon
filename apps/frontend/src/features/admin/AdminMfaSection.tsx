@@ -4,21 +4,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   confirmMfaSchema,
-  disableMfaSchema,
   type ConfirmMfaInput,
-  type DisableMfaInput,
   type MfaConfirmResponse,
   type MfaSetupResponse,
   type MfaStatus,
 } from "@athlon/shared-types";
 import { api, getErrorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Shield, ShieldCheck, ShieldOff, Copy, Check } from "lucide-react";
+import { Shield, ShieldCheck, Copy, Check } from "lucide-react";
 
 export function AdminMfaSection() {
   const queryClient = useQueryClient();
+  const { refreshUser } = useAuth();
   const [setupData, setSetupData] = useState<MfaSetupResponse | null>(null);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -45,40 +45,20 @@ export function AdminMfaSection() {
     resolver: zodResolver(confirmMfaSchema),
   });
 
-  const disableForm = useForm<DisableMfaInput>({
-    resolver: zodResolver(disableMfaSchema),
-  });
-
   const confirmMutation = useMutation({
     mutationFn: (input: ConfirmMfaInput) =>
       api<MfaConfirmResponse>("/auth/mfa/confirm", {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       setBackupCodes(data.backupCodes);
       setSetupData(null);
       confirmForm.reset();
       setMessage("MFA ativado com sucesso. Guarde os códigos de backup em local seguro.");
       setError("");
       queryClient.invalidateQueries({ queryKey: ["mfa", "status"] });
-    },
-    onError: (e) => setError(getErrorMessage(e)),
-  });
-
-  const disableMutation = useMutation({
-    mutationFn: (input: DisableMfaInput) =>
-      api<{ ok: true }>("/auth/mfa/disable", {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
-    onSuccess: () => {
-      disableForm.reset();
-      setBackupCodes(null);
-      setSetupData(null);
-      setMessage("MFA desativado.");
-      setError("");
-      queryClient.invalidateQueries({ queryKey: ["mfa", "status"] });
+      await refreshUser();
     },
     onError: (e) => setError(getErrorMessage(e)),
   });
@@ -108,7 +88,7 @@ export function AdminMfaSection() {
       <p className="mt-2 text-sm text-muted-foreground">
         {status?.habilitado
           ? `MFA ativo. Códigos de backup restantes: ${status.backupCodesRestantes}.`
-          : "Proteja sua conta de administrador com um código do aplicativo autenticador."}
+          : "Obrigatório para administradores. Escaneie o QR no autenticador para liberar o painel."}
       </p>
 
       {message && <p className="mt-3 text-sm text-green-700">{message}</p>}
@@ -183,33 +163,6 @@ export function AdminMfaSection() {
             </Button>
           </form>
         </div>
-      )}
-
-      {status?.habilitado && (
-        <form
-          onSubmit={disableForm.handleSubmit((data) => disableMutation.mutate(data))}
-          className="mt-4 space-y-3 border-t border-border pt-4"
-        >
-          <p className="text-sm font-medium text-primary">Desativar MFA</p>
-          <Input
-            type="password"
-            placeholder="Sua senha"
-            {...disableForm.register("senha")}
-          />
-          <Input
-            placeholder="Código MFA ou backup"
-            {...disableForm.register("codigo")}
-          />
-          <Button
-            type="submit"
-            variant="outline"
-            className="w-full text-destructive hover:text-destructive"
-            disabled={disableMutation.isPending}
-          >
-            <ShieldOff className="h-4 w-4" />
-            {disableMutation.isPending ? "Desativando..." : "Desativar MFA"}
-          </Button>
-        </form>
       )}
     </Card>
   );

@@ -29,6 +29,8 @@ export interface AuthUser {
   alunoId?: string;
   /** Alunos precisam confirmar o e-mail antes de entrar em turmas. */
   emailVerificado?: boolean;
+  /** Admin: MFA TOTP ativo. Sem isso o painel fica bloqueado. */
+  mfaHabilitado?: boolean;
   chavePix?: string | null;
   aluno?: AlunoPerfilDados | null;
 }

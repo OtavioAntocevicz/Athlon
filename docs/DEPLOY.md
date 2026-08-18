@@ -71,7 +71,16 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 ### Registro.br / Cloudflare
 
 - `athlonsport.app.br` → Vercel (já configurado)
-- `api.athlonsport.app.br` → Railway (CNAME do serviço)
+- `api.athlonsport.app.br` → Railway (domínio já criado no serviço; **falta o DNS no Registro.br**)
+
+Registros a criar no Registro.br (DNS `sec.dns.br`):
+
+| Tipo | Nome | Valor |
+|------|------|--------|
+| CNAME | `api` | `ho3bz87i.up.railway.app` |
+| TXT | `_railway-verify.api` | `railway-verify=977ed0503e204c3abe7e03fc21a296931d308dedb68e50082a39b3b1f2576d72` |
+
+Não aponte o proxy da Vercel para `api.athlonsport.app.br` enquanto o DNS não resolver (`dig api.athlonsport.app.br`). Até lá o rewrite usa `athlonbackend-production.up.railway.app`.
 - Resend: registros SPF, DKIM, DMARC para `athlonsport.app.br`
 
 ### Cloudflare R2
