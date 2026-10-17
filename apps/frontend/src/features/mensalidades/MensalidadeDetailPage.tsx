@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Copy, Upload, FileCheck, Banknote } from "lucide-react";
@@ -10,6 +10,9 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { QueryError } from "@/components/ui/query-error";
+import { StepIndicator } from "@/components/ui/step-indicator";
+import { useToast } from "@/components/ui/toast";
+import { copyTextWithToast } from "@/lib/copy-with-toast";
 import type { InadimplenciaPrevisao, StatusMensalidade } from "@athlon/shared-types";
 
 interface MensalidadeDetail {
@@ -32,8 +35,21 @@ export function MensalidadeDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const [uploadStep, setUploadStep] = useState(1);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const uploadSteps = useMemo(
+    () => [
+      { id: 1, label: "PIX" },
+      { id: 2, label: "Arquivo" },
+      { id: 3, label: "Enviar" },
+    ],
+    [],
+  );
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["mensalidade", id],
@@ -64,26 +80,43 @@ export function MensalidadeDetailPage() {
         throw new Error("Arquivo muito grande. Máximo 8 MB.");
       }
 
-      const { fileToBase64 } = await import("@/lib/file-to-base64");
-      const dataBase64 = await fileToBase64(file);
+      const signed = await api<{ uploadUrl: string; arquivoUrl: string }>(
+        `/mensalidades/${id}/comprovante/upload-url`,
+        { method: "POST", body: JSON.stringify({ contentType }) },
+      );
 
-      await api(`/mensalidades/${id}/comprovante/upload`, {
+      const putRes = await fetch(signed.uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
+      });
+      if (!putRes.ok) throw new Error("Falha ao enviar o arquivo. Tente novamente.");
+
+      await api(`/mensalidades/${id}/comprovante`, {
         method: "POST",
-        body: JSON.stringify({ contentType, dataBase64 }),
+        body: JSON.stringify({ arquivoUrl: signed.arquivoUrl }),
       });
     },
     onSuccess: () => {
       setMessage("Comprovante enviado! Aguardando aprovação.");
+      setUploadStep(1);
+      setSelectedFile(null);
+      setPreviewUrl(null);
       queryClient.invalidateQueries({ queryKey: ["mensalidade", id] });
       queryClient.invalidateQueries({ queryKey: ["mensalidades"] });
+      toast("Comprovante enviado!", "success");
     },
     onError: (e) => setMessage(getErrorMessage(e, "Erro no upload")),
     onSettled: () => setUploading(false),
   });
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) uploadMutation.mutate(file);
+    if (!file) return;
+    setSelectedFile(file);
+    setPreviewUrl(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    setUploadStep(3);
+    setMessage("");
   };
 
   if (isLoading) {
@@ -145,7 +178,7 @@ export function MensalidadeDetailPage() {
           <Button
             variant="secondary"
             className="mt-4 w-full"
-            onClick={() => navigator.clipboard.writeText(data.chavePix!)}
+            onClick={() => void copyTextWithToast(data.chavePix!, toast, "PIX copiado!")}
           >
             <Copy className="h-4 w-4" /> Copiar PIX
           </Button>
@@ -205,23 +238,71 @@ export function MensalidadeDetailPage() {
         )}
 
         {canUpload && (
-          <>
+          <div className="mt-6 border-t border-primary/10 pt-4">
+            <p className="mb-3 text-sm font-semibold text-primary">Enviar comprovante</p>
+            <StepIndicator steps={uploadSteps} current={uploadStep} className="mb-4" />
             <input
               ref={fileRef}
               type="file"
               accept="image/*,application/pdf"
               className="hidden"
-              onChange={handleFile}
+              onChange={handleFilePick}
             />
-            <Button
-              className="mt-3 w-full"
-              disabled={uploading}
-              onClick={() => fileRef.current?.click()}
-            >
-              <Upload className="h-4 w-4" />
-              {uploading ? "Enviando..." : "Enviar comprovante"}
-            </Button>
-          </>
+            {uploadStep === 1 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  1. Copie o PIX e pague no app do banco.
+                </p>
+                <Button className="w-full" onClick={() => setUploadStep(2)}>
+                  Já paguei — escolher arquivo
+                </Button>
+              </div>
+            )}
+            {uploadStep === 2 && (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  2. Selecione foto ou PDF do comprovante (até 8 MB).
+                </p>
+                <Button variant="secondary" className="w-full" onClick={() => fileRef.current?.click()}>
+                  <Upload className="h-4 w-4" /> Escolher arquivo
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => setUploadStep(1)}>
+                  Voltar
+                </Button>
+              </div>
+            )}
+            {uploadStep === 3 && selectedFile && (
+              <div className="space-y-3">
+                {previewUrl && (
+                  <img
+                    src={previewUrl}
+                    alt="Prévia do comprovante"
+                    className="max-h-48 w-full rounded-lg border object-contain"
+                  />
+                )}
+                <p className="text-sm text-muted-foreground truncate">{selectedFile.name}</p>
+                <Button
+                  className="w-full"
+                  disabled={uploading}
+                  onClick={() => uploadMutation.mutate(selectedFile)}
+                >
+                  {uploading ? "Enviando..." : "Confirmar envio"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={uploading}
+                  onClick={() => {
+                    setUploadStep(2);
+                    setSelectedFile(null);
+                    setPreviewUrl(null);
+                  }}
+                >
+                  Trocar arquivo
+                </Button>
+              </div>
+            )}
+          </div>
         )}
 
         {message && <p className="mt-3 text-sm text-center text-muted-foreground">{message}</p>}

@@ -18,6 +18,8 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageEnter } from "@/components/ui/page-enter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { QueryError } from "@/components/ui/query-error";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import { FilterPills } from "@/components/domain/FilterPills";
 
 const filtros = [
@@ -37,7 +39,7 @@ export function AdminChamadosPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["admin", "chamados", status],
     queryFn: () => {
       const qs = status ? `?status=${status}` : "";
@@ -51,13 +53,17 @@ export function AdminChamadosPage() {
         <PageHeader title="Chamados" subtitle="Suporte aberto por alunos e treinadores" />
         <FilterPills options={filtros} value={status} onChange={setStatus} />
 
-        <div className="mt-4 space-y-2.5">
-          {isLoading &&
-            [1, 2, 3].map((i) => (
-              <div key={i} className="h-16 animate-pulse rounded-xl bg-muted" />
-            ))}
+        {isError && (
+          <QueryError
+            message={getErrorMessage(error, "Não foi possível carregar chamados.")}
+            onRetry={() => void refetch()}
+          />
+        )}
 
-          {!isLoading && (data?.length ?? 0) === 0 && (
+        <div className="mt-4 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+          {isLoading && <ListSkeleton rows={4} rowClassName="h-16" />}
+
+          {!isLoading && !isError && (data?.length ?? 0) === 0 && (
             <Card className="flex flex-col items-center p-8 text-center">
               <MessageSquare className="mb-3 h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Nenhum chamado neste filtro.</p>

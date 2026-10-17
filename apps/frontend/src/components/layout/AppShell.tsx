@@ -10,7 +10,7 @@ interface AppShellProps {
 
 export function AppShell({ children, showNav = true, showHeader = true }: AppShellProps) {
   return (
-    <div className="mx-auto min-h-screen max-w-mobile bg-background">
+    <div className="mx-auto min-h-screen w-full max-w-mobile bg-background lg:max-w-2xl">
       {showHeader && <Header />}
       <main className={showNav ? "pb-24 px-4" : "px-4"}>{children}</main>
       {showNav && <BottomNav />}

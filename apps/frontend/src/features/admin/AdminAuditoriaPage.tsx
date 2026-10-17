@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AuditoriaAdminLista } from "@athlon/shared-types";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
+import { QueryError } from "@/components/ui/query-error";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -35,7 +37,7 @@ export function AdminAuditoriaPage() {
   const [acao, setAcao] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["admin", "auditoria", acao, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: "30" });
@@ -63,13 +65,17 @@ export function AdminAuditoriaPage() {
           }}
         />
 
-        <div className="mt-4 space-y-2.5">
-          {isLoading &&
-            [1, 2, 3].map((i) => (
-              <div key={i} className="h-20 animate-pulse rounded-xl bg-muted" />
-            ))}
+        {isError && (
+          <QueryError
+            message={getErrorMessage(error, "Não foi possível carregar a auditoria.")}
+            onRetry={() => void refetch()}
+          />
+        )}
 
-          {!isLoading && (data?.items.length ?? 0) === 0 && (
+        <div className="mt-4 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+          {isLoading && <ListSkeleton rows={4} rowClassName="h-20" />}
+
+          {!isLoading && !isError && (data?.items.length ?? 0) === 0 && (
             <Card className="flex flex-col items-center gap-2 p-8 text-center">
               <ScrollText className="h-8 w-8 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Nenhum registro encontrado</p>

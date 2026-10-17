@@ -168,9 +168,43 @@ export async function listarProfessores(filtros?: { busca?: string; ativo?: bool
     params,
   );
 
+  const profIds = rows.map((r) => r.id);
+  const turmasPorProf = new Map<string, number>();
+  const alunosPorProf = new Map<string, number>();
+
+  if (profIds.length > 0) {
+    const turmaRows = await query<{ professor_id: string; count: string }>(
+      `SELECT professor_id, COUNT(*)::text AS count
+       FROM "Turma"
+       WHERE professor_id = ANY($1::text[])
+       GROUP BY professor_id`,
+      [profIds],
+    );
+    for (const t of turmaRows) turmasPorProf.set(t.professor_id, Number(t.count) || 0);
+
+    const alunoRows = await query<{ professor_id: string; count: string }>(
+      `SELECT t.professor_id, COUNT(DISTINCT m.aluno_id)::text AS count
+       FROM "MatriculaTurma" m
+       JOIN "Turma" t ON t.id = m.turma_id
+       WHERE t.professor_id = ANY($1::text[]) AND m.afastado = false
+       GROUP BY t.professor_id`,
+      [profIds],
+    );
+    for (const a of alunoRows) alunosPorProf.set(a.professor_id, Number(a.count) || 0);
+  }
+
   const items = [];
   for (const row of rows) {
-    const resumo = await buildProfessorResumo(row);
+    const resumo = {
+      id: row.id,
+      usuarioId: row.usuario_id,
+      nome: row.usuario_nome,
+      email: row.usuario_email,
+      ativo: row.usuario_ativo,
+      totalTurmas: turmasPorProf.get(row.id) ?? 0,
+      totalAlunos: alunosPorProf.get(row.id) ?? 0,
+      criadoEm: new Date(row.usuario_criado_em).toISOString(),
+    };
 
     if (filtros?.busca) {
       const termo = filtros.busca.toLowerCase();
@@ -469,23 +503,42 @@ export async function excluirAlunoAdmin(alunoId: string) {
 }
 
 async function statusFinanceiroAluno(alunoId: string): Promise<string> {
-  const hoje = new Date();
-  const pagamentos = (
-    await query<{
-      status: string;
-      mes_referencia: string;
-      vencimento: string | null;
-    }>(
-      `SELECT status, mes_referencia, vencimento
-       FROM "Pagamento"
-       WHERE aluno_id = $1
-       ORDER BY mes_referencia DESC`,
-      [alunoId],
-    )
-  ).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
+  const map = await statusFinanceiroPorAlunos([alunoId]);
+  return map.get(alunoId) ?? "PENDENTE";
+}
 
-  const ultimo = pagamentos[0];
-  return ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE";
+async function statusFinanceiroPorAlunos(alunoIds: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (alunoIds.length === 0) return result;
+
+  const hoje = new Date();
+  const rows = await query<{
+    aluno_id: string;
+    status: string;
+    mes_referencia: string;
+    vencimento: string | null;
+  }>(
+    `SELECT aluno_id, status, mes_referencia, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = ANY($1::text[])
+     ORDER BY mes_referencia DESC`,
+    [alunoIds],
+  );
+
+  const porAluno = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = porAluno.get(row.aluno_id) ?? [];
+    list.push(row);
+    porAluno.set(row.aluno_id, list);
+  }
+
+  for (const id of alunoIds) {
+    const pagamentos = (porAluno.get(id) ?? []).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
+    const ultimo = pagamentos[0];
+    result.set(id, ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE");
+  }
+
+  return result;
 }
 
 export async function listarAlunosAdmin(filtros?: {
@@ -530,6 +583,8 @@ export async function listarAlunosAdmin(filtros?: {
   const termo = filtros?.busca?.trim().toLowerCase() ?? "";
   const termoDigits = termo.replace(/\D/g, "");
 
+  const statusMap = await statusFinanceiroPorAlunos(alunos.map((a) => a.id));
+
   const items = [];
   for (const aluno of alunos) {
     const turmas = turmasPorAluno.get(aluno.id) ?? [];
@@ -558,7 +613,7 @@ export async function listarAlunosAdmin(filtros?: {
       cpf: aluno.cpf,
       rg: aluno.rg,
       turmas,
-      statusFinanceiro: await statusFinanceiroAluno(aluno.id),
+      statusFinanceiro: statusMap.get(aluno.id) ?? "PENDENTE",
       semTurma,
     });
   }

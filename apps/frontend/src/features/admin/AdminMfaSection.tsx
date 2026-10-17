@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormReturn } from "react-hook-form";
+import { Controller, useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   confirmMfaSchema,
@@ -14,6 +14,8 @@ import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { OtpInput } from "@/components/ui/otp-input";
+import { StepIndicator } from "@/components/ui/step-indicator";
 import { Shield, ShieldCheck, Copy, Check } from "lucide-react";
 
 export function AdminMfaSection() {
@@ -106,6 +108,18 @@ export function AdminMfaSection() {
         )}
         <h2 className="font-semibold text-primary">Autenticação em duas etapas (MFA)</h2>
       </div>
+
+      {!status?.habilitado && (
+        <StepIndicator
+          className="mt-4"
+          current={backupCodes ? 3 : setupData || setupPendente ? 2 : 1}
+          steps={[
+            { id: 1, label: "QR" },
+            { id: 2, label: "Confirmar" },
+            { id: 3, label: "Backup" },
+          ]}
+        />
+      )}
 
       <p className="mt-2 text-sm text-muted-foreground">
         {status?.habilitado
@@ -241,16 +255,15 @@ function ConfirmMfaForm({
         <label htmlFor="mfa-codigo" className="mb-1.5 block text-sm font-medium">
           Código de verificação
         </label>
-        <Input
-          id="mfa-codigo"
-          placeholder="000000"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={6}
-          {...confirmForm.register("codigo")}
+        <Controller
+          control={confirmForm.control}
+          name="codigo"
+          render={({ field }) => (
+            <OtpInput value={field.value} onChange={field.onChange} disabled={confirmMutation.isPending} />
+          )}
         />
         {confirmForm.formState.errors.codigo && (
-          <p className="mt-1 text-sm text-destructive">
+          <p className="mt-2 text-center text-sm text-destructive">
             {confirmForm.formState.errors.codigo.message}
           </p>
         )}
