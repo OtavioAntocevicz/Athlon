@@ -10,6 +10,9 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 - **Documentação sincronizada** com a `main` pós-PRs #16–#43: índice no `README.md`, guias Play Store, `WHITELIST.md` e referência em [DOCUMENTACAO.md §21.4](./DOCUMENTACAO.md#214-estado-do-repositório-e-prs-mescladas-out2026).
 - **PRs obsoletas fechadas:** [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) (ícones PWA) e [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) (checklist Play Store) — conteúdo já incorporado na `main`.
+- **[#44](https://github.com/OtavioAntocevicz/Athlon/pull/44)** — segunda passagem de docs (`README`, `DOCUMENTACAO`, `DEPLOY`, `WHITELIST`, `Melhoria`, Play Store, `apps/mobile`).
+- **[#45](https://github.com/OtavioAntocevicz/Athlon/pull/45)** — primeira onda UX: estados vazios/skeleton/toast/OTP; avisos do aluno (`GET /alunos/meus-avisos`); bottom nav e turma com abas; melhorias em mensalidades/comprovantes; API com paginação de notificações e validação de query.
+- **[#46](https://github.com/OtavioAntocevicz/Athlon/pull/46)** — [DESIGN.md](./DESIGN.md); fila de comprovantes com `previewUrl` e ações rápidas; upload aluno via `upload-url` + stepper; admin desktop (grid + erro/skeleton); MFA ADM com `StepIndicator`; batch de contagens em `listarProfessores` / status financeiro em `listarAlunosAdmin`; eventos do aluno com filtro passados/próximos.
 
 ## Concluído recentemente (ago/2026)
 
@@ -95,8 +98,8 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 ### Eventos de turma
 
-- Histórico de eventos passados visível para o aluno (hoje somem das listas após a data).
-- Notificação ao editar evento (hoje só dispara na criação).
+- **Entregue (#46):** aluno vê passados em `/eventos` (filtros Próximos / Passados / Todos).
+- **Pendente:** notificação ao editar evento (hoje só dispara na criação).
 
 ### BottomNav do aluno
 
@@ -120,13 +123,13 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 - **Entregue:** ao aprovar ou recusar, o arquivo é removido do R2 e `arquivo_url` é limpo (`null`).
 - Falha ao apagar o R2 é só logada - a aprovação/recusa do pagamento não é bloqueada.
-- Listagens (fila/mensalidades) não geram signed URL por item; preview fica no detalhe.
+- **Entregue (#46):** fila do professor expõe `previewUrl` para imagens; mensalidades continuam sem signed URL por item na listagem.
+- **Entregue (#46):** aluno envia via URL assinada de escrita (stepper na mensalidade); rota legada base64 permanece para compatibilidade.
 
-### Otimização N+1 (PostgreSQL) - adiado
+### Otimização N+1 (PostgreSQL)
 
-- **Adiado até volume real de matrículas/usuários.**
-- Candidatos: `sincronizarBloqueiosInadimplencia` (query por matrícula), `listarAlunos` / admin (status financeiro por aluno), loops de notificação em crons/avisos/eventos.
-- Não implementar agora: infraestrutura ainda folgada com poucos usuários.
+- **Entregue (#46):** `listarProfessores` (contagem de turmas/alunos em batch) e `listarAlunosAdmin` (`statusFinanceiroPorAlunos` em batch).
+- **Ainda adiado:** `sincronizarBloqueiosInadimplencia` (query por matrícula), outros loops em crons/avisos/eventos até volume real de usuários.
 
 ### Notificação de nova mensalidade
 

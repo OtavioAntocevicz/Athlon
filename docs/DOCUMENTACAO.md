@@ -698,7 +698,9 @@ Usuario (1) ── (N) Chamado
 - Envio → `EM_ANALISE`; aprovação → `PAGO`; recusa → `RECUSADO`.
 - Sem R2 configurado, uploads retornam erro 503 (`STORAGE_UNAVAILABLE`).
 - Após **aprovar** ou **recusar**, o arquivo é removido do R2 e `arquivo_url` fica `null`.
-- URL assinada de leitura só no **detalhe** do comprovante (fila/listagens não geram signed URL por item).
+- URL assinada de leitura no **detalhe** do comprovante; na **fila** (`GET /comprovantes/fila`) o campo `previewUrl` traz thumbnail assinada para imagens (PDF não gera preview).
+- **Aluno (UI):** envio preferencial em 3 passos — copiar PIX → escolher arquivo → `POST .../upload-url`, PUT no R2, `POST .../comprovante` com `arquivoUrl` (`StepIndicator` na tela da mensalidade).
+- **Professor (UI):** fila com preview, aprovação rápida e atalho para revisar no detalhe.
 
 ### Turmas
 
@@ -721,8 +723,8 @@ Usuario (1) ── (N) Chamado
 - `permite_confirmacao_aluno` sempre `false` - **sem RSVP**; é apenas aviso informativo.
 - Exclusão é soft delete (`ativo = false`).
 - Ao criar, notificação `EVENTO_TURMA` para todos alunos ativos da turma (in-app + push).
-- **Aluno:** card "Próximo evento" no dashboard (o mais próximo entre todas as turmas); lista "Próximos eventos" na tela da turma.
-- Eventos passados somem das listas do aluno; o professor ainda vê passados para editar/excluir.
+- **Aluno:** card "Próximo evento" no dashboard (o mais próximo entre todas as turmas); lista "Próximos eventos" na tela da turma; página `/eventos` com filtros **Próximos**, **Passados** e **Todos** (`passado` na API agregada `GET /eventos`).
+- **Professor:** lista agregada em `/eventos` e passados permanecem no detalhe da turma para editar/excluir.
 - Implementação: `apps/backend/src/modules/eventos/eventos.service.ts`, migration `20250705000000_eventos_turma.sql`.
 
 ---
@@ -1246,7 +1248,7 @@ Documentadas em `docs/Melhoria.md`:
 ### Otimização de requests
 
 - Polling de notificações: 180s; React Query `staleTime` 90s e `refetchOnWindowFocus: false`
-- Signed URL de comprovante só no detalhe (não na fila/listagem)
+- Signed URL de comprovante no detalhe; na fila do professor, `previewUrl` só para imagens (evita N signed URLs em listagens de mensalidades)
 
 ### Onboarding iOS (PWA)
 
@@ -1293,7 +1295,7 @@ Migração completa de Supabase para **Railway + Cloudflare R2**. Detalhes em [D
 
 ### 21.4 Estado do repositório e PRs mescladas (out/2026)
 
-A branch `main` reflete o produto em **https://athlonsport.app.br** após as entregas mescladas até a PR **#43** (18/08/2026). Use esta seção como mapa rápido; detalhes operacionais da Play Store ficam em [WHITELIST.md](./WHITELIST.md).
+A branch `main` reflete o produto em **https://athlonsport.app.br** após as entregas mescladas até a PR **#46**. Use esta seção como mapa rápido; detalhes operacionais da Play Store ficam em [WHITELIST.md](./WHITELIST.md). Padrões de UI: [DESIGN.md](./DESIGN.md).
 
 | Faixa / PRs | Tema principal |
 |-------------|----------------|
@@ -1308,10 +1310,19 @@ A branch `main` reflete o produto em **https://athlonsport.app.br** após as ent
 | #41 | Web Push real + exclusão definitiva de professor |
 | #42 | Screenshots Play Store (telas públicas 1080×1920) |
 | #43 | `WHITELIST.md`, `play-store-ficha.md`, regenerar códigos MFA |
+| #44 | Docs sincronizadas (`README`, `DOCUMENTACAO`, deploy, Play Store, mobile) |
+| #45 | UX PWA: `EmptyState`, skeleton, toast, OTP login; avisos aluno (`/meus-avisos`); admin header; turma com abas; API paginação/validação |
+| #46 | `DESIGN.md`; fila comprovantes (preview + ações); upload stepper R2; admin grid desktop; MFA wizard; batch N+1 em listagens admin |
 
 **PRs fechadas sem merge (obsoletas):** [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) (ícones — coberto por #24), [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) (checklist — coberto por #42/#43).
 
 **Próximo ciclo de desenvolvimento:** partir da `main` atual; backlog em [Melhoria.md](./Melhoria.md).
+
+### 21.5 UI e componentes compartilhados (out/2026, #45–#46)
+
+- Guia visual: [DESIGN.md](./DESIGN.md) (tokens Tailwind, layout `AppShell` até `lg:max-w-2xl`, padrão lista admin).
+- Componentes reutilizáveis em `apps/frontend/src/components/ui/`: `empty-state`, `skeleton` (`ListSkeleton`), `query-error`, `toast`, `otp-input`, `segmented-tabs`, `step-indicator`.
+- Listas admin (alunos, professores, auditoria, chamados): `QueryError` + `ListSkeleton` + grid `lg:grid-cols-2`.
 
 ---
 
@@ -1365,4 +1376,5 @@ Para dúvidas técnicas sobre deploy, consulte também:
 - `docs/WHITELIST.md` - pendências operacionais (Play Store)
 - `docs/play-store-mobile.md` - lançamento Android
 - `docs/web-push-producao.md` - push em produção
+- `docs/DESIGN.md` - guia visual e padrões de UI
 - `docs/Melhoria.md` - backlog de melhorias
