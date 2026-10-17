@@ -3,7 +3,7 @@
 Lista do que **ainda precisa de você** (conta Google Play, celular, testers, Expo).
 O código e os textos prontos ficam no repositório; o que está aqui não dá para o agente concluir sozinho.
 
-Atualizado em agosto/2026. Marque os itens na Play Console e volte neste arquivo.
+Atualizado em **outubro/2026**. Marque os itens na Play Console e volte neste arquivo.
 
 Guia completo da loja: [play-store-mobile.md](./play-store-mobile.md).
 Textos para colar: [play-store-ficha.md](./play-store-ficha.md).
@@ -95,12 +95,14 @@ Push no iOS só com PWA na Tela de Início. No app da Play Store o Web Push é l
 
 ---
 
-## PRs antigos (pode fechar depois desta whitelist)
+## Histórico de PRs obsoletas (fechadas)
 
-| PR | Assunto | Nota |
-|----|---------|------|
-| #25 | Checklist Play Store | Conteúdo útil veio para `main` via esta entrega (ficha, feature graphic, guia). Pode fechar após o merge. |
-| #16 | Ícones PWA 192/512 | Obsoleto: os ícones já estão no `main`. |
+| PR | Assunto | Status |
+|----|---------|--------|
+| [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) | Checklist Play Store | **Fechada** (out/2026). Conteúdo na `main` via [#42](https://github.com/OtavioAntocevicz/Athlon/pull/42), [#43](https://github.com/OtavioAntocevicz/Athlon/pull/43) e guias atuais. |
+| [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) | Ícones PWA 192/512 | **Fechada** (out/2026). Ícones quadrados na `main` via [#24](https://github.com/OtavioAntocevicz/Athlon/pull/24). |
+
+O repositório está alinhado com as PRs mescladas até **#43** (ago/2026). Próximo desenvolvimento parte desta `main`.
 
 ---
 

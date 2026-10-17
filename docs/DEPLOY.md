@@ -43,9 +43,14 @@ Este documento resume a arquitetura após a remoção do Supabase.
 
 | Variável | Valor |
 |----------|-------|
-| `VITE_API_URL` | `https://api.athlonsport.app.br/api/v1` |
+| `VITE_API_URL` | `https://api.athlonsport.app.br/api/v1` (opcional em preview; o build de produção usa `/api/v1` relativo — ver abaixo) |
 
 **Não** configure variáveis de backend na Vercel.
+
+O `vercel.json` na raiz define:
+
+- **Build:** `VITE_API_URL=/api/v1` — o browser chama o mesmo domínio (`athlonsport.app.br`) e a Vercel faz proxy para o Railway.
+- **Rewrites:** `/api/v1/*` e `/api/cron/*` → `https://api.athlonsport.app.br/...`
 
 ## Banco de dados
 

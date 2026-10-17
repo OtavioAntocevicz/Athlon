@@ -13,6 +13,8 @@ Não há UI duplicada em Kotlin/Java. O projeto fica em `apps/mobile` (Expo + Re
 Pendências que só o dono consegue concluir: [WHITELIST.md](./WHITELIST.md).
 Textos prontos para colar na Console: [play-store-ficha.md](./play-store-ficha.md).
 
+Screenshots públicos (1080×1920): `apps/mobile/store-assets/screenshots/` (PR #42). Telas logadas ainda pendentes — ver [WHITELIST.md](./WHITELIST.md).
+
 ---
 
 ## Por que WebView?
