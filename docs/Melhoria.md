@@ -6,6 +6,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 ---
 
+## Concluído recentemente (out/2026)
+
+- **Documentação sincronizada** com a `main` pós-PRs #16–#43: índice no `README.md`, guias Play Store, `WHITELIST.md` e referência em [DOCUMENTACAO.md §21.4](./DOCUMENTACAO.md#214-estado-do-repositório-e-prs-mescladas-out2026).
+- **PRs obsoletas fechadas:** [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) (ícones PWA) e [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) (checklist Play Store) — conteúdo já incorporado na `main`.
+
 ## Concluído recentemente (ago/2026)
 
 - **Migração de infraestrutura:** Supabase → Railway (PostgreSQL) + Cloudflare R2 + API separada (`api.athlonsport.app.br`)
@@ -21,7 +26,11 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 - **Web Push:** VAPID no Railway; subscription no login; notificação na barra do sistema (PWA / HTTPS)
 - **Exclusão definitiva de professor:** detalhe do professor e Edição → Professores (`DELETE /admin/professores/:id`)
 - **MFA obrigatório no ADM:** um QR só até confirmar; códigos de backup consultáveis na tabela `"MfaBackupCode"`; regenerar códigos em `/admin/perfil`
-- **API:** proxy da Vercel em `https://api.athlonsport.app.br`
+- **API:** subdomínio `api.athlonsport.app.br` (Railway) + proxy na Vercel (`/api/v1`, `/api/cron`)
+- **Segurança (PRs #26–#30):** rate limit, validação de origem, cookies httpOnly com rotação de refresh (`Sessao`), endurecimento de CORS/CRON
+- **MFA + auditoria ADM (#29–#39):** TOTP obrigatório, log em `AuditoriaAdmin`, tela **Edição → Log de auditoria**
+- **Play Store no repo (#42–#43):** screenshots públicos 1080×1920, `play-store-ficha.md`, `WHITELIST.md` operacional
+- **Ícones PWA (#24):** `icon-192.png` / `icon-512.png` quadrados a partir de `logo.png`
 
 ## Concluído recentemente (jul/2026)
 
@@ -69,8 +78,8 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 ### Web Push em produção
 
-- Código e chaves VAPID: configuração documentada em [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md).
-- **Status (ago/2026):** chaves VAPID no Railway, registro da subscription no login (aluno/professor) e envio `web-push` com TTL. A notificação da barra do sistema exige HTTPS, permissão concedida e, no iOS, PWA na Tela de Início.
+- **Status:** entregue em produção (ago/2026, refinado na [#41](https://github.com/OtavioAntocevicz/Athlon/pull/41)). Configuração: [config-resend-web-push.md](./config-resend-web-push.md) (Parte B) e [web-push-producao.md](./web-push-producao.md).
+- Requisitos do usuário: HTTPS, permissão concedida; no iOS, PWA na Tela de Início. No app da Play Store o push nativo (FCM) continua como fase 2.
 
 ### E-mail transacional (Resend)
 

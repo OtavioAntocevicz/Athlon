@@ -1,7 +1,7 @@
 # ATHLON - Documentação Completa do Projeto
 
 > Versão do projeto: **1.7.1**  
-> Última atualização deste documento: agosto/2026  
+> Última atualização deste documento: outubro/2026  
 > Software proprietário - ver `LICENSE`
 
 > **Infraestrutura atual (pós-migração):** Frontend na Vercel, API + PostgreSQL + crons no Railway, storage no Cloudflare R2, e-mail via Resend. Guia de deploy: [DEPLOY.md](./DEPLOY.md).
@@ -331,6 +331,7 @@ Navegador (athlonsport.app.br)
    - Trocar aluno de turma
    - Desbloquear inadimplência
    - Professores: ativar, desativar **ou excluir** a conta
+   - **Log de auditoria** (`/admin/auditoria`) — ações registradas em `AuditoriaAdmin`
    - Atalho para alunos sem turma
 10. Perfil (/admin/perfil) - MFA obrigatório, alterar senha, logout
 11. BottomNav: Profs | Alunos | Início | Edição | Perfil
@@ -421,6 +422,7 @@ Arquivo: `apps/frontend/src/app/router.tsx`
 | `/admin/edicao/professores` | AdminEdicaoProfessoresPage | Ativar, desativar ou excluir professor |
 | `/admin/chamados` | AdminChamadosPage | Lista de chamados (ADM) |
 | `/admin/chamados/:id` | AdminChamadoDetailPage | Responder chamado |
+| `/admin/auditoria` | AdminAuditoriaPage | Log de auditoria (filtro por ação, paginado) |
 | `/admin/perfil` | AdminPerfilPage | Perfil do ADM |
 
 ### Navegação inferior (`BottomNav.tsx` / `AdminBottomNav.tsx`)
@@ -484,6 +486,7 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | POST | `/alunos/:id/afastar` | `{ turmaId }` remover da turma |
 | POST | `/alunos/:id/trocar-turma` | `{ turmaOrigemId, turmaDestinoId }` |
 | POST | `/alunos/:id/desbloquear` | `{ turmaId }` liberar bloqueio de inadimplência |
+| GET | `/auditoria` | Lista eventos de auditoria (`?acao`, `?page`, `?limit`) |
 
 ### Turmas - `/api/v1/turmas` (Professor)
 
@@ -609,6 +612,15 @@ CRUD por turma continua em `/api/v1/turmas/:id/eventos`.
 
 Para banco novo, o schema completo está em `apps/backend/migrations/001_schema.sql` (inclui tabelas, índices, enums e dados iniciais).
 
+| Arquivo | Conteúdo |
+|---------|----------|
+| `001_schema.sql` | Schema base |
+| `002_fix_vencimento_pagamentos.sql` | Correção de vencimento |
+| `003_email_verificacao.sql` | `Usuario.email_verificado_em` (aluno) |
+| `004_sessao_refresh_token.sql` | Tabela `Sessao` (refresh opaco + rotação) |
+| `005_mfa_auditoria.sql` | MFA ADM (`MfaBackupCode`, `AuditoriaAdmin`) |
+| `006_mfa_backup_codigo.sql` | Coluna `codigo` em `MfaBackupCode` (consulta backup) |
+
 ### Diagrama de relacionamentos
 
 ```
@@ -644,6 +656,9 @@ Usuario (1) ── (N) Chamado
 | `AvisoProfessor` | Avisos do professor para turma |
 | `Evento` | Amistosos e campeonatos por turma (avisos informativos) |
 | `Chamado` | Suporte aluno/professor → ADM |
+| `Sessao` | Refresh token opaco (rotação, revogação) |
+| `MfaBackupCode` | Códigos de backup do MFA ADM (`codigo` consultável no banco) |
+| `AuditoriaAdmin` | Log de ações administrativas sensíveis |
 | `Presenca` | Preparado para futuro (chamada/RSVP) |
 
 ### Segurança do banco
@@ -771,12 +786,14 @@ Endpoints manuais (opcional, com `CRON_SECRET`): `GET /api/cron/avisos`, `/diari
 
 - Senhas com **bcrypt** (12 rounds).
 - Tokens JWT com secrets separados (access e refresh).
+- **Sessão httpOnly:** refresh opaco em cookie (`COOKIE_DOMAIN`, ex. `.athlonsport.app.br`), rotação em `POST /auth/refresh` e revogação na tabela `Sessao` (migration `004_sessao_refresh_token.sql`).
 - Refresh automático no frontend (`apps/frontend/src/lib/api.ts`).
 - Rate limit em login/cadastro.
 - `CRON_SECRET` protege endpoints de cron manuais.
 - **Nunca** commitar `.env` (está no `.gitignore`).
 - Secrets (`JWT_*`, `DATABASE_URL`, `R2_*`, `VAPID_PRIVATE_KEY`) **somente** no Railway.
 - **MFA TOTP obrigatório para ADM** (`/admin/perfil`). O secret pendente é reutilizado (não gera conta nova no autenticador a cada clique). Login: `POST /auth/login` + `POST /auth/login/mfa`.
+- **Auditoria ADM:** ações sensíveis (login MFA, CRUD admin, etc.) registradas em `AuditoriaAdmin`; consulta em `GET /admin/auditoria` e tela `/admin/auditoria`.
 
 ### Recuperação de senha ("Esqueci minha senha")
 
@@ -1268,9 +1285,31 @@ Migração completa de Supabase para **Railway + Cloudflare R2**. Detalhes em [D
 ### 21.3 Segurança, MFA, Web Push e exclusão de professor (ago/2026)
 
 - **MFA obrigatório no ADM:** login em duas etapas; o QR é gerado **uma vez** (secret reutilizado até confirmar). Códigos de backup de 8 caracteres; coluna `codigo` em `"MfaBackupCode"` para consulta no banco. Em `/admin/perfil` dá para **gerar novos códigos** (TOTP de 6 dígitos; os antigos deixam de valer). Se houver várias contas ATHLON no autenticador, use a **mais recente**.
-- **Proxy da API:** Vercel `/api/v1` e `/api/cron` apontam para `https://api.athlonsport.app.br` (DNS e certificado Railway ativos).
+- **Proxy da API:** Vercel `/api/v1` e `/api/cron` apontam para `https://api.athlonsport.app.br` (DNS e certificado Railway ativos). Build do frontend usa `VITE_API_URL=/api/v1` (mesmo domínio).
 - **Web Push:** `VAPID_*` no Railway; registro da subscription no login; notificação na barra do sistema via `push-handler.js`.
 - **Exclusão definitiva de professor:** `DELETE /admin/professores/:id` no detalhe e em **Edição → Professores** (transação; turmas somem, alunos permanecem).
+
+### 21.4 Estado do repositório e PRs mescladas (out/2026)
+
+A branch `main` reflete o produto em **https://athlonsport.app.br** após as entregas mescladas até a PR **#43** (18/08/2026). Use esta seção como mapa rápido; detalhes operacionais da Play Store ficam em [WHITELIST.md](./WHITELIST.md).
+
+| Faixa / PRs | Tema principal |
+|-------------|----------------|
+| #12–#19 | Estabilidade (R2, dashboard, e-mail aluno, Play shell) |
+| #20–#24 | Play Store shell, docs aluno, PWA (logo, ícones 192/512) |
+| #26–#28 | Endurecimento API/frontend, cookies + refresh, deploy Railway |
+| #29–#30 | MFA ADM, auditoria, sessão/loading |
+| #31–#33 | Proxy Vercel → Railway (`api.athlonsport.app.br`) |
+| #34 | Cadastro aluno sem vazar e-mail existente |
+| #35–#39 | MFA produção (SSL, fixes SQL/TOTP, coluna backup) |
+| #40 | Proxy no domínio próprio + aviso MFA no login |
+| #41 | Web Push real + exclusão definitiva de professor |
+| #42 | Screenshots Play Store (telas públicas 1080×1920) |
+| #43 | `WHITELIST.md`, `play-store-ficha.md`, regenerar códigos MFA |
+
+**PRs fechadas sem merge (obsoletas):** [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) (ícones — coberto por #24), [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) (checklist — coberto por #42/#43).
+
+**Próximo ciclo de desenvolvimento:** partir da `main` atual; backlog em [Melhoria.md](./Melhoria.md).
 
 ---
 
