@@ -14,6 +14,7 @@ import { listarBloqueiosAluno } from "../../lib/inadimplencia.js";
 import { validate } from "../../middleware/validate.js";
 import * as alunosService from "./alunos.service.js";
 import * as eventosService from "../eventos/eventos.service.js";
+import * as avisosService from "../avisos/avisos.service.js";
 import { inviteCodeLimiter } from "../../middleware/rate-limit.js";
 
 export const alunosRouter = Router();
@@ -43,6 +44,33 @@ alunosRouter.get("/me/bloqueio", requireAluno, async (req, res, next) => {
     next(e);
   }
 });
+
+alunosRouter.get("/meus-avisos", requireAluno, requireAlunoEmailVerificado, async (req, res, next) => {
+  try {
+    const turmaId = typeof req.query.turmaId === "string" ? req.query.turmaId : undefined;
+    const data = await avisosService.listarAvisosAluno(req.user!.alunoId!, turmaId);
+    res.json({ data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+alunosRouter.get(
+  "/minhas-turmas/:turmaId/avisos",
+  requireAluno,
+  requireAlunoEmailVerificado,
+  async (req, res, next) => {
+    try {
+      const data = await avisosService.listarAvisosAluno(
+        req.user!.alunoId!,
+        String(req.params.turmaId),
+      );
+      res.json({ data });
+    } catch (e) {
+      next(e);
+    }
+  },
+);
 
 alunosRouter.get("/minhas-turmas", requireAluno, requireAlunoEmailVerificado, requireAlunoSemBloqueio, async (req, res, next) => {
   try {

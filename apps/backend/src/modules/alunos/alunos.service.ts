@@ -72,17 +72,32 @@ export async function listarAlunos(professorId: string) {
     byAluno.set(m.aluno_id, entry);
   }
 
+  const alunoIds = [...byAluno.keys()];
+  const pagamentosRows = await query<{
+    aluno_id: string;
+    status: string;
+    mes_referencia: string;
+    vencimento: string | null;
+  }>(
+    `SELECT aluno_id, status, mes_referencia, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = ANY($1::text[])
+     ORDER BY mes_referencia DESC`,
+    [alunoIds],
+  );
+
+  const pagamentosPorAluno = new Map<string, typeof pagamentosRows>();
+  for (const p of pagamentosRows) {
+    const list = pagamentosPorAluno.get(p.aluno_id) ?? [];
+    list.push(p);
+    pagamentosPorAluno.set(p.aluno_id, list);
+  }
+
   const result = [];
   for (const aluno of byAluno.values()) {
-    const pagamentos = (
-      await query<{ status: string; mes_referencia: string; vencimento: string | null }>(
-        `SELECT status, mes_referencia, vencimento
-         FROM "Pagamento"
-         WHERE aluno_id = $1
-         ORDER BY mes_referencia DESC`,
-        [aluno.id],
-      )
-    ).filter((p) => !isMesFuturo(p.mes_referencia, hoje));
+    const pagamentos = (pagamentosPorAluno.get(aluno.id) ?? []).filter(
+      (p) => !isMesFuturo(p.mes_referencia, hoje),
+    );
 
     const ultimo = pagamentos[0];
     const statusFinanceiro = ultimo ? statusEfetivo(ultimo, hoje) : "PENDENTE";

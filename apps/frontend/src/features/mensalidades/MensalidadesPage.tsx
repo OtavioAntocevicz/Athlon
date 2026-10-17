@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, FileCheck, Search } from "lucide-react";
+import { ChevronRight, FileCheck, Search, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
@@ -13,6 +13,7 @@ import { MensalidadeCard } from "@/components/domain/MensalidadeCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageEnter } from "@/components/ui/page-enter";
 import type { DashboardProfessor, MensalidadeResumo, StatusMensalidade } from "@athlon/shared-types";
 
@@ -140,9 +141,20 @@ export function MensalidadesPage() {
           )}
 
           {!isLoading && filtradas.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nenhuma mensalidade encontrada
-            </p>
+            <EmptyState
+              icon={Wallet}
+              title="Nenhuma mensalidade"
+              description={
+                isProfessor
+                  ? "Quando houver pagamentos das suas turmas, eles aparecerão aqui."
+                  : "Entre em uma turma para ver suas mensalidades."
+              }
+              action={
+                !isProfessor
+                  ? { label: "Minhas turmas", onClick: () => navigate("/minhas-turmas") }
+                  : undefined
+              }
+            />
           )}
 
           {filtradas.map((m) => (

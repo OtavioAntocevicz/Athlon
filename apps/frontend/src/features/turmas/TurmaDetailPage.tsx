@@ -1,4 +1,7 @@
 import { useState, useRef, type MouseEvent } from "react";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { useToast } from "@/components/ui/toast";
+import { copyTextWithToast } from "@/lib/copy-with-toast";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
@@ -101,10 +104,14 @@ function formatAlunosParaCopia(alunos: AlunoTurma[]): string {
   return linhas.join("\n");
 }
 
+type TurmaTab = "alunos" | "dados" | "eventos";
+
 export function TurmaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [tab, setTab] = useState<TurmaTab>("alunos");
   const [editing, setEditing] = useState(false);
   const [copiedCodigo, setCopiedCodigo] = useState(false);
   const [copiedAlunos, setCopiedAlunos] = useState(false);
@@ -258,14 +265,14 @@ export function TurmaDetailPage() {
   const copyCodigo = async (e: MouseEvent) => {
     e.stopPropagation();
     if (!turma) return;
-    await navigator.clipboard.writeText(turma.codigoConvite);
+    await copyTextWithToast(turma.codigoConvite, toast, "Código copiado!");
     setCopiedCodigo(true);
     setTimeout(() => setCopiedCodigo(false), 2000);
   };
 
   const copyAlunos = async () => {
     if (!alunos?.length) return;
-    await navigator.clipboard.writeText(formatAlunosParaCopia(alunos));
+    await copyTextWithToast(formatAlunosParaCopia(alunos), toast, "Lista copiada!");
     setCopiedAlunos(true);
     setTimeout(() => setCopiedAlunos(false), 2000);
   };
@@ -458,6 +465,19 @@ export function TurmaDetailPage() {
         </div>
       </div>
 
+      {!editing && (
+        <SegmentedTabs
+          className="mt-4"
+          tabs={[
+            { id: "alunos", label: `Alunos (${alunos?.length ?? 0})` },
+            { id: "dados", label: "Dados" },
+            { id: "eventos", label: "Eventos" },
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
+      )}
+
       {editing ? (
         <Card className="mt-5 space-y-4 p-4">
           <h2 className="font-semibold text-primary">Editar turma</h2>
@@ -590,7 +610,9 @@ export function TurmaDetailPage() {
             </div>
           </form>
         </Card>
-      ) : (
+      ) : null}
+
+      {!editing && tab === "dados" && (
         <div className="mt-4 space-y-3">
           {(turma.local || turma.horarioInicio) && (
             <Card className="p-4">
@@ -641,6 +663,8 @@ export function TurmaDetailPage() {
         </div>
       )}
 
+      {!editing && tab === "eventos" && (
+      <>
       <div className="mt-6 mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-bold text-primary">
           <CalendarDays className="h-5 w-5" /> Eventos
@@ -829,7 +853,11 @@ export function TurmaDetailPage() {
           </div>
         </>
       )}
+      </>
+      )}
 
+      {!editing && tab === "alunos" && (
+      <>
       <div className="mt-6 mb-3 flex items-center justify-between gap-2">
         <h2 className="font-bold text-primary flex items-center gap-2">
           <Users className="h-5 w-5" /> Alunos ({alunos?.length ?? 0})
@@ -888,6 +916,8 @@ export function TurmaDetailPage() {
           <p className="text-sm text-muted-foreground">Nenhum aluno nesta turma</p>
         )}
       </div>
+      </>
+      )}
     </AppShell>
   );
 }

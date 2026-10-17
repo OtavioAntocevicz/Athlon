@@ -3,6 +3,7 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { PwaInstallPrompt } from "@/components/pwa/PwaInstallPrompt";
+import { ToastProvider } from "@/components/ui/toast";
 import { AppRouter } from "./router";
 import { AlunoEmailGate } from "./guards";
 
@@ -26,16 +27,18 @@ function AuthGate({ children }: { children: ReactNode }) {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <AuthGate>
-            <AlunoEmailGate>
-              <AppRouter />
-            </AlunoEmailGate>
-          </AuthGate>
-          <PwaInstallPrompt />
-        </BrowserRouter>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <AuthGate>
+              <AlunoEmailGate>
+                <AppRouter />
+              </AlunoEmailGate>
+            </AuthGate>
+            <PwaInstallPrompt />
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

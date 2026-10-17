@@ -12,17 +12,29 @@ type NotificacaoRow = {
   criado_em: string;
 };
 
-export async function listarNotificacoes(usuarioId: string) {
+export async function listarNotificacoes(
+  usuarioId: string,
+  opts?: { page?: number; limit?: number },
+) {
+  const page = opts?.page ?? 1;
+  const limit = opts?.limit ?? 50;
+  const offset = (page - 1) * limit;
+
   const items = await query<NotificacaoRow>(
     `SELECT id, titulo, corpo, tipo, url, lida, criado_em
      FROM "Notificacao"
      WHERE usuario_id = $1
      ORDER BY criado_em DESC
-     LIMIT 50`,
+     LIMIT $2 OFFSET $3`,
+    [usuarioId, limit, offset],
+  );
+
+  const total = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Notificacao" WHERE usuario_id = $1`,
     [usuarioId],
   );
 
-  return items.map((n) => ({
+  const mapped = items.map((n) => ({
     id: n.id,
     titulo: n.titulo,
     corpo: n.corpo,
@@ -31,6 +43,8 @@ export async function listarNotificacoes(usuarioId: string) {
     lida: n.lida,
     criadoEm: new Date(n.criado_em).toISOString(),
   }));
+
+  return { items: mapped, page, limit, total };
 }
 
 export async function contarNaoLidas(usuarioId: string) {

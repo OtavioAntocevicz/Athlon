@@ -4,13 +4,13 @@ import {
   loginSchema,
   registerAlunoSchema,
   updateProfessorPerfilSchema,
+  updateAdminPerfilSchema,
   updateAlunoPerfilSchema,
   changePasswordSchema,
   requestPasswordResetSchema,
   confirmPasswordResetSchema,
   confirmEmailVerificationSchema,
   confirmMfaSchema,
-  disableMfaSchema,
   loginMfaSchema,
 } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
@@ -148,30 +148,9 @@ authRouter.post(
   },
 );
 
-authRouter.post(
-  "/mfa/disable",
-  authenticate,
-  requireAdmin,
-  validate(disableMfaSchema),
-  async (req, res, next) => {
-    try {
-      const data = await authService.desabilitarMfaAdmin(
-        req.user!.sub,
-        req.body.senha,
-        req.body.codigo,
-      );
-      await registrarAuditoriaAdmin(
-        auditoriaFromRequest(req),
-        AcoesAuditoria.MFA_DESABILITAR,
-        "usuario",
-        req.user!.sub,
-      );
-      res.json({ data });
-    } catch (e) {
-      next(e);
-    }
-  },
-);
+authRouter.post("/mfa/disable", authenticate, requireAdmin, (_req, _res, next) => {
+  next(new AppError(410, "MFA_OBRIGATORIO", "MFA é obrigatório para administradores e não pode ser desativado."));
+});
 
 authRouter.post(
   "/recuperar-senha/solicitar",
@@ -226,13 +205,19 @@ authRouter.patch(
   authenticate,
   (req, res, next) => {
     const schema =
-      req.user!.perfil === "PROFESSOR"
-        ? updateProfessorPerfilSchema
-        : updateAlunoPerfilSchema;
+      req.user!.perfil === "ADM"
+        ? updateAdminPerfilSchema
+        : req.user!.perfil === "PROFESSOR"
+          ? updateProfessorPerfilSchema
+          : updateAlunoPerfilSchema;
     validate(schema)(req, res, next);
   },
   async (req, res, next) => {
     try {
+      if (req.user!.perfil === "ADM") {
+        const data = await authService.updateAdminPerfil(req.user!.sub, req.body);
+        return res.json({ data });
+      }
       if (req.user!.perfil === "PROFESSOR") {
         const data = await authService.updateProfessorPerfil(
           req.user!.sub,

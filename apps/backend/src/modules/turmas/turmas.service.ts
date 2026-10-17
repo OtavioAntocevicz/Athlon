@@ -31,17 +31,20 @@ import {
 type TurmaRow = Record<string, unknown>;
 
 export async function listarTurmas(professorId: string) {
-  const turmas = await query<TurmaRow>(
-    `SELECT * FROM "Turma" WHERE professor_id = $1 ORDER BY criado_em DESC`,
+  const turmas = await query<TurmaRow & { total_alunos: string }>(
+    `SELECT t.*,
+            COALESCE(COUNT(m.id) FILTER (WHERE m.afastado = false), 0)::text AS total_alunos
+     FROM "Turma" t
+     LEFT JOIN "MatriculaTurma" m ON m.turma_id = t.id
+     WHERE t.professor_id = $1
+     GROUP BY t.id
+     ORDER BY t.criado_em DESC`,
     [professorId],
   );
 
   const result = [];
   for (const t of turmas) {
-    const totalAlunos = await countQuery(
-      `SELECT COUNT(*)::text AS count FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
-      [t.id],
-    );
+    const totalAlunos = Number(t.total_alunos) || 0;
 
     result.push({
       id: t.id,

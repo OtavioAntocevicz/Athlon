@@ -296,6 +296,35 @@ export async function reenviarConviteProfessor(professorId: string) {
   };
 }
 
+export async function listarTurmasResumoProfessor(professorId: string) {
+  const turmas = await query<{
+    id: string;
+    nome: string;
+    modalidade: string;
+    codigo_convite: string;
+    criado_em: string;
+    total_alunos: string;
+  }>(
+    `SELECT t.id, t.nome, t.modalidade, t.codigo_convite, t.criado_em,
+            COALESCE(COUNT(m.id) FILTER (WHERE m.afastado = false), 0)::text AS total_alunos
+     FROM "Turma" t
+     LEFT JOIN "MatriculaTurma" m ON m.turma_id = t.id
+     WHERE t.professor_id = $1
+     GROUP BY t.id
+     ORDER BY t.criado_em DESC`,
+    [professorId],
+  );
+
+  return turmas.map((t) => ({
+    id: t.id,
+    nome: t.nome,
+    modalidade: t.modalidade,
+    totalAlunos: Number(t.total_alunos) || 0,
+    codigoConvite: t.codigo_convite,
+    criadoEm: new Date(t.criado_em).toISOString(),
+  }));
+}
+
 export async function obterProfessor(professorId: string) {
   const prof = await queryMaybeOne<ProfessorRow>(
     `SELECT p.id, p.usuario_id, p.chave_pix, p.criado_em,
@@ -311,37 +340,7 @@ export async function obterProfessor(professorId: string) {
     throw new AppError(404, "NOT_FOUND", "Professor não encontrado");
   }
 
-  const turmas = await query<{
-    id: string;
-    nome: string;
-    modalidade: string;
-    codigo_convite: string;
-    criado_em: string;
-  }>(
-    `SELECT id, nome, modalidade, codigo_convite, criado_em
-     FROM "Turma"
-     WHERE professor_id = $1
-     ORDER BY criado_em DESC`,
-    [professorId],
-  );
-
-  const turmasResumo = [];
-  for (const t of turmas) {
-    const totalAlunos = await countQuery(
-      `SELECT COUNT(*)::text AS count FROM "MatriculaTurma"
-       WHERE turma_id = $1 AND afastado = false`,
-      [t.id],
-    );
-
-    turmasResumo.push({
-      id: t.id,
-      nome: t.nome,
-      modalidade: t.modalidade,
-      totalAlunos,
-      codigoConvite: t.codigo_convite,
-      criadoEm: new Date(t.criado_em).toISOString(),
-    });
-  }
+  const turmasResumo = await listarTurmasResumoProfessor(professorId);
 
   const alunos = await listarAlunos(professorId);
 

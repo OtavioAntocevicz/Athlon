@@ -521,6 +521,8 @@ Rate limit: 20 tentativas / 15 min em login, cadastro e recuperação de senha.
 | GET | `/:id` | Ownership | Detalhe |
 | PATCH | `/:id` | Ownership | Atualizar |
 | POST | `/preview-turma` | Aluno sem bloqueio | Preview por código |
+| GET | `/meus-avisos` | Aluno verificado | Avisos enviados às turmas do aluno (`?turmaId` opcional) |
+| GET | `/minhas-turmas/:turmaId/avisos` | Aluno verificado | Avisos de uma turma |
 | POST | `/entrar-turma` | Aluno sem bloqueio | Matricular em turma |
 | POST | `/:id/desbloquear-inadimplencia` | Professor | Desbloqueio manual |
 | POST | `/:id/afastar-turma` | Professor | Afastar da turma |
