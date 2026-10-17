@@ -55,6 +55,7 @@ docs/                      - Documentação (ver tabela abaixo)
 | [docs/play-store-mobile.md](./docs/play-store-mobile.md) | App Android (Expo + WebView) |
 | [docs/play-store-ficha.md](./docs/play-store-ficha.md) | Textos para colar na Play Console |
 | [docs/Melhoria.md](./docs/Melhoria.md) | Backlog pós-MVP |
+| [docs/DESIGN.md](./docs/DESIGN.md) | Guia visual e padrões de UI |
 | [docs/config-resend-web-push.md](./docs/config-resend-web-push.md) | Resend e VAPID |
 | [docs/web-push-producao.md](./docs/web-push-producao.md) | Web Push em produção |
 

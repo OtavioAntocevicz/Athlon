@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, MapPin } from "lucide-react";
+import { Calendar, ChevronRight, MapPin } from "lucide-react";
 import type { EventoResumo } from "@athlon/shared-types";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { useAlunoBloqueado } from "@/lib/use-aluno-bloqueado";
 import { AppShell } from "@/components/layout/AppShell";
@@ -11,6 +11,9 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterPills } from "@/components/domain/FilterPills";
 import { eventoTipoStyles, labelTipoEvento } from "@/components/domain/EventoTurma";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/ui/query-error";
 import { PageEnter } from "@/components/ui/page-enter";
 import { cn } from "@/lib/cn";
 
@@ -25,7 +28,7 @@ export function EventosAlunoPage() {
   const { bloqueado } = useAlunoBloqueado();
   const [filtro, setFiltro] = useState("proximos");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["eventos", "aluno"],
     queryFn: () => api<EventoResumo[]>("/eventos"),
   });
@@ -47,23 +50,32 @@ export function EventosAlunoPage() {
 
         <FilterPills options={filters} value={filtro} onChange={setFiltro} />
 
-        <div className="mt-4 space-y-3">
-          {isLoading && (
-            <>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
-              ))}
-            </>
-          )}
+        {isError && (
+          <QueryError
+            message={getErrorMessage(error, "Não foi possível carregar eventos.")}
+            onRetry={() => void refetch()}
+          />
+        )}
 
-          {!isLoading && filtrados.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {filtro === "todos"
-                ? "Nenhum evento nas suas turmas ainda."
-                : filtro === "proximos"
-                  ? "Nenhum evento próximo"
-                  : "Nenhum evento passado"}
-            </p>
+        <div className="mt-4 space-y-3">
+          {isLoading && <ListSkeleton rows={3} rowClassName="h-28" />}
+
+          {!isLoading && !isError && filtrados.length === 0 && (
+            <EmptyState
+              icon={Calendar}
+              title={
+                filtro === "passados"
+                  ? "Nenhum evento passado"
+                  : filtro === "proximos"
+                    ? "Nenhum evento próximo"
+                    : "Nenhum evento ainda"
+              }
+              description={
+                filtro === "todos"
+                  ? "Quando seu treinador criar amistosos ou campeonatos, eles aparecem aqui."
+                  : "Tente outro filtro ou volte mais tarde."
+              }
+            />
           )}
 
           {filtrados.map((evento) => {

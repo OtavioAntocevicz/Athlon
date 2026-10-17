@@ -126,12 +126,13 @@ export async function filaAprovacao(professorId: string) {
     id: string;
     pagamento_id: string;
     enviado_em: string | Date;
+    arquivo_url: string | null;
     mes_referencia: string | Date;
     valor_centavos: number;
     aluno_nome: string;
     turma_nome: string;
   }>(
-    `SELECT c.id, c.pagamento_id, c.enviado_em,
+    `SELECT c.id, c.pagamento_id, c.enviado_em, c.arquivo_url,
             p.mes_referencia, p.valor_centavos,
             a.nome AS aluno_nome, t.nome AS turma_nome
      FROM "Comprovante" c
@@ -143,15 +144,29 @@ export async function filaAprovacao(professorId: string) {
     [pagamentoIds],
   );
 
-  return items.map((c) => ({
-    id: c.id,
-    pagamentoId: c.pagamento_id,
-    alunoNome: c.aluno_nome,
-    turmaNome: c.turma_nome,
-    mesReferencia: new Date(toIso(c.mes_referencia)).toISOString(),
-    valorCentavos: c.valor_centavos,
-    enviadoEm: new Date(toIso(c.enviado_em)).toISOString(),
-  }));
+  return Promise.all(
+    items.map(async (c) => {
+      let previewUrl: string | null = null;
+      if (c.arquivo_url && !c.arquivo_url.toLowerCase().endsWith(".pdf")) {
+        try {
+          previewUrl = await getSignedReadUrl(c.arquivo_url);
+        } catch {
+          previewUrl = null;
+        }
+      }
+
+      return {
+        id: c.id,
+        pagamentoId: c.pagamento_id,
+        alunoNome: c.aluno_nome,
+        turmaNome: c.turma_nome,
+        mesReferencia: new Date(toIso(c.mes_referencia)).toISOString(),
+        valorCentavos: c.valor_centavos,
+        enviadoEm: new Date(toIso(c.enviado_em)).toISOString(),
+        previewUrl,
+      };
+    }),
+  );
 }
 
 export async function getComprovante(id: string, professorId: string) {

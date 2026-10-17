@@ -60,7 +60,7 @@ export function AdminPerfilPage() {
             className="w-full justify-start text-destructive hover:text-destructive"
             onClick={handleLogout}
           >
-            <LogOut className="h-4 w-4" /> Sair
+            <LogOut className="h-4 w-4" /> Sair do painel
           </Button>
         </div>
 

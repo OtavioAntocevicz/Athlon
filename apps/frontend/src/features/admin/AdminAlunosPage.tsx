@@ -2,7 +2,9 @@ import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, ChevronRight, Users, UserPlus } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
+import { QueryError } from "@/components/ui/query-error";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import type { AdminAlunoListaItem } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { Card } from "@/components/ui/card";
@@ -43,7 +45,7 @@ export function AdminAlunosPage() {
     }
   };
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["admin", "alunos", busca, filtroTurma],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -99,20 +101,15 @@ export function AdminAlunosPage() {
           <FilterPills options={filtrosTurma} value={filtroTurma} onChange={onFiltroChange} />
         </div>
 
-        <div className="mt-4 space-y-2.5">
-          {isLoading &&
-            [1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 rounded-xl border border-primary/5 bg-card p-3 shadow-brand-card"
-              >
-                <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-muted" />
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-muted" />
-                </div>
-              </div>
-            ))}
+        {isError && (
+          <QueryError
+            message={getErrorMessage(error, "Não foi possível carregar alunos.")}
+            onRetry={() => void refetch()}
+          />
+        )}
+
+        <div className="mt-4 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
+          {isLoading && <ListSkeleton rows={4} rowClassName="h-[72px]" />}
 
           {listaVazia && (
             <div className="flex flex-col items-center py-12 text-center">
