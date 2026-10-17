@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   confirmEmailVerificationSchema,
@@ -11,10 +11,10 @@ import { api, getErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Mail, MessageSquare, CheckCircle2 } from "lucide-react";
 import { PageEnter } from "@/components/ui/page-enter";
+import { OtpInput } from "@/components/ui/otp-input";
 
 export function VerificarEmailPage() {
   const { user, login } = useAuth();
@@ -26,7 +26,7 @@ export function VerificarEmailPage() {
   const [confirmado, setConfirmado] = useState(false);
 
   const {
-    register,
+    control,
     handleSubmit,
     setValue,
     formState: { errors, isSubmitting },
@@ -115,17 +115,21 @@ export function VerificarEmailPage() {
         <Card className="mt-6 space-y-4 p-5">
           <form onSubmit={handleSubmit(confirmar)} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Código de verificação</label>
-              <Input
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
-                maxLength={6}
-                className="text-center text-lg tracking-[0.35em]"
-                {...register("codigo")}
+              <label className="mb-3 block text-center text-sm font-medium">Código de verificação</label>
+              <Controller
+                control={control}
+                name="codigo"
+                render={({ field }) => (
+                  <OtpInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={isSubmitting}
+                    autoFocus
+                  />
+                )}
               />
               {errors.codigo && (
-                <p className="mt-1 text-sm text-destructive">{errors.codigo.message}</p>
+                <p className="mt-2 text-center text-sm text-destructive">{errors.codigo.message}</p>
               )}
             </div>
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   loginSchema,
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, ClipboardList, ShieldCheck, User } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageEnter } from "@/components/ui/page-enter";
+import { OtpInput } from "@/components/ui/otp-input";
 
 interface LoginFormPageProps {
   perfil: "PROFESSOR" | "ALUNO";
@@ -159,16 +160,20 @@ export function LoginFormPage({
                   <label className="mb-1.5 block text-sm font-medium text-primary">
                     Código de verificação
                   </label>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    placeholder="000000"
-                    maxLength={9}
-                    {...mfaForm.register("codigo")}
+                  <Controller
+                    control={mfaForm.control}
+                    name="codigo"
+                    render={({ field }) => (
+                      <OtpInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={mfaForm.formState.isSubmitting}
+                        autoFocus
+                      />
+                    )}
                   />
                   {mfaForm.formState.errors.codigo && (
-                    <p className="mt-1 text-sm text-destructive">
+                    <p className="mt-2 text-center text-sm text-destructive">
                       {mfaForm.formState.errors.codigo.message}
                     </p>
                   )}

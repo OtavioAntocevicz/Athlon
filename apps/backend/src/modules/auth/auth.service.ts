@@ -14,6 +14,7 @@ import type {
   LoginInput,
   RegisterAlunoInput,
   UpdateProfessorPerfilInput,
+  UpdateAdminPerfilInput,
   UpdateAlunoPerfilInput,
   ChangePasswordInput,
   RequestPasswordResetInput,
@@ -480,6 +481,19 @@ export async function logout(refreshToken: string | null) {
     await revogarSessaoPorToken(refreshToken);
   }
   return { ok: true };
+}
+
+export async function updateAdminPerfil(userId: string, input: UpdateAdminPerfilInput) {
+  if (!input.nome?.trim()) {
+    return getMe(userId);
+  }
+  const ts = now();
+  await execute(`UPDATE "Usuario" SET nome = $1, atualizado_em = $2 WHERE id = $3`, [
+    input.nome.trim(),
+    ts,
+    userId,
+  ]);
+  return getMe(userId);
 }
 
 export async function updateProfessorPerfil(

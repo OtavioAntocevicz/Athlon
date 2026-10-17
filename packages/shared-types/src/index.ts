@@ -9,3 +9,5 @@ export * from "./schemas/evento.js";
 export * from "./schemas/dispositivo.js";
 export * from "./schemas/chamado.js";
 export * from "./api-contracts.js";
+export * from "./api-error-codes.js";
+export * from "./schemas/pagination.js";

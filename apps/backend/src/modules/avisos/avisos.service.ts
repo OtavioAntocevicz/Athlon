@@ -87,6 +87,44 @@ export async function criarAviso(professorId: string, input: CriarAvisoInput) {
   };
 }
 
+export async function listarAvisosAluno(alunoId: string, turmaId?: string) {
+  const params: string[] = [alunoId];
+  let turmaFilter = "";
+  if (turmaId) {
+    params.push(turmaId);
+    turmaFilter = ` AND a.turma_id = $2`;
+  }
+
+  const avisos = await query<{
+    id: string;
+    titulo: string;
+    descricao: string;
+    turma_id: string;
+    turma_nome: string;
+    enviado_em: string;
+    criado_em: string;
+  }>(
+    `SELECT a.id, a.titulo, a.descricao, a.turma_id, a.enviado_em, a.criado_em, t.nome AS turma_nome
+     FROM "AvisoProfessor" a
+     JOIN "Turma" t ON t.id = a.turma_id
+     JOIN "MatriculaTurma" m ON m.turma_id = a.turma_id AND m.aluno_id = $1 AND m.afastado = false
+     WHERE a.enviado_em IS NOT NULL${turmaFilter}
+     ORDER BY a.enviado_em DESC
+     LIMIT 50`,
+    params,
+  );
+
+  return avisos.map((a) => ({
+    id: a.id,
+    titulo: a.titulo,
+    descricao: a.descricao,
+    turmaId: a.turma_id,
+    turmaNome: a.turma_nome,
+    enviadoEm: new Date(a.enviado_em).toISOString(),
+    criadoEm: new Date(a.criado_em).toISOString(),
+  }));
+}
+
 export async function listarAvisos(professorId: string) {
   const avisos = await query<{
     id: string;

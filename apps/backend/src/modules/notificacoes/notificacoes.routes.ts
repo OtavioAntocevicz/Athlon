@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticate } from "../../middleware/auth.js";
+import { paginationQuerySchema } from "@athlon/shared-types";
 import { validate } from "../../middleware/validate.js";
 import * as notificacoesService from "./notificacoes.service.js";
 import { getVapidPublicKey } from "../../lib/push.js";
@@ -20,8 +21,9 @@ notificacoesRouter.get("/vapid-public-key", (_req, res) => {
 
 notificacoesRouter.get("/", async (req, res, next) => {
   try {
-    const data = await notificacoesService.listarNotificacoes(req.user!.sub);
-    res.json({ data });
+    const { page, limit } = paginationQuerySchema.parse(req.query);
+    const data = await notificacoesService.listarNotificacoes(req.user!.sub, { page, limit });
+    res.json({ data: data.items, meta: { page: data.page, limit: data.limit, total: data.total } });
   } catch (e) {
     next(e);
   }

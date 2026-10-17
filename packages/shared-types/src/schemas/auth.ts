@@ -79,6 +79,10 @@ export const confirmEmailVerificationSchema = z.object({
   codigo: z.string().regex(/^\d{6}$/, "Código deve ter 6 dígitos"),
 });
 
+export const updateAdminPerfilSchema = z.object({
+  nome: z.string().min(2).max(120).optional(),
+});
+
 export const updateProfessorPerfilSchema = z.object({
   nome: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
   chavePix: z.string().min(1, "Chave PIX é obrigatória"),
@@ -136,6 +140,7 @@ export const confirmPasswordResetSchema = z
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterProfessorInput = z.infer<typeof registerProfessorSchema>;
 export type RegisterAlunoInput = z.infer<typeof registerAlunoSchema>;
+export type UpdateAdminPerfilInput = z.infer<typeof updateAdminPerfilSchema>;
 export type UpdateProfessorPerfilInput = z.infer<typeof updateProfessorPerfilSchema>;
 export type UpdateAlunoPerfilInput = z.infer<typeof updateAlunoPerfilSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

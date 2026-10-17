@@ -15,8 +15,9 @@ export function Header() {
         <ProfessorAvisosButton />
         <NotificacoesPanel />
         <Link
-          to="/perfil"
+          to={user?.perfil === "ADM" ? "/admin/perfil" : "/perfil"}
           className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white"
+          aria-label="Perfil"
         >
           {user ? getInitials(user.nome) : "?"}
         </Link>

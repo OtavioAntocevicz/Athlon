@@ -8,6 +8,7 @@ import {
   ProfessorRoute,
   AlunoTurmasRoute,
   AdminRoute,
+  AlunoRoute,
   AlunoVerificacaoRoute,
 } from "./guards";
 import { ChunkErrorBoundary } from "./ChunkErrorBoundary";
@@ -118,6 +119,10 @@ const ComprovanteValidacaoPage = lazyNamed(
 const AvisosProfessorPage = lazyNamed(
   () => import("@/features/avisos/AvisosProfessorPage"),
   "AvisosProfessorPage",
+);
+const AvisosAlunoPage = lazyNamed(
+  () => import("@/features/avisos/AvisosAlunoPage"),
+  "AvisosAlunoPage",
 );
 
 const AdminDashboardPage = lazyNamed(
@@ -638,6 +643,16 @@ export function AppRouter() {
         }
       />
       <Route path="/eventos" element={<ProtectedRoute><EventosPage /></ProtectedRoute>} />
+      <Route
+        path="/meus-avisos"
+        element={
+          <AlunoRoute>
+            <LazyRoute>
+              <AvisosAlunoPage />
+            </LazyRoute>
+          </AlunoRoute>
+        }
+      />
       <Route
         path="/minhas-turmas"
         element={

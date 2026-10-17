@@ -141,8 +141,8 @@ adminRouter.delete("/professores/:id", async (req, res, next) => {
 adminRouter.get("/professores/:id/turmas", async (req, res, next) => {
   try {
     const id = String(req.params.id);
-    const prof = await adminService.obterProfessor(id);
-    res.json({ data: prof.turmas });
+    const data = await adminService.listarTurmasResumoProfessor(id);
+    res.json({ data });
   } catch (e) {
     next(e);
   }
