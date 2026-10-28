@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, ChevronRight, Users, UserPlus } from "lucide-react";
-import { api, getErrorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAdminListQuery } from "@/lib/use-admin-list-query";
 import { QueryError } from "@/components/ui/query-error";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import type { AdminAlunoListaItem } from "@athlon/shared-types";
@@ -45,7 +46,7 @@ export function AdminAlunosPage() {
     }
   };
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const alunosQuery = useQuery({
     queryKey: ["admin", "alunos", busca, filtroTurma],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -55,6 +56,10 @@ export function AdminAlunosPage() {
       return api<AdminAlunoListaItem[]>(`/admin/alunos${qs ? `?${qs}` : ""}`);
     },
   });
+  const { data, isLoading, isError, errorMessage, retry } = useAdminListQuery(
+    alunosQuery,
+    "Erro ao carregar alunos.",
+  );
 
   const lista = data ?? [];
   const temFiltroAtivo = Boolean(busca.trim() || filtroTurma);
@@ -102,10 +107,7 @@ export function AdminAlunosPage() {
         </div>
 
         {isError && (
-          <QueryError
-            message={getErrorMessage(error, "Não foi possível carregar alunos.")}
-            onRetry={() => void refetch()}
-          />
+          <QueryError message={errorMessage} onRetry={retry} />
         )}
 
         <div className="mt-4 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">

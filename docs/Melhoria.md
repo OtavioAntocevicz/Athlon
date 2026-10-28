@@ -99,7 +99,8 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 ### Eventos de turma
 
 - **Entregue (#46):** aluno vê passados em `/eventos` (filtros Próximos / Passados / Todos).
-- **Pendente:** notificação ao editar evento (hoje só dispara na criação).
+- **Entregue (out/2026):** notificação ao editar evento (tipo `EVENTO_TURMA_ATUALIZADO`).
+- **Pendente:** —
 
 ### BottomNav do aluno
 
@@ -129,12 +130,11 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 ### Otimização N+1 (PostgreSQL)
 
 - **Entregue (#46):** `listarProfessores` (contagem de turmas/alunos em batch) e `listarAlunosAdmin` (`statusFinanceiroPorAlunos` em batch).
-- **Ainda adiado:** `sincronizarBloqueiosInadimplencia` (query por matrícula), outros loops em crons/avisos/eventos até volume real de usuários.
+- **Ainda adiado (volume baixo):** outros loops pontuais em avisos até métricas de produção.
 
 ### Notificação de nova mensalidade
 
-- Hoje o cron do dia 1 pode gerar notificação de "nova mensalidade" sem deduplicação (diferente do atraso, que já é limitado a 1x por semana).
-- Melhoria: enviar apenas uma vez por mês/turma/aluno, ou só quando a mensalidade for realmente criada pela primeira vez.
+- **Entregue (out/2026):** deduplicação por chave `MENSALIDADE_NOVA:{turmaId}:{YYYY-MM}`; notificação só quando o INSERT da mensalidade do mês é novo (job mensal).
 
 ### Bloqueio do aluno
 

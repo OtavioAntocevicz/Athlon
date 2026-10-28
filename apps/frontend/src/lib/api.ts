@@ -122,17 +122,18 @@ async function tryRefreshSession(): Promise<boolean> {
 
 export async function api<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestInit & { _sessionRetried?: boolean } = {},
 ): Promise<T> {
+  const { _sessionRetried, ...fetchOptions } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
-      ...options,
+      ...fetchOptions,
       headers,
       credentials: "include",
     });
@@ -145,9 +146,14 @@ export async function api<T>(
     !isPublicAuthPath(path) &&
     !isSilentAuthPath(path)
   ) {
+    if (_sessionRetried) {
+      clearSession();
+      notifySessionLost();
+      throw new Error("Sessão expirada. Faça login novamente.");
+    }
     const refreshed = await tryRefreshSession();
     if (refreshed) {
-      return api(path, options);
+      return api(path, { ...fetchOptions, _sessionRetried: true });
     }
     clearSession();
     notifySessionLost();

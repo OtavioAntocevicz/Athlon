@@ -5,6 +5,58 @@ import { isMesFuturo } from "./utils.js";
 
 const MESES_PARA_BLOQUEIO = 2;
 
+type MatriculaSyncRow = {
+  id: string;
+  aluno_id: string;
+  turma_id: string;
+  bloqueado_inadimplencia: boolean;
+};
+
+type PagamentoSyncRow = {
+  aluno_id: string;
+  turma_id: string;
+  status: string;
+  mes_referencia: string;
+  vencimento: string | null;
+};
+
+function chaveMatricula(alunoId: string, turmaId: string): string {
+  return `${alunoId}:${turmaId}`;
+}
+
+function agruparPagamentosPorMatricula(
+  pagamentos: PagamentoSyncRow[],
+): Map<string, PagamentoSyncRow[]> {
+  const map = new Map<string, PagamentoSyncRow[]>();
+  for (const p of pagamentos) {
+    const key = chaveMatricula(p.aluno_id, p.turma_id);
+    const list = map.get(key);
+    if (list) list.push(p);
+    else map.set(key, [p]);
+  }
+  return map;
+}
+
+async function sincronizarMatriculas(
+  matriculas: MatriculaSyncRow[],
+  pagamentosPorPar: Map<string, PagamentoSyncRow[]>,
+  hoje: Date,
+) {
+  for (const m of matriculas) {
+    const pagamentos =
+      pagamentosPorPar.get(chaveMatricula(m.aluno_id, m.turma_id)) ?? [];
+    const atrasadas = contarAtrasadasPorTurma(pagamentos, m.turma_id, hoje);
+    const deveBloquear = atrasadas >= MESES_PARA_BLOQUEIO;
+
+    if (deveBloquear !== m.bloqueado_inadimplencia) {
+      await execute(
+        `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = $1 WHERE id = $2`,
+        [deveBloquear, m.id],
+      );
+    }
+  }
+}
+
 export function contarAtrasadasPorTurma(
   pagamentos: { status: string; mes_referencia: string; vencimento: string | null }[],
   turmaId: string,
@@ -17,76 +69,50 @@ export function contarAtrasadasPorTurma(
 }
 
 export async function sincronizarBloqueiosInadimplencia() {
-  const matriculas = await query<{
-    id: string;
-    aluno_id: string;
-    turma_id: string;
-    bloqueado_inadimplencia: boolean;
-  }>(
+  const matriculas = await query<MatriculaSyncRow>(
     `SELECT id, aluno_id, turma_id, bloqueado_inadimplencia
      FROM "MatriculaTurma"
      WHERE afastado = false`,
   );
-  const hoje = new Date();
+  if (matriculas.length === 0) return;
 
-  for (const m of matriculas) {
-    const pagamentos = await query<{
-      status: string;
-      mes_referencia: string;
-      vencimento: string | null;
-    }>(
-      `SELECT status, mes_referencia, vencimento
-       FROM "Pagamento"
-       WHERE aluno_id = $1 AND turma_id = $2`,
-      [m.aluno_id, m.turma_id],
-    );
-    const atrasadas = contarAtrasadasPorTurma(pagamentos, m.turma_id, hoje);
-    const deveBloquear = atrasadas >= MESES_PARA_BLOQUEIO;
+  const pagamentos = await query<PagamentoSyncRow>(
+    `SELECT p.aluno_id, p.turma_id, p.status, p.mes_referencia, p.vencimento
+     FROM "Pagamento" p
+     INNER JOIN "MatriculaTurma" mt
+       ON mt.aluno_id = p.aluno_id
+      AND mt.turma_id = p.turma_id
+      AND mt.afastado = false`,
+  );
 
-    if (deveBloquear !== m.bloqueado_inadimplencia) {
-      await execute(
-        `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = $1 WHERE id = $2`,
-        [deveBloquear, m.id],
-      );
-    }
-  }
+  await sincronizarMatriculas(
+    matriculas,
+    agruparPagamentosPorMatricula(pagamentos),
+    new Date(),
+  );
 }
 
 export async function sincronizarBloqueioAluno(alunoId: string) {
-  const matriculas = await query<{
-    id: string;
-    aluno_id: string;
-    turma_id: string;
-    bloqueado_inadimplencia: boolean;
-  }>(
+  const matriculas = await query<MatriculaSyncRow>(
     `SELECT id, aluno_id, turma_id, bloqueado_inadimplencia
      FROM "MatriculaTurma"
      WHERE aluno_id = $1 AND afastado = false`,
     [alunoId],
   );
-  const hoje = new Date();
+  if (matriculas.length === 0) return;
 
-  for (const m of matriculas) {
-    const pagamentos = await query<{
-      status: string;
-      mes_referencia: string;
-      vencimento: string | null;
-    }>(
-      `SELECT status, mes_referencia, vencimento
-       FROM "Pagamento"
-       WHERE aluno_id = $1 AND turma_id = $2`,
-      [m.aluno_id, m.turma_id],
-    );
-    const atrasadas = contarAtrasadasPorTurma(pagamentos, m.turma_id, hoje);
-    const deveBloquear = atrasadas >= MESES_PARA_BLOQUEIO;
+  const pagamentos = await query<PagamentoSyncRow>(
+    `SELECT aluno_id, turma_id, status, mes_referencia, vencimento
+     FROM "Pagamento"
+     WHERE aluno_id = $1`,
+    [alunoId],
+  );
 
-    if (deveBloquear !== m.bloqueado_inadimplencia) {
-      await execute(
-        `UPDATE "MatriculaTurma" SET bloqueado_inadimplencia = $1 WHERE id = $2`,
-        [deveBloquear, m.id],
-      );
-    }
-  }
+  await sincronizarMatriculas(
+    matriculas,
+    agruparPagamentosPorMatricula(pagamentos),
+    new Date(),
+  );
 }
 
 export async function listarBloqueiosAluno(alunoId: string) {

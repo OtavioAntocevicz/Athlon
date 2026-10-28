@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { hideBootSplash } from "./hide-boot-splash";
+import { hideBootSplash, markAppBootReady } from "./hide-boot-splash";
 
 describe("hideBootSplash", () => {
   beforeEach(() => {
@@ -27,11 +27,12 @@ describe("hideBootSplash", () => {
     expect(() => hideBootSplash()).not.toThrow();
   });
 
-  it("remove o splash depois do fade", () => {
+  it("remove o splash depois do fade", async () => {
     vi.useFakeTimers();
+    markAppBootReady();
     hideBootSplash();
     expect(document.getElementById("boot-splash")).not.toBeNull();
-    vi.runAllTimers();
+    await vi.runAllTimersAsync();
     expect(document.getElementById("boot-splash")).toBeNull();
   });
 });

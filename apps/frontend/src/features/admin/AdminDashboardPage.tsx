@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Users, GraduationCap, UserX, ChevronRight } from "lucide-react";
-import { api, getErrorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useAdminListQuery } from "@/lib/use-admin-list-query";
 import type { AdminDashboard } from "@athlon/shared-types";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { MetricCard } from "@/components/domain/MetricCard";
@@ -14,10 +15,14 @@ export function AdminDashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const dashboardQuery = useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: () => api<AdminDashboard>("/admin/dashboard"),
   });
+  const { data, isLoading, isError, errorMessage, retry } = useAdminListQuery(
+    dashboardQuery,
+    "Não foi possível carregar o painel.",
+  );
 
   if (isLoading) {
     return (
@@ -34,10 +39,7 @@ export function AdminDashboardPage() {
   if (isError || !data) {
     return (
       <AdminShell>
-        <QueryError
-          message={getErrorMessage(error, "Não foi possível carregar o painel.")}
-          onRetry={() => void refetch()}
-        />
+        <QueryError message={errorMessage} onRetry={retry} />
       </AdminShell>
     );
   }

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AuditoriaAdminLista } from "@athlon/shared-types";
-import { api, getErrorMessage } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAdminListQuery } from "@/lib/use-admin-list-query";
 import { QueryError } from "@/components/ui/query-error";
 import { ListSkeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
@@ -37,7 +38,7 @@ export function AdminAuditoriaPage() {
   const [acao, setAcao] = useState("");
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const auditoriaQuery = useQuery({
     queryKey: ["admin", "auditoria", acao, page],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: "30" });
@@ -45,6 +46,10 @@ export function AdminAuditoriaPage() {
       return api<AuditoriaAdminLista>(`/admin/auditoria?${params}`);
     },
   });
+  const { data, isLoading, isError, errorMessage, retry } = useAdminListQuery(
+    auditoriaQuery,
+    "Erro ao carregar auditoria.",
+  );
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
@@ -66,10 +71,7 @@ export function AdminAuditoriaPage() {
         />
 
         {isError && (
-          <QueryError
-            message={getErrorMessage(error, "Não foi possível carregar a auditoria.")}
-            onRetry={() => void refetch()}
-          />
+          <QueryError message={errorMessage} onRetry={retry} />
         )}
 
         <div className="mt-4 space-y-2.5 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">

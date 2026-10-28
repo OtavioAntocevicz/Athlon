@@ -72,6 +72,12 @@ export default function App() {
         onNavigationStateChange={onNavigationStateChange}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
+        onHttpError={(syntheticEvent) => {
+          console.warn("[mobile] WebView HTTP error", syntheticEvent.nativeEvent.statusCode);
+        }}
+        onError={(syntheticEvent) => {
+          console.warn("[mobile] WebView error", syntheticEvent.nativeEvent.description);
+        }}
         onShouldStartLoadWithRequest={(request: { url: string }) => isAllowedUrl(request.url)}
         allowsBackForwardNavigationGestures
         allowsInlineMediaPlayback

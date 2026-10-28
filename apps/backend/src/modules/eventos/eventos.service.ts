@@ -8,7 +8,7 @@ import {
   turmaIdsDoProfessor,
 } from "../../lib/db.js";
 import { AppError } from "../../middleware/error-handler.js";
-import { criarNotificacao, usuarioIdDoAluno } from "../../lib/notificacoes.js";
+import { criarNotificacao, usuarioIdsPorAlunos } from "../../lib/notificacoes.js";
 import { TipoEvento, type AtualizarEventoInput, type CriarEventoInput } from "@athlon/shared-types";
 
 type EventoRow = {
@@ -108,24 +108,30 @@ async function notificarEventoParaTurma(
   turmaId: string,
   turmaNome: string,
   evento: { tipo: string; titulo: string; inicio: string; local: string | null },
+  opts?: { atualizado?: boolean },
 ) {
   const tipoLabel = labelTipoEvento(evento.tipo);
   const dataLabel = formatarDataHora(evento.inicio);
   const localLabel = evento.local ? ` · ${evento.local}` : "";
+  const tituloNotif = opts?.atualizado
+    ? `${tipoLabel} atualizado`
+    : `Novo ${tipoLabel} da turma`;
 
   const matriculas = await query<{ aluno_id: string }>(
     `SELECT aluno_id FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
     [turmaId],
   );
 
+  const usuarioPorAluno = await usuarioIdsPorAlunos(matriculas.map((m) => m.aluno_id));
+
   for (const m of matriculas) {
-    const usuarioId = await usuarioIdDoAluno(m.aluno_id);
+    const usuarioId = usuarioPorAluno.get(m.aluno_id);
     if (!usuarioId) continue;
     await criarNotificacao(
       usuarioId,
-      `Novo ${tipoLabel} da turma`,
+      tituloNotif,
       `${turmaNome} · ${dataLabel}${localLabel}`,
-      "EVENTO_TURMA",
+      opts?.atualizado ? "EVENTO_TURMA_ATUALIZADO" : "EVENTO_TURMA",
       `/minhas-turmas/${turmaId}`,
     );
   }
@@ -308,6 +314,18 @@ export async function atualizarEvento(
      WHERE e.id = $1`,
     [eventoId],
     { message: "Evento não encontrado" },
+  );
+
+  await notificarEventoParaTurma(
+    turmaId,
+    atualizado.turma_nome ?? "",
+    {
+      tipo: atualizado.tipo,
+      titulo: atualizado.titulo,
+      inicio: new Date(atualizado.inicio).toISOString(),
+      local: atualizado.local,
+    },
+    { atualizado: true },
   );
 
   return mapEvento(atualizado);

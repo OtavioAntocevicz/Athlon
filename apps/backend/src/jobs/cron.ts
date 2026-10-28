@@ -1,49 +1,41 @@
 import cron from "node-cron";
-import { query, queryMaybeOne } from "../lib/db.js";
+import { query } from "../lib/db.js";
 import {
   marcarAtrasados,
   gerarMensalidadesParaTurma,
+  type NovaMensalidadeGerada,
 } from "../modules/mensalidades/mensalidades.service.js";
 import { sincronizarBloqueiosInadimplencia } from "../lib/inadimplencia.js";
 import {
-  criarNotificacao,
   criarNotificacaoSemanal,
-  usuarioIdDoAluno,
+  criarNotificacaoUnicaPorTipo,
+  usuarioIdsPorAlunos,
 } from "../lib/notificacoes.js";
 import { processarAvisosAgendados } from "../modules/avisos/avisos.service.js";
+import {
+  CronJobLockId,
+  runScheduledJob,
+  withCronAdvisoryLock,
+} from "../lib/cron-lock.js";
 
-async function notificarNovasMensalidades() {
-  const turmas = await query<{ id: string; nome: string; dia_vencimento: number | null }>(
-    `SELECT id, nome, dia_vencimento FROM "Turma"`,
-  );
+async function notificarNovasMensalidades(criadas: NovaMensalidadeGerada[]) {
+  if (criadas.length === 0) return;
 
-  for (const turma of turmas) {
-    const matriculas = await query<{ aluno_id: string }>(
-      `SELECT aluno_id FROM "MatriculaTurma"
-       WHERE turma_id = $1 AND afastado = false`,
-      [turma.id],
+  const alunoIds = [...new Set(criadas.map((c) => c.alunoId))];
+  const usuarioPorAluno = await usuarioIdsPorAlunos(alunoIds);
+
+  for (const item of criadas) {
+    const usuarioId = usuarioPorAluno.get(item.alunoId);
+    if (!usuarioId) continue;
+
+    const tipo = `MENSALIDADE_NOVA:${item.turmaId}:${item.mesChave}`;
+    await criarNotificacaoUnicaPorTipo(
+      usuarioId,
+      "Nova mensalidade",
+      `Você tem uma nova mensalidade da turma ${item.turmaNome} com vencimento no dia ${item.diaVencimento}.`,
+      tipo,
+      `/mensalidades/${item.pagamentoId}`,
     );
-
-    for (const m of matriculas) {
-      const usuarioId = await usuarioIdDoAluno(m.aluno_id);
-      if (!usuarioId) continue;
-
-      const pagamento = await queryMaybeOne<{ id: string }>(
-        `SELECT id FROM "Pagamento"
-         WHERE aluno_id = $1 AND turma_id = $2
-         ORDER BY mes_referencia DESC
-         LIMIT 1`,
-        [m.aluno_id, turma.id],
-      );
-
-      await criarNotificacao(
-        usuarioId,
-        "Nova mensalidade",
-        `Você tem uma nova mensalidade da turma ${turma.nome} com vencimento no dia ${turma.dia_vencimento}.`,
-        "MENSALIDADE_NOVA",
-        pagamento?.id ? `/mensalidades/${pagamento.id}` : "/mensalidades",
-      );
-    }
   }
 }
 
@@ -60,8 +52,14 @@ async function notificarAtrasos() {
      WHERE p.status = 'ATRASADO'`,
   );
 
+  if (pagamentos.length === 0) return;
+
+  const usuarioPorAluno = await usuarioIdsPorAlunos([
+    ...new Set(pagamentos.map((p) => p.aluno_id)),
+  ]);
+
   for (const p of pagamentos) {
-    const usuarioId = await usuarioIdDoAluno(p.aluno_id);
+    const usuarioId = usuarioPorAluno.get(p.aluno_id);
     if (!usuarioId) continue;
     await criarNotificacaoSemanal(
       usuarioId,
@@ -74,40 +72,49 @@ async function notificarAtrasos() {
 }
 
 export async function runAvisosJob() {
-  await processarAvisosAgendados();
+  await withCronAdvisoryLock(CronJobLockId.avisos, async () => {
+    await processarAvisosAgendados();
+  });
 }
 
 export async function runDiarioJob() {
-  await runAvisosJob();
-  console.log("[cron] Marcando mensalidades atrasadas...");
-  await marcarAtrasados();
-  await sincronizarBloqueiosInadimplencia();
-  await notificarAtrasos();
+  await withCronAdvisoryLock(CronJobLockId.diario, async () => {
+    await processarAvisosAgendados();
+    console.log("[cron] Marcando mensalidades atrasadas...");
+    await marcarAtrasados();
+    await sincronizarBloqueiosInadimplencia();
+    await notificarAtrasos();
+  });
 }
 
 export async function runMensalJob() {
-  console.log("[cron] Gerando mensalidades do mês...");
-  const turmas = await query<{ id: string }>(
-    `SELECT id FROM "Turma" WHERE mensalidade_centavos IS NOT NULL`,
-  );
+  await withCronAdvisoryLock(CronJobLockId.mensal, async () => {
+    console.log("[cron] Gerando mensalidades do mês...");
+    const turmas = await query<{ id: string }>(
+      `SELECT id FROM "Turma" WHERE mensalidade_centavos IS NOT NULL`,
+    );
 
-  for (const turma of turmas) {
-    await gerarMensalidadesParaTurma(turma.id, 1);
-  }
-  await notificarNovasMensalidades();
-  await sincronizarBloqueiosInadimplencia();
+    const criadas: NovaMensalidadeGerada[] = [];
+    for (const turma of turmas) {
+      const novas = await gerarMensalidadesParaTurma(turma.id, 1);
+      criadas.push(...novas);
+    }
+
+    await notificarNovasMensalidades(criadas);
+    await sincronizarBloqueiosInadimplencia();
+  });
 }
 
 export function startCronJobs() {
   cron.schedule("0 * * * *", () => {
-    void runAvisosJob();
+    runScheduledJob("avisos", () => runAvisosJob());
   });
 
   cron.schedule("0 6 * * *", () => {
-    void runDiarioJob();
+    runScheduledJob("diario", () => runDiarioJob());
   });
 
   cron.schedule("0 7 1 * *", () => {
-    void runMensalJob();
+    runScheduledJob("mensal", () => runMensalJob());
   });
 }

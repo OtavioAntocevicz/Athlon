@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireCronAuth } from "../../middleware/cron-auth.js";
+import { asyncHandler } from "../../lib/async-handler.js";
 import {
   runAvisosJob,
   runDiarioJob,
@@ -10,29 +11,26 @@ export const cronRouter = Router();
 
 cronRouter.use(requireCronAuth);
 
-cronRouter.get("/avisos", async (_req, res, next) => {
-  try {
+cronRouter.get(
+  "/avisos",
+  asyncHandler(async (_req, res) => {
     await runAvisosJob();
     res.json({ ok: true, job: "avisos" });
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
-cronRouter.get("/diario", async (_req, res, next) => {
-  try {
+cronRouter.get(
+  "/diario",
+  asyncHandler(async (_req, res) => {
     await runDiarioJob();
     res.json({ ok: true, job: "diario" });
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);
 
-cronRouter.get("/mensal", async (_req, res, next) => {
-  try {
+cronRouter.get(
+  "/mensal",
+  asyncHandler(async (_req, res) => {
     await runMensalJob();
     res.json({ ok: true, job: "mensal" });
-  } catch (err) {
-    next(err);
-  }
-});
+  }),
+);

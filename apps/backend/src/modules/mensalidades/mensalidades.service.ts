@@ -15,13 +15,24 @@ import {
   isMesFuturo,
   toDateOnly,
   toMesReferenciaDate,
+  chaveMesFromIso,
 } from "../../lib/utils.js";
 import type { StatusMensalidade } from "@athlon/shared-types";
 
 type TurmaRow = {
   id: string;
+  nome: string;
   mensalidade_centavos: number | null;
   dia_vencimento: number | null;
+};
+
+export type NovaMensalidadeGerada = {
+  alunoId: string;
+  pagamentoId: string;
+  turmaId: string;
+  turmaNome: string;
+  diaVencimento: number;
+  mesChave: string;
 };
 
 type MatriculaRow = { aluno_id: string };
@@ -36,14 +47,16 @@ async function upsertPagamento(
   mesRef: Date,
   vencimento: Date,
   valorCentavos: number,
-) {
+): Promise<string | null> {
   const ts = now();
-  await execute(
+  const id = generateId();
+  const rows = await query<{ id: string }>(
     `INSERT INTO "Pagamento" (id, aluno_id, turma_id, mes_referencia, vencimento, valor_centavos, status, criado_em, atualizado_em)
      VALUES ($1, $2, $3, $4, $5, $6, 'PENDENTE', $7, $7)
-     ON CONFLICT (aluno_id, turma_id, mes_referencia) DO NOTHING`,
+     ON CONFLICT (aluno_id, turma_id, mes_referencia) DO NOTHING
+     RETURNING id`,
     [
-      generateId(),
+      id,
       alunoId,
       turmaId,
       toMesReferenciaDate(mesRef),
@@ -52,6 +65,7 @@ async function upsertPagamento(
       ts,
     ],
   );
+  return rows[0]?.id ?? null;
 }
 
 /**
@@ -59,7 +73,7 @@ async function upsertPagamento(
  * Corrige registros antigos gravados como dia 1 e aplica mudança feita pelo professor.
  */
 export async function sincronizarVencimentosDaTurma(turmaId: string) {
-  const turma = await queryOne<TurmaRow>(
+  const turma = await queryOne<Pick<TurmaRow, "id" | "mensalidade_centavos" | "dia_vencimento">>(
     `SELECT id, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
     [turmaId],
     { message: "Turma não encontrada" },
@@ -94,35 +108,51 @@ export async function sincronizarVencimentosTodasTurmas() {
   }
 }
 
-export async function gerarMensalidadesParaTurma(turmaId: string, meses = 1) {
+export async function gerarMensalidadesParaTurma(
+  turmaId: string,
+  meses = 1,
+): Promise<NovaMensalidadeGerada[]> {
   const turma = await queryOne<TurmaRow>(
-    `SELECT id, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
+    `SELECT id, nome, mensalidade_centavos, dia_vencimento FROM "Turma" WHERE id = $1`,
     [turmaId],
     { message: "Turma não encontrada" },
   );
 
-  if (!turma.mensalidade_centavos || !turma.dia_vencimento) return;
+  if (!turma.mensalidade_centavos || !turma.dia_vencimento) return [];
 
   const matriculas = await query<MatriculaRow>(
     `SELECT aluno_id FROM "MatriculaTurma" WHERE turma_id = $1 AND afastado = false`,
     [turmaId],
   );
 
+  const criadas: NovaMensalidadeGerada[] = [];
   const inicio = inicioDoMes();
   for (let i = 0; i < meses; i++) {
     const mesRef = addMeses(inicio, i);
     const vencimento = calcularVencimento(mesRef, turma.dia_vencimento);
+    const mesChave = chaveMesFromIso(toMesReferenciaDate(mesRef));
 
     for (const matricula of matriculas) {
-      await upsertPagamento(
+      const pagamentoId = await upsertPagamento(
         matricula.aluno_id,
         turmaId,
         mesRef,
         vencimento,
         turma.mensalidade_centavos,
       );
+      if (!pagamentoId) continue;
+      criadas.push({
+        alunoId: matricula.aluno_id,
+        pagamentoId,
+        turmaId,
+        turmaNome: turma.nome,
+        diaVencimento: turma.dia_vencimento,
+        mesChave,
+      });
     }
   }
+
+  return criadas;
 }
 
 export async function gerarMensalidadesParaAluno(alunoId: string, turmaId: string) {

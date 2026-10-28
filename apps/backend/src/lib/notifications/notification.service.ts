@@ -38,3 +38,17 @@ export async function sendNotificationSemanal(
   if (existe) return;
   await sendNotification(usuarioId, payload);
 }
+
+/** Não cria in-app/push se já existir notificação com o mesmo tipo (dedup permanente por chave). */
+export async function sendNotificationIfTypeAbsent(
+  usuarioId: string,
+  payload: NotificationPayload,
+): Promise<void> {
+  const count = await countQuery(
+    `SELECT COUNT(*)::text AS count FROM "Notificacao"
+     WHERE usuario_id = $1 AND tipo = $2`,
+    [usuarioId, payload.tipo],
+  );
+  if (count > 0) return;
+  await sendNotification(usuarioId, payload);
+}
