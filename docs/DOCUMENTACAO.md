@@ -1,7 +1,7 @@
 # ATHLON - Documentação Completa do Projeto
 
 > Versão do projeto: **1.7.1**  
-> Última atualização deste documento: outubro/2026  
+> Última atualização deste documento: outubro/2026 (incl. revisão interna de código)  
 > Software proprietário - ver `LICENSE`
 
 > **Infraestrutura atual (pós-migração):** Frontend na Vercel, API + PostgreSQL + crons no Railway, storage no Cloudflare R2, e-mail via Resend. Guia de deploy: [DEPLOY.md](./DEPLOY.md).
@@ -1324,11 +1324,46 @@ A branch `main` reflete o produto em **https://athlonsport.app.br** após as ent
 - Componentes reutilizáveis em `apps/frontend/src/components/ui/`: `empty-state`, `skeleton` (`ListSkeleton`), `query-error`, `toast`, `otp-input`, `segmented-tabs`, `step-indicator`.
 - Listas admin (alunos, professores, auditoria, chamados): `QueryError` + `ListSkeleton` + grid `lg:grid-cols-2`.
 
+### 21.6 Melhorias de código (revisão interna, out/2026)
+
+Entrega na branch **`cursor/code-improvements-a5fd`** (análise de componentes, API e serviços). Backlog residual em [Melhoria.md § Pendente técnico](./Melhoria.md#pendente-técnico-revisão-interna-out2026).
+
+#### Backend
+
+| Tema | Arquivos / comportamento |
+|------|---------------------------|
+| Sync inadimplência em batch | `apps/backend/src/lib/inadimplencia.ts` — pagamentos carregados com JOIN em matrículas ativas; função interna `sincronizarMatriculas` |
+| Crons resilientes | `apps/backend/src/lib/cron-lock.ts`, `apps/backend/src/jobs/cron.ts` — `pg_try_advisory_lock`; `runScheduledJob` com log de erro |
+| Notificações | `apps/backend/src/lib/notificacoes.ts` — `usuarioIdsPorAlunos`, `criarNotificacaoUnicaPorTipo`; `notification.service.ts` — dedup por tipo |
+| Mensalidades | `mensalidades.service.ts` — `gerarMensalidadesParaTurma` retorna só INSERTs novos; job mensal notifica com chave `MENSALIDADE_NOVA:{turmaId}:{YYYY-MM}` |
+| Eventos | `eventos.service.ts` — push in-app/web ao editar (`EVENTO_TURMA_ATUALIZADO`) |
+| Rotas cron | `modules/cron/cron.routes.ts` + `lib/async-handler.ts` |
+| Validação / erros | `middleware/validate.ts` (`validateParams`); `middleware/error-handler.ts` (códigos PG `08*`) |
+
+#### Frontend e mobile
+
+| Tema | Arquivos |
+|------|----------|
+| Sessão HTTP | `apps/frontend/src/lib/api.ts` — no máximo um refresh por chamada (`_sessionRetried`) |
+| Admin | `useAdminListQuery` em dashboard, alunos e auditoria |
+| WebView | `apps/mobile/App.tsx` — `onError`, `onHttpError` |
+
+#### Testes
+
+- Raiz: `pnpm test` = shared-types + frontend (Vitest) + backend (`pnpm --filter @athlon/backend test`, Node test runner).
+- Backend coberto hoje: `security.test.ts`, `sessao.test.ts`, `utils.mes.test.ts`.
+
+#### Pendente (não automatizado nesta entrega)
+
+- Integrações com chave (Sentry, analytics, flags).
+- E2E Playwright e teste de integração `POST /dispositivos`.
+- FCM nativo, CSP restritivo, refatoração total de rotas com `asyncHandler`, JWT enriquecido para MFA/e-mail, remoção do upload base64 legado, política explícita de réplicas Railway para cron.
+
 ---
 
 ## 22. Testes automatizados
 
-O projeto usa **Vitest** para validar schemas compartilhados e lógica do frontend PWA.
+O projeto usa **Vitest** (frontend e schemas) e **Node test runner** (backend) para validar lógica crítica.
 
 ### Executar
 
@@ -1339,13 +1374,20 @@ pnpm test
 Roda, em sequência:
 
 1. Build de `@athlon/shared-types`
-2. Testes dos schemas Zod
-3. Testes do frontend (push, instalação PWA)
+2. Testes dos schemas Zod (`packages/shared-types`)
+3. Testes do frontend PWA (Vitest)
+4. Testes do backend API (`apps/backend/src/**/*.test.ts`, Node `--test`)
 
 ### O que é coberto
 
 | Pacote | Arquivo(s) | Cenários |
 |--------|------------|----------|
+| `shared-types` | `auth.mfa.test.ts`, `auth.codigo-convite.test.ts` | Schemas Zod de auth |
+| `backend` | `security.test.ts` | Escape HTML e validação de URL de comprovante |
+| `backend` | `sessao.test.ts` | Rotação de refresh token |
+| `backend` | `utils.mes.test.ts` | Datas/mês-referência/vencimento |
+| `frontend` | `masks.*.test.ts`, `lazy-with-retry.test.ts` | Máscaras e lazy load |
+| `frontend` | `hide-boot-splash.test.ts` | Splash de boot |
 | `frontend` | `push-notifications.test.ts` | Fluxo VAPID no browser |
 | `frontend` | `pwa-install-storage.test.ts` | Dispensa do tutorial iOS (localStorage) |
 | `frontend` | `is-athlon-app.test.ts` | Detecção do shell Play Store |
@@ -1362,6 +1404,12 @@ Roda, em sequência:
 
 ```bash
 pnpm --filter @athlon/frontend test:watch
+```
+
+Testes só do backend:
+
+```bash
+pnpm --filter @athlon/backend test
 ```
 
 ---

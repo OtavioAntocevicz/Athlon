@@ -131,7 +131,7 @@ Documentação completa: **[docs/DOCUMENTACAO.md](./docs/DOCUMENTACAO.md)**
 | `pnpm db:migrate` | Aplica migrations SQL |
 | `pnpm test:db` | Testa conexão PostgreSQL |
 | `pnpm seed:admin` | Cria usuário ADM |
-| `pnpm test` | Testes automatizados (shared-types + frontend) |
+| `pnpm test` | Testes automatizados (shared-types + frontend + backend) |
 | `pnpm dev:mobile` | Expo dev server (app Play Store) |
 
 ## Licença

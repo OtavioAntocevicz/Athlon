@@ -8,6 +8,15 @@ Itens fora do escopo do MVP atual, organizados por prioridade.
 
 ## Concluído recentemente (out/2026)
 
+- **Revisão interna de código (branch `cursor/code-improvements-a5fd`, out/2026):** melhorias automatizáveis da análise de API/serviços/componentes — ver [DOCUMENTACAO.md §21.6](./DOCUMENTACAO.md#216-melhorias-de-código-revisão-interna-out2026).
+  - **Inadimplência:** sync de bloqueios em batch (uma query de pagamentos + agrupamento; elimina N+1 por matrícula em `sincronizarBloqueiosInadimplencia` / `sincronizarBloqueioAluno`).
+  - **Crons:** advisory lock PostgreSQL por job (`apps/backend/src/lib/cron-lock.ts`); log de falhas nos jobs agendados; batch de `usuario_id` em notificações de atraso e mensalidade nova.
+  - **Mensalidade nova:** notificação só quando o INSERT do mês é novo; dedup por tipo `MENSALIDADE_NOVA:{turmaId}:{YYYY-MM}` (`criarNotificacaoUnicaPorTipo`).
+  - **Eventos:** notificação ao **editar** evento (`EVENTO_TURMA_ATUALIZADO`); lookup de usuários em batch em avisos de evento (`usuarioIdsPorAlunos`).
+  - **API:** `asyncHandler` nas rotas HTTP `/api/cron/*`; middleware `validateParams`; error handler reconhece códigos PostgreSQL de conexão (`08*`).
+  - **Frontend:** retry de sessão limitado a uma tentativa por requisição em `api.ts`; `useAdminListQuery` em dashboard / alunos / auditoria ADM.
+  - **Mobile:** handlers `onError` / `onHttpError` no WebView (`apps/mobile/App.tsx`).
+  - **Testes:** `pnpm test` inclui backend (`node --test` em `apps/backend/src/**/*.test.ts`); correção do teste `hide-boot-splash`.
 - **Documentação sincronizada** com a `main` pós-PRs #16–#43: índice no `README.md`, guias Play Store, `WHITELIST.md` e referência em [DOCUMENTACAO.md §21.4](./DOCUMENTACAO.md#214-estado-do-repositório-e-prs-mescladas-out2026).
 - **PRs obsoletas fechadas:** [#16](https://github.com/OtavioAntocevicz/Athlon/pull/16) (ícones PWA) e [#25](https://github.com/OtavioAntocevicz/Athlon/pull/25) (checklist Play Store) — conteúdo já incorporado na `main`.
 - **[#44](https://github.com/OtavioAntocevicz/Athlon/pull/44)** — segunda passagem de docs (`README`, `DOCUMENTACAO`, `DEPLOY`, `WHITELIST`, `Melhoria`, Play Store, `apps/mobile`).
@@ -145,3 +154,24 @@ Detalhes em [DOCUMENTACAO.md §21.1](./DOCUMENTACAO.md#211-atualizações-recent
 
 - O ADM pode **inativar** a conta (`PATCH /admin/professores/:id/status`) e **excluir definitivamente** (`DELETE /admin/professores/:id`) no detalhe do professor e em **Edição → Professores**.
 - A exclusão remove login, turmas e dados das turmas; alunos do sistema são preservados.
+
+---
+
+## Pendente técnico (revisão interna out/2026)
+
+Itens que **não** entraram na branch de melhorias de código porque exigem credenciais de terceiros, decisão de produto ou trabalho manual amplo. Detalhes em [DOCUMENTACAO.md §21.6](./DOCUMENTACAO.md#216-melhorias-de-código-revisão-interna-out2026).
+
+| Área | Pendência |
+|------|-----------|
+| **Observabilidade** | Sentry no frontend web; analytics real (PostHog / Firebase / Amplitude) e feature flags por ambiente |
+| **Testes** | E2E Playwright (login, MFA ADM, comprovante); integração `POST /dispositivos` com banco de teste |
+| **Mobile** | Push nativo FCM (fase 2; hoje só Web Push no PWA/WebView) |
+| **Segurança HTTP** | Content-Security-Policy no Helmet (hoje desligado para compatibilidade PWA) |
+| **API / DX** | `asyncHandler` em todas as rotas Express; `validateParams` (Zod) nos `:id` de rotas sensíveis |
+| **Auth** | Evitar query extra por request em `requireAlunoEmailVerificado` / `requireAdminMfa` (claims no JWT + invalidação ao confirmar e-mail / habilitar MFA) |
+| **Comprovantes** | Remover rota legada base64 após métricas de uso (upload via URL assinada já é o fluxo principal) |
+| **Performance** | Consolidar SQL do dashboard ADM; loops em **avisos agendados** se o volume crescer |
+| **Crons em produção** | Garantir **uma** instância com `CRON_ENABLED=true` ou cron só via `/api/cron` + lock (lock já existe; falta política de deploy) |
+| **Frontend admin** | Estender `useAdminListQuery` às demais telas admin (professores, chamados, edição, etc.) |
+| **Produto** | Bloqueio de aluno mais rígido (redirecionar só para mensalidades); relatório financeiro; RSVP/`Presenca` |
+| **Operação** | Itens do dono: [WHITELIST.md](./WHITELIST.md) (Play Store, Expo, testers, screenshots logados) |
